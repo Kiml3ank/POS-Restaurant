@@ -1,10 +1,25 @@
 // POS ร้านอาหาร — Prisma schema
-// ขอบเขตของไฟล์นี้ตอนนี้ = บทที่ 3 (ตั้งโปรเจกต์ + วางรากฐาน multi-tenant) เท่านั้น
-// โมเดลเมนู/โต๊ะ/ออร์เดอร์/พนักงาน จะเพิ่มในบทที่ 4-5 และ 13
+// ขอบเขตของไฟล์นี้ตอนนี้ = บทที่ 3-5, 13 (โครงร้าน + เมนู 3 ชั้น + โต๊ะ/session + ออร์เดอร์ + staff/role)
 //
 // กฎประจำไฟล์นี้ (จาก CLAUDE.md หัวข้อ 2 และ 4):
 //   - ทุกตารางที่ผูกกับร้าน ต้องมี tenantId / branchId ตั้งแต่ตัวแรก ห้ามเติมทีหลัง
+//     (รวมถึง OrderItem / Modifier ที่มี branchId ตรงด้วย แม้จะ derive ผ่านความสัมพันธ์ได้
+//     ก็ตาม เพื่อให้ query รายงาน/RBAC ต่อสาขาไม่ต้อง join ทุกจุด — ยกเว้นตาราง join ล้วน ๆ
+//     ที่ไม่มีคุณค่าต่อการ query แยกสาขา เช่น MenuItemModifierGroup, OrderItemModifier)
 //   - จำนวนเงินเก็บเป็น Int หน่วย "สตางค์" เสมอ ห้ามใช้ Float/Decimal แทนเงิน
+//   - schema เมนูต้องยืดหยุ่นสามชั้น Item → ModifierGroup → Modifier ห้าม hardcode
+//     คอลัมน์ size/topping1/topping2 — ModifierGroup ผูกกับ MenuItem แบบ many-to-many
+//     ผ่าน MenuItemModifierGroup เพื่อให้กลุ่มตัวเลือกเดียวกัน (เช่น "ความหวาน") ใช้ซ้ำได้
+//     หลายเมนูโดยไม่ต้อง duplicate
+//
+// นโยบาย onDelete ที่ใช้ทั้งไฟล์:
+//   - Cascade  = ใช้ในสายความเป็นเจ้าของล้วน ๆ ที่ยังไม่มีเงินผูกอยู่ (Branch → MenuCategory,
+//     Table → TableSession, ModifierGroup → Modifier ฯลฯ)
+//   - Restrict = ใช้ทุกจุดที่ชนกับประวัติการเงิน/ออร์เดอร์ (MenuItem/Modifier ที่เคยถูกสั่ง,
+//     TableSession → Order) กันลบเมนู/ปิด session แล้วข้อมูลบิลหายหรือถูกลบตาม
+//     เมนูที่เลิกขายให้ใช้ isAvailable=false แทนการลบจริง
+//   - SetNull  = ใช้กับ field ที่เป็นแค่การ attribution (Staff ที่เปิดโต๊ะ/สั่งออร์เดอร์)
+//     พนักงานลาออกแล้วลบบัญชีได้โดยไม่กระทบประวัติออร์เดอร์
 
 generator client {
   provider = "prisma-client"
@@ -25,6 +40,53 @@ enum OrderStatus {
   SERVED
   PAID
   CANCELLED
+}
+
+/// สถานะรายรายการ — KDS ทำงานที่ระดับนี้ เพราะของในบิลเดียวกันเสร็จไม่พร้อมกัน
+/// (ครัวร้อนเสิร์ฟช้ากว่าบาร์น้ำ) สถานะของ Order คือผลรวมของรายการในบิล
+enum OrderItemStatus {
+  DRAFT
+  PLACED
+  IN_PROGRESS
+  READY
+  SERVED
+  CANCELLED
+}
+
+/// ที่มาของออร์เดอร์ — ใช้แยกว่าลูกค้าสั่งเองผ่าน QR หรือพนักงานสั่งแทน
+enum OrderChannel {
+  CUSTOMER_QR
+  POS
+}
+
+enum OrderType {
+  DINE_IN
+  TAKEAWAY
+}
+
+/// สถานะโต๊ะ ณ ปัจจุบัน — ค่าที่หน้า POS ใช้ระบายสีผังโต๊ะ
+enum TableStatus {
+  AVAILABLE
+  OCCUPIED
+  RESERVED
+  OUT_OF_SERVICE
+}
+
+/// รอบการใช้โต๊ะหนึ่งรอบ (ลูกค้านั่งลง → จ่ายเงินออก)
+/// ABANDONED = ปิดทิ้งโดยพนักงานเพราะลูกค้าหายไปโดยไม่ได้จ่าย/ไม่ได้สั่ง
+enum TableSessionStatus {
+  OPEN
+  CLOSED
+  ABANDONED
+}
+
+/// บทบาทพนักงาน — ฐานของ RBAC ในบทที่ 13
+enum StaffRole {
+  OWNER
+  MANAGER
+  CASHIER
+  SERVER
+  KITCHEN
 }
 
 /// ผู้เช่าระบบ = กิจการ/แบรนด์ร้านอาหาร 1 ราย (อาจมีหลายสาขา)
@@ -65,7 +127,424 @@ model Branch {
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
+  stations       Station[]
+  menuCategories MenuCategory[]
+  menuItems      MenuItem[]
+  modifierGroups ModifierGroup[]
+  modifiers      Modifier[]
+  tables         RestaurantTable[]
+  tableSessions  TableSession[]
+  orders         Order[]
+  orderItems     OrderItem[]
+  staff          Staff[]
+  auditLogs      AuditLog[]
+
   @@unique([tenantId, code])
   @@index([tenantId])
   @@map("branches")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// เมนู (บทที่ 4) — สามชั้น: MenuItem → ModifierGroup → Modifier
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// สถานีในครัว เช่น "ครัวร้อน" "บาร์น้ำ" "ของหวาน" — KDS แยกจอตามสถานีนี้ (บทที่ 8)
+/// เป็นตารางไม่ใช่ enum เพราะแต่ละสาขาจัดครัวไม่เหมือนกันและเพิ่มสถานีเองได้
+model Station {
+  id       String @id @default(cuid())
+  branchId String
+  /// รหัสสั้นที่คนอ่านได้ เช่น "HOT", "BAR" — ไม่ซ้ำภายในสาขา
+  code     String
+  name     String
+
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch     Branch      @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  menuItems  MenuItem[]
+  orderItems OrderItem[]
+
+  @@unique([branchId, code])
+  @@index([branchId])
+  @@map("stations")
+}
+
+/// หมวดเมนู เช่น "ต้ม" "ผัด" "เครื่องดื่ม"
+model MenuCategory {
+  id       String @id @default(cuid())
+  branchId String
+  name     String
+
+  sortOrder   Int      @default(0)
+  /// ปิดทั้งหมวดได้ในคลิกเดียว เช่น หมวดอาหารเช้าที่ขายเฉพาะช่วงเช้า
+  /// หน้าเมนูลูกค้าต้องกรอง isAvailable=true ทุกชั้น (CLAUDE.md บทที่ 6)
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  branch Branch     @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  items  MenuItem[]
+
+  @@index([branchId, sortOrder])
+  @@map("menu_categories")
+}
+
+/// สินค้าที่สั่งได้เป็นชิ้นเดียว — ราคาเริ่มต้นก่อนบวกส่วนต่างจาก Modifier
+model MenuItem {
+  id         String  @id @default(cuid())
+  branchId   String
+  categoryId String
+  /// สถานีที่ต้องทำเมนูนี้ — null = ไม่ต้องผ่านครัว (เช่น น้ำเปล่าขวดที่หยิบเอง)
+  stationId  String?
+
+  name        String
+  description String?
+  /// ราคาตั้งต้น หน่วย "สตางค์" — 12000 = 120.00 บาท ห้ามใช้ float (CLAUDE.md หัวข้อ 4)
+  basePrice   Int
+  imageUrl    String?
+
+  sortOrder   Int      @default(0)
+  /// false = ของหมด/เลิกขาย — ใช้ค่านี้แทนการลบแถว เพราะ OrderItem เก่าอ้างถึงอยู่
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  branch         Branch                  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  category       MenuCategory            @relation(fields: [categoryId], references: [id], onDelete: Restrict)
+  station        Station?                @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  modifierGroups MenuItemModifierGroup[]
+  orderItems     OrderItem[]
+
+  @@index([branchId, categoryId, sortOrder])
+  @@index([categoryId])
+  @@index([stationId])
+  @@map("menu_items")
+}
+
+/// กลุ่มตัวเลือก เช่น "ขนาด" "ระดับความเผ็ด" "ท็อปปิ้ง"
+/// กฎการเลือกอยู่ที่นี่ ไม่ได้ hardcode ไว้ในโค้ดหน้าเมนู
+model ModifierGroup {
+  id       String @id @default(cuid())
+  branchId String
+  name     String
+
+  /// true = ลูกค้าต้องเลือกก่อนใส่ตะกร้าได้ (เช่น ขนาดแก้ว)
+  required  Boolean @default(false)
+  /// จำนวนตัวเลือกขั้นต่ำ/สูงสุดที่เลือกได้ — maxSelect = 1 คือ radio, > 1 คือ checkbox
+  minSelect Int     @default(0)
+  maxSelect Int     @default(1)
+
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch    Branch                  @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  modifiers Modifier[]
+  menuItems MenuItemModifierGroup[]
+
+  @@index([branchId])
+  @@map("modifier_groups")
+}
+
+/// ตัวเลือกย่อยในกลุ่ม เช่น "แก้วใหญ่ +10 บาท", "เผ็ดน้อย +0"
+model Modifier {
+  id              String @id @default(cuid())
+  branchId        String
+  modifierGroupId String
+  name            String
+
+  /// ส่วนต่างราคา หน่วย "สตางค์" — เป็นลบได้ (เช่น "ไม่เอาเนื้อ -1000")
+  priceDelta Int @default(0)
+
+  sortOrder   Int      @default(0)
+  isAvailable Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  branch     Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  group      ModifierGroup       @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+  orderItems OrderItemModifier[]
+
+  @@index([branchId])
+  @@index([modifierGroupId, sortOrder])
+  @@map("modifiers")
+}
+
+/// ตาราง join ระหว่างเมนูกับกลุ่มตัวเลือก — many-to-many เพื่อให้กลุ่มเดียวกัน
+/// (เช่น "ระดับความหวาน") ผูกกับหลายเมนูได้โดยไม่ต้องสร้างซ้ำทุกเมนู
+model MenuItemModifierGroup {
+  menuItemId      String
+  modifierGroupId String
+  /// ลำดับการแสดงกลุ่มนี้ "เฉพาะในเมนูนี้" — เมนูอื่นเรียงกลุ่มเดียวกันคนละลำดับได้
+  sortOrder       Int    @default(0)
+
+  menuItem      MenuItem      @relation(fields: [menuItemId], references: [id], onDelete: Cascade)
+  modifierGroup ModifierGroup @relation(fields: [modifierGroupId], references: [id], onDelete: Cascade)
+
+  @@id([menuItemId, modifierGroupId])
+  @@index([modifierGroupId])
+  @@map("menu_item_modifier_groups")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// โต๊ะและ session (บทที่ 5)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// โต๊ะในร้าน — ชื่อโมเดลเลี่ยงคำว่า `Table` เพราะชนกับคำสงวนของ SQL
+model RestaurantTable {
+  id       String @id @default(cuid())
+  branchId String
+  /// ชื่อโต๊ะที่คนเรียก เช่น "A1", "ระเบียง 3" — ไม่ซ้ำภายในสาขา
+  name     String
+
+  /// รหัสใน URL ของ QR ปัจจุบัน (/t/[tableCode]) — สุ่มและ "หมุนเปลี่ยนได้"
+  /// ต้องไม่ซ้ำทั้งระบบเพราะ resolve จาก URL ตรง ๆ โดยยังไม่รู้สาขา
+  /// การพิมพ์ QR ใหม่ = เปลี่ยนค่านี้ ทำให้ QR ใบเก่าที่ลูกค้าถ่ายรูปไว้ใช้ไม่ได้ทันที
+  tableCode String @unique
+
+  seats  Int         @default(4)
+  status TableStatus @default(AVAILABLE)
+
+  sortOrder Int      @default(0)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch   Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  sessions TableSession[]
+  orders   Order[]
+
+  @@unique([branchId, name])
+  @@index([branchId, status])
+  @@map("restaurant_tables")
+}
+
+/// รอบการใช้โต๊ะหนึ่งรอบ — ชั้นที่กันเคส "ลูกค้าถ่ายรูป QR ไว้แล้วสั่งจากบ้านอีกสามวันถัดมา"
+/// เพราะ tableCode อย่างเดียวไม่มีวันหมดอายุ แต่ session มี
+model TableSession {
+  id       String @id @default(cuid())
+  branchId String
+  tableId  String
+
+  /// ค่าที่เก็บใน cookie ฝั่งลูกค้า — proxy.ts ตรวจค่านี้ก่อนปล่อยเข้า route ลูกค้า
+  token String @unique
+
+  status TableSessionStatus @default(OPEN)
+  /// จำนวนลูกค้า — ใช้ทำรายงานยอดขายต่อหัวในบทที่ 15
+  pax    Int                @default(1)
+
+  openedAt  DateTime  @default(now())
+  /// หมดอายุอัตโนมัติ กันลูกค้าที่กลับบ้านไปแล้วยังสั่งเข้าครัวได้
+  expiresAt DateTime
+  closedAt  DateTime?
+
+  /// พนักงานที่เปิดโต๊ะให้ — null = ลูกค้าสแกน QR เปิดเอง
+  openedByStaffId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch        Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  table         RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  openedByStaff Staff?          @relation(fields: [openedByStaffId], references: [id], onDelete: SetNull)
+  orders        Order[]
+
+  @@index([branchId, status])
+  @@index([tableId, status])
+  @@map("table_sessions")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// ออร์เดอร์ (บทที่ 7)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// บิลหนึ่งใบ — status=DRAFT คือ "ตะกร้า" ที่ยังไม่ส่งเข้าครัว
+/// ตะกร้าอยู่ฝั่ง server ตั้งแต่ต้นเพื่อไม่ให้หายตอน refresh (CLAUDE.md บทที่ 7)
+model Order {
+  id             String  @id @default(cuid())
+  branchId       String
+  /// null ได้เมื่อเป็นออร์เดอร์กลับบ้านที่ไม่ผูกโต๊ะ
+  tableSessionId String?
+  /// เก็บโต๊ะซ้ำไว้ตรง ๆ ด้วย เพราะการย้าย/รวมโต๊ะเปลี่ยนค่านี้ได้โดย session เดิมไม่เปลี่ยน
+  tableId        String?
+
+  /// เลขบิลที่คนอ่านได้ เดินต่อเนื่องภายในสาขา — ใช้ออกใบกำกับภาษีในบทที่ 12
+  orderNumber String
+
+  status  OrderStatus  @default(DRAFT)
+  type    OrderType    @default(DINE_IN)
+  channel OrderChannel @default(CUSTOMER_QR)
+
+  /// พนักงานที่กดส่งออร์เดอร์ — null = ลูกค้าสั่งเองจากมือถือ
+  placedByStaffId String?
+
+  // ── ยอดเงิน: ทุกคอลัมน์เป็น Int หน่วยสตางค์ (CLAUDE.md บทที่ 10) ────────────
+  /// ผลรวมของ OrderItem.lineTotal ทั้งบิล ก่อนส่วนลด
+  subtotal            Int @default(0)
+  discountAmount      Int @default(0)
+  /// ลำดับการคิดตามบทที่ 10: (subtotal - discount) → service charge → VAT
+  serviceChargeAmount Int @default(0)
+  vatAmount           Int @default(0)
+  grandTotal          Int @default(0)
+
+  /// snapshot อัตราที่ใช้ตอนปิดบิล — ห้ามอ่านจาก Branch ตอนพิมพ์ใบเสร็จย้อนหลัง
+  /// เพราะร้านอาจปรับเซอร์วิสชาร์จ/VAT ไปแล้วหลังบิลนี้ปิด
+  serviceChargeBp  Int?
+  vatRateBp        Int?
+  pricesIncludeVat Boolean?
+
+  note String?
+
+  // ── timestamp ของแต่ละสถานะ: ใช้วัดเวลาครัวและทำ audit trail ในบทที่ 13/15 ──
+  placedAt     DateTime?
+  startedAt    DateTime?
+  readyAt      DateTime?
+  servedAt     DateTime?
+  paidAt       DateTime?
+  cancelledAt  DateTime?
+  /// เหตุผลการยกเลิก — บังคับกรอกในบทที่ 13 เพราะเป็นจุดที่โกงกันบ่อยที่สุด
+  cancelReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch        Branch           @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  tableSession  TableSession?    @relation(fields: [tableSessionId], references: [id], onDelete: Restrict)
+  table         RestaurantTable? @relation(fields: [tableId], references: [id], onDelete: Restrict)
+  placedByStaff Staff?           @relation(fields: [placedByStaffId], references: [id], onDelete: SetNull)
+  items         OrderItem[]
+
+  @@unique([branchId, orderNumber])
+  @@index([branchId, status])
+  @@index([tableSessionId])
+  @@index([branchId, placedAt])
+  @@map("orders")
+}
+
+/// หนึ่งบรรทัดในบิล — many-to-many ระหว่าง Order กับ MenuItem อยู่ที่ตารางนี้
+/// ทุกคอลัมน์ที่ลงท้ายด้วย Snapshot คือค่า ณ เวลาที่สั่ง ห้าม join ไปอ่านจากเมนูสด
+/// เพราะร้านขึ้นราคา/เปลี่ยนชื่อเมนูแล้วบิลเก่าต้องไม่เปลี่ยนตาม
+model OrderItem {
+  id         String  @id @default(cuid())
+  branchId   String
+  orderId    String
+  menuItemId String
+  /// สถานีที่ต้องทำ ณ เวลาที่สั่ง — KDS กรองด้วยค่านี้ ไม่ต้อง join เมนู
+  stationId  String?
+
+  nameSnapshot      String
+  /// ราคาต่อหน่วยก่อนบวก modifier หน่วยสตางค์
+  unitPriceSnapshot Int
+  /// ผลรวมส่วนต่างของ modifier ทุกตัวในบรรทัดนี้ ต่อหนึ่งหน่วย หน่วยสตางค์
+  modifierTotal     Int    @default(0)
+  quantity          Int    @default(1)
+  /// (unitPriceSnapshot + modifierTotal) × quantity — คิดล่วงหน้าเก็บไว้เลย
+  /// เพราะรายงานยอดขายบทที่ 15 ต้อง SUM คอลัมน์นี้ตรง ๆ
+  lineTotal         Int
+
+  status OrderItemStatus @default(DRAFT)
+  note   String?
+
+  startedAt    DateTime?
+  readyAt      DateTime?
+  servedAt     DateTime?
+  cancelledAt  DateTime?
+  /// ยกเลิกรายการที่ครัวเริ่มทำแล้วต้องบันทึกเหตุผล (บทที่ 9)
+  cancelReason String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch    Branch              @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  order     Order               @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  menuItem  MenuItem            @relation(fields: [menuItemId], references: [id], onDelete: Restrict)
+  station   Station?            @relation(fields: [stationId], references: [id], onDelete: SetNull)
+  modifiers OrderItemModifier[]
+
+  @@index([orderId])
+  @@index([branchId, status])
+  @@index([stationId, status])
+  @@map("order_items")
+}
+
+/// ตัวเลือกที่ลูกค้าเลือกจริงในบรรทัดนั้น พร้อม snapshot ชื่อและส่วนต่างราคา
+model OrderItemModifier {
+  id          String @id @default(cuid())
+  orderItemId String
+  modifierId  String
+
+  nameSnapshot       String
+  /// ส่วนต่างราคา ณ เวลาที่สั่ง หน่วยสตางค์ (เป็นลบได้)
+  priceDeltaSnapshot Int
+
+  orderItem OrderItem @relation(fields: [orderItemId], references: [id], onDelete: Cascade)
+  modifier  Modifier  @relation(fields: [modifierId], references: [id], onDelete: Restrict)
+
+  @@unique([orderItemId, modifierId])
+  @@index([modifierId])
+  @@map("order_item_modifiers")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// พนักงาน สิทธิ์ และ audit log (บทที่ 13)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// พนักงานหน้าร้าน — ล็อกอินด้วย PIN สั้น ไม่ใช่อีเมล/รหัสผ่าน เพราะต้องกดเร็วหน้าเครื่อง
+model Staff {
+  id       String @id @default(cuid())
+  branchId String
+  name     String
+  /// รหัสพนักงานที่ใช้พิมพ์คู่กับ PIN — ไม่ซ้ำภายในสาขา
+  code     String
+
+  /// เก็บเฉพาะ hash ของ PIN เท่านั้น ห้ามเก็บ PIN ดิบเด็ดขาด
+  /// PIN สั้นจึงต้องคู่กับการจำกัดจำนวนครั้งที่กรอกผิด (rate limit ในบทที่ 13)
+  pinHash String
+  role    StaffRole @default(SERVER)
+
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  branch         Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  openedSessions TableSession[]
+  placedOrders   Order[]
+  auditLogs      AuditLog[]
+
+  @@unique([branchId, code])
+  @@index([branchId, isActive])
+  @@map("staff")
+}
+
+/// บันทึกการกระทำที่สืบสาวย้อนหลังได้ — เคสตัวอย่างในเล่ม: บิลถูก "ยกเลิก"
+/// หลังจ่ายเงินไปแล้วไม่กี่นาที ต้องตอบให้ได้ว่าใครกด กดจากเครื่องไหน ตอนกี่โมง
+/// ตารางนี้เขียนอย่างเดียว ห้าม update/delete จากโค้ดแอป
+model AuditLog {
+  id       String  @id @default(cuid())
+  branchId String
+  staffId  String?
+
+  /// เช่น "order.cancel", "order.discount", "staff.login_failed"
+  action     String
+  /// ชนิดและ id ของสิ่งที่ถูกกระทำ เก็บเป็น string กว้าง ๆ เพราะครอบหลายตาราง
+  entityType String
+  entityId   String
+
+  /// ค่าก่อน/หลัง และบริบทอื่น ๆ — Json เพราะรูปร่างต่างกันไปตาม action
+  metadata  Json?
+  ipAddress String?
+
+  createdAt DateTime @default(now())
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  staff  Staff? @relation(fields: [staffId], references: [id], onDelete: SetNull)
+
+  @@index([branchId, createdAt])
+  @@index([entityType, entityId])
+  @@index([staffId])
+  @@map("audit_logs")
 }

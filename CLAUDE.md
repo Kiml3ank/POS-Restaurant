@@ -104,7 +104,7 @@ Docker ใช้งานได้แล้วในเครื่องพั�
 7. สต็อก (รุ่นเรียบง่าย) + รายงานปิดกะ/ปิดวัน (บทที่ 14-15)
 8. Deploy (บทที่ 16)
 
-## 6. สถานะปัจจุบัน (อัปเดต 2026-08-20)
+## 6. สถานะปัจจุบัน (อัปเดต 2026-08-21)
 
 **ทำไปแล้ว: หัวข้อ 3 ข้อ 1-3 (บทที่ 1-3)** — scaffold ใช้งานได้จริงแล้ว รันผ่านครบทั้ง
 `npm run build`, `tsc --noEmit`, `eslint` และเปิดได้ทั้ง 4 เส้นทางบน dev server
@@ -134,13 +134,59 @@ Prisma 7 เปลี่ยนจากตอนที่ e-book เขียน
 แพ็กเกจที่ต้องคอมไพล์ (เช่น engine ของ Prisma, sharp) ต้องสั่ง `npm approve-scripts <pkg>`
 ตามด้วย `npm rebuild` ไม่งั้นจะพังตอนรัน ไม่ใช่ตอนติดตั้ง
 
+### schema + migration + seed รันครบแล้ว ✅ (หัวข้อ 5 ข้อ 2 — บทที่ 4-5, 13)
+
+`prisma/schema.prisma` (550 บรรทัด), migration และ seed **รันครบแล้วเมื่อ 2026-08-21**
+ฐานข้อมูล dev พร้อมใช้งานจริง ไม่ต้องรันซ้ำ:
+
+- migration ที่ apply แล้ว: `20260820065456_init` + `20260821013157_menu_tables_orders_staff`
+- ฐานข้อมูลมี 16 ตาราง, ผ่าน `prisma validate`, `tsc --noEmit`, `eslint` ครบทั้งหมด
+- ข้อมูล seed: 3 สถานี, 4 หมวด, 6 เมนู, 4 กลุ่มตัวเลือก (11 ตัวเลือก), 5 โต๊ะ, พนักงาน 4 คน
+- ทดสอบหน้าลูกค้าที่ `/t/a1x7qk` — PIN dev: 001=1234, 002=2345, 003=3456, 004=4567
+
+ถ้าต้องรีเซ็ต DB สะอาด: `npm run db:reset` แล้ว `npx prisma migrate dev` + `npm run db:seed`
+
+**หมายเหตุเครื่อง dev (2026-08-21):** Docker Desktop บนเครื่องนี้ติดตั้งแบบ per-user ที่
+`C:\Users\ADMIN\AppData\Local\Programs\DockerDesktop` (ไม่ใช่ `C:\Program Files\Docker`)
+ถ้าสั่ง `docker` ไม่เจอ ให้เติม `...\DockerDesktop\resources\bin` เข้า PATH ก่อน
+
+โมเดลที่เพิ่มเข้ามา (ทุกตารางมี `branchId` ตั้งแต่แถวแรก, เงินเป็น `Int` สตางค์ทุกคอลัมน์):
+
+- **เมนู 3 ชั้น** — `MenuCategory` → `MenuItem` → (`MenuItemModifierGroup`) →
+  `ModifierGroup` → `Modifier` ตัวกลางเป็น many-to-many เพื่อให้กลุ่มตัวเลือกเดียวกัน
+  เช่น "ความหวาน" ใช้ซ้ำได้หลายเมนู และ `sortOrder` ของกลุ่มเป็นค่าเฉพาะคู่เมนู-กลุ่ม
+- **`Station`** — สถานีครัว (ครัวร้อน/บาร์น้ำ/ของหวาน) เป็นตารางไม่ใช่ enum เพราะแต่ละ
+  สาขาจัดครัวไม่เหมือนกัน; KDS บทที่ 8 กรองด้วย `OrderItem.stationId` ที่ snapshot ไว้
+  ตอนสั่ง ไม่ต้อง join เมนูสด
+- **`RestaurantTable` / `TableSession`** — ชื่อโมเดลเลี่ยงคำว่า `Table` เพราะชนคำสงวน SQL
+  `tableCode` เป็น unique ทั้งระบบ (resolve จาก URL `/t/[tableCode]` โดยยังไม่รู้สาขา)
+  และหมุนเปลี่ยนได้เมื่อพิมพ์ QR ใหม่; `TableSession.expiresAt` คือชั้นที่กันเคส
+  "ลูกค้าถ่ายรูป QR แล้วสั่งจากบ้านอีกสามวันถัดมา"
+- **`Order` / `OrderItem` / `OrderItemModifier`** — `status=DRAFT` คือตะกร้าฝั่ง server
+  (บทที่ 7); คอลัมน์ที่ลงท้ายด้วย `Snapshot` คือค่า ณ เวลาที่สั่ง ห้าม join อ่านจากเมนูสด
+  เพราะร้านขึ้นราคาแล้วบิลเก่าต้องไม่เปลี่ยนตาม; `Order` เก็บ snapshot ของ
+  `serviceChargeBp`/`vatRateBp`/`pricesIncludeVat` ไว้ด้วยเพื่อพิมพ์ใบเสร็จย้อนหลังได้ถูก
+- **`OrderItemStatus` แยกจาก `OrderStatus`** — KDS ทำงานที่ระดับรายการ เพราะของในบิล
+  เดียวกันเสร็จไม่พร้อมกัน สถานะของบิลคือผลรวมของรายการ
+- **`Staff` (enum `StaffRole`) + `AuditLog`** — ฐาน RBAC บทที่ 13; `AuditLog` เขียนอย่างเดียว
+  ห้าม update/delete จากโค้ดแอป
+- **นโยบาย `onDelete`** — Cascade เฉพาะสายความเป็นเจ้าของที่ยังไม่มีเงินผูก,
+  Restrict ทุกจุดที่ชนประวัติบิล (เมนูที่เคยถูกสั่ง → ใช้ `isAvailable=false` แทนการลบ),
+  SetNull เฉพาะ field ที่เป็นแค่ attribution (พนักงานที่เปิดโต๊ะ/กดส่งออร์เดอร์)
+
+seed สร้างข้อมูล dev ให้ครบชุด: 3 สถานี, 4 หมวด, 6 เมนู, 4 กลุ่มตัวเลือก, 5 โต๊ะ
+(`/t/a1x7qk` ใช้ทดสอบได้เลย) และพนักงาน 4 คน — PIN hash ด้วย `scrypt` ที่ Node มีในตัว
+รูปแบบ `scrypt$<saltHex>$<hashHex>` **บทที่ 13 ต้องย้ายฟังก์ชัน hash/verify คู่นี้ไปอยู่
+ที่เดียวกับตรรกะล็อกอิน แล้วให้ seed เรียกใช้ร่วมกัน** (ตอนนี้ hash อยู่ใน seed.ts ตรง ๆ
+เพราะ `lib/server/*` มี `import "server-only"` ที่ throw เมื่อรันผ่าน tsx นอก Next.js)
+
 ## 7. ขั้นถัดไป
 
 ทำต่อทีละก้อน อย่าสั่งรวดเดียวหลายบท (context จะเต็มแล้วเริ่มหลุดกฎที่ตั้งไว้ด้านบน)
 
-**ก้อนถัดไป = หัวข้อ 5 ข้อ 2 (บทที่ 4-5, 13):** ออกแบบ Prisma schema เต็ม —
-MenuCategory / MenuItem / ModifierGroup / Modifier, Table / TableSession,
-Order / OrderItem, Staff / Role โดยทุกตารางต้องมี `branchId` ตั้งแต่แถวแรก
-และจำนวนเงินทุกคอลัมน์เป็น `Int` หน่วยสตางค์
+**ก้อนถัดไป = หัวข้อ 5 ข้อ 3 (บทที่ 6-7):** หน้าเมนูลูกค้า + ตะกร้า + ส่งออร์เดอร์ —
+React Server Component ดึง MenuCategory → MenuItem → ModifierGroup → Modifier
+ครั้งเดียว (กรอง `isAvailable=true` ทุกชั้น), ตะกร้าเป็น Order ที่ `status=DRAFT`
+ฝั่ง server, กันกดส่งซ้ำด้วย `useActionState`/`useFormStatus`
 
 @AGENTS.md

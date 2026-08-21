@@ -1,0 +1,147 @@
+import "server-only";
+
+import { cookies } from "next/headers";
+import { randomBytes } from "node:crypto";
+
+import { prisma } from "@/lib/server/db";
+
+/**
+ * โต๊ะ + รอบการใช้โต๊ะ (บทที่ 5) — ชั้นที่กันเคสในเล่ม
+ * "ลูกค้าถ่ายรูป QR ที่โต๊ะไว้ แล้วกลับไปสั่งอาหารจากที่บ้านอีกสามวันถัดมา"
+ *
+ * tableCode อย่างเดียวกันไม่ได้เพราะมันไม่มีวันหมดอายุ ของจริงต้องมีสองชั้น:
+ *   1. tableCode  — บอกว่า QR ใบนี้คือโต๊ะไหน (หมุนเปลี่ยนได้ตอนพิมพ์ QR ใหม่)
+ *   2. TableSession — บอกว่า "รอบนี้" ยังเปิดอยู่ไหม มี expiresAt กำกับ
+ *      token ของ session เก็บใน cookie httpOnly ฝั่งลูกค้า
+ */
+
+/** cookie ที่ถือ token ของ TableSession — httpOnly ทั้งหมด ห้ามให้ JS ฝั่ง client อ่าน */
+export const TABLE_SESSION_COOKIE = "pos_table_session";
+
+/**
+ * อายุของหนึ่งรอบโต๊ะ — ตั้งไว้ยาวพอสำหรับมื้อที่กินกันนาน แต่สั้นพอที่ QR
+ * ที่ถูกถ่ายรูปติดมือไปจะใช้ไม่ได้ในวันรุ่งขึ้น
+ *
+ * ตั้งใจ "ไม่ต่ออายุอัตโนมัติ" ตอนลูกค้าสั่งเพิ่ม เพราะถ้าต่อไปเรื่อย ๆ
+ * session ที่ลูกค้าลืมปิดจะไม่มีวันหมดอายุเลย — บทที่ 9 จะให้พนักงานเป็นคน
+ * ปิด/เปิดรอบใหม่จากหน้า POS แทน
+ */
+export const TABLE_SESSION_TTL_HOURS = 3;
+
+export type CustomerContext = Awaited<ReturnType<typeof resolveCustomerContext>>;
+
+/** อ่าน token จาก cookie — คืน null เมื่อยังไม่เคยเปิดโต๊ะจากเครื่องนี้ */
+export async function readTableSessionToken(): Promise<string | null> {
+  const store = await cookies();
+  return store.get(TABLE_SESSION_COOKIE)?.value ?? null;
+}
+
+/**
+ * รวมทุกอย่างที่หน้าจอลูกค้าต้องรู้จาก URL /t/[tableCode] ไว้ในที่เดียว
+ *
+ * คืน session = null ได้ 3 กรณี และทุกกรณีจบที่หน้าจอ "เปิดโต๊ะ" เหมือนกัน:
+ *   - ยังไม่มี cookie เลย (สแกน QR ครั้งแรก)
+ *   - cookie ชี้ไป session ที่ปิดแล้ว/หมดอายุแล้ว
+ *   - cookie ชี้ไป session ของ "โต๊ะอื่น" (ย้ายโต๊ะแล้วสแกน QR ใบใหม่)
+ */
+export async function resolveCustomerContext(tableCode: string) {
+  const table = await prisma.restaurantTable.findUnique({
+    where: { tableCode },
+    include: { branch: true },
+  });
+
+  if (!table || !table.isActive || !table.branch.isActive) {
+    return null;
+  }
+
+  const token = await readTableSessionToken();
+  const session = token
+    ? await prisma.tableSession.findFirst({
+        where: {
+          token,
+          tableId: table.id,
+          status: "OPEN",
+          expiresAt: { gt: new Date() },
+        },
+      })
+    : null;
+
+  return { table, branch: table.branch, session };
+}
+
+/**
+ * เปิดรอบโต๊ะ (หรือเข้าร่วมรอบที่เปิดค้างอยู่)
+ *
+ * ถ้าโต๊ะนี้มีรอบที่ยังเปิดอยู่แล้ว จะ "เข้าร่วมรอบเดิม" ไม่ใช่สร้างรอบใหม่
+ * เพราะหนึ่งโต๊ะที่นั่งกันสี่คน สแกน QR สี่เครื่อง ต้องได้บิลใบเดียวกัน
+ * ไม่ใช่แยกกันสี่บิล — ตะกร้าจึงผูกกับ TableSession ไม่ใช่ผูกกับเครื่อง
+ *
+ * ทั้งการสร้าง session และการเปลี่ยนสถานะโต๊ะเป็น OCCUPIED อยู่ใน
+ * transaction เดียวกัน (CLAUDE.md หัวข้อ 4: แก้หลายตารางพร้อมกัน = ต้อง transaction)
+ */
+export async function openTableSession(tableCode: string, pax: number) {
+  const table = await prisma.restaurantTable.findUnique({
+    where: { tableCode },
+    include: { branch: true },
+  });
+
+  if (!table || !table.isActive || !table.branch.isActive) {
+    return null;
+  }
+
+  const now = new Date();
+
+  const session = await prisma.$transaction(async (tx) => {
+    const existing = await tx.tableSession.findFirst({
+      where: { tableId: table.id, status: "OPEN", expiresAt: { gt: now } },
+      orderBy: { openedAt: "desc" },
+    });
+
+    if (existing) {
+      // เข้าร่วมรอบเดิม — อัปเดตจำนวนลูกค้าเฉพาะตอนที่กรอกมามากกว่าเดิม
+      // (คนที่สองที่สแกนเข้ามาไม่ควรลดจำนวนที่คนแรกกรอกไว้)
+      if (pax > existing.pax) {
+        return tx.tableSession.update({ where: { id: existing.id }, data: { pax } });
+      }
+      return existing;
+    }
+
+    const created = await tx.tableSession.create({
+      data: {
+        branchId: table.branchId,
+        tableId: table.id,
+        token: randomBytes(32).toString("base64url"),
+        pax,
+        expiresAt: new Date(now.getTime() + TABLE_SESSION_TTL_HOURS * 60 * 60 * 1000),
+      },
+    });
+
+    await tx.restaurantTable.update({
+      where: { id: table.id },
+      data: { status: "OCCUPIED" },
+    });
+
+    return created;
+  });
+
+  await writeTableSessionCookie(session.token, session.expiresAt);
+
+  return session;
+}
+
+/**
+ * เขียน cookie ของ session — เรียกได้เฉพาะจาก Server Action / Route Handler เท่านั้น
+ * (Next.js ตั้ง cookie ระหว่าง render ของ Server Component ไม่ได้ เพราะ header
+ * ถูกส่งออกไปแล้วตอน stream เริ่ม)
+ */
+async function writeTableSessionCookie(token: string, expiresAt: Date) {
+  const store = await cookies();
+
+  store.set(TABLE_SESSION_COOKIE, token, {
+    httpOnly: true,
+    sameSite: "lax",
+    secure: process.env.NODE_ENV === "production",
+    path: "/",
+    expires: expiresAt,
+  });
+}
