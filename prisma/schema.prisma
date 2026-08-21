@@ -1,0 +1,71 @@
+// POS ร้านอาหาร — Prisma schema
+// ขอบเขตของไฟล์นี้ตอนนี้ = บทที่ 3 (ตั้งโปรเจกต์ + วางรากฐาน multi-tenant) เท่านั้น
+// โมเดลเมนู/โต๊ะ/ออร์เดอร์/พนักงาน จะเพิ่มในบทที่ 4-5 และ 13
+//
+// กฎประจำไฟล์นี้ (จาก CLAUDE.md หัวข้อ 2 และ 4):
+//   - ทุกตารางที่ผูกกับร้าน ต้องมี tenantId / branchId ตั้งแต่ตัวแรก ห้ามเติมทีหลัง
+//   - จำนวนเงินเก็บเป็น Int หน่วย "สตางค์" เสมอ ห้ามใช้ Float/Decimal แทนเงิน
+
+generator client {
+  provider = "prisma-client"
+  output   = "../lib/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+/// สถานะออร์เดอร์ — data contract กลางที่ทั้ง 4 หน้าจออ้างอิงร่วมกัน (CLAUDE.md หัวข้อ 1)
+/// DRAFT → PLACED → IN_PROGRESS → READY → SERVED → PAID (และ CANCELLED)
+enum OrderStatus {
+  DRAFT
+  PLACED
+  IN_PROGRESS
+  READY
+  SERVED
+  PAID
+  CANCELLED
+}
+
+/// ผู้เช่าระบบ = กิจการ/แบรนด์ร้านอาหาร 1 ราย (อาจมีหลายสาขา)
+model Tenant {
+  id        String   @id @default(cuid())
+  name      String
+  /// เลขประจำตัวผู้เสียภาษี 13 หลัก — ใช้ออกใบกำกับภาษีอย่างย่อในบทที่ 12
+  taxId     String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branches Branch[]
+
+  @@map("tenants")
+}
+
+/// สาขา — หน่วยที่ผูกกับโต๊ะ/เมนู/ออร์เดอร์/กะ ทั้งหมดในบทถัดไป
+model Branch {
+  id       String @id @default(cuid())
+  tenantId String
+  /// รหัสสาขาที่คนอ่านได้ เช่น "HQ", "BR-02" — ไม่ซ้ำภายใน tenant เดียวกัน
+  code     String
+  name     String
+
+  /// ค่าเซอร์วิสชาร์จ หน่วยเป็น basis point (1000 = 10.00%) — เก็บเป็น Int ห้ามใช้ float
+  serviceChargeBp  Int     @default(0)
+  /// อัตรา VAT หน่วยเป็น basis point (700 = 7.00%)
+  vatRateBp        Int     @default(700)
+  /// true = ราคาเมนูรวม VAT แล้ว (คิดแบบถอด VAT ออกทีหลัง)
+  pricesIncludeVat Boolean @default(true)
+
+  timezone String @default("Asia/Bangkok")
+  currency String @default("THB")
+
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+
+  @@unique([tenantId, code])
+  @@index([tenantId])
+  @@map("branches")
+}
