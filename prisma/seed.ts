@@ -1,10 +1,9 @@
 import "dotenv/config";
 
-import { scryptSync, randomBytes } from "node:crypto";
-
 import { PrismaPg } from "@prisma/adapter-pg";
 
 import { PrismaClient } from "../lib/generated/prisma/client";
+import { hashPin } from "../lib/server/pin";
 
 /**
  * Seed สำหรับ dev — 1 กิจการ 1 สาขา พร้อมเมนู/โต๊ะ/พนักงานชุดตัวอย่าง
@@ -17,17 +16,6 @@ import { PrismaClient } from "../lib/generated/prisma/client";
 const prisma = new PrismaClient({
   adapter: new PrismaPg({ connectionString: process.env.DATABASE_URL }),
 });
-
-/**
- * PIN hash ด้วย scrypt ที่ Node มีมาให้ในตัว ไม่ต้องเพิ่ม dependency
- * รูปแบบที่เก็บ: "scrypt$<saltHex>$<hashHex>" — บทที่ 13 จะย้ายฟังก์ชันคู่นี้
- * (hash + verify) ไปอยู่ที่เดียวกับตรรกะล็อกอิน แล้วให้ seed เรียกใช้ร่วมกัน
- */
-function hashPin(pin: string): string {
-  const salt = randomBytes(16);
-  const hash = scryptSync(pin, salt, 64);
-  return `scrypt$${salt.toString("hex")}$${hash.toString("hex")}`;
-}
 
 const STATIONS = [
   { id: "seed-station-hot", code: "HOT", name: "ครัวร้อน", sortOrder: 1 },

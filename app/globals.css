@@ -1,1 +1,323 @@
 @import "tailwindcss";
+
+/* ══════════════════════════════════════════════════════════════════════════
+   POS skin — design system "Modernist"
+   นำเข้าจาก Claude Design project "Cafe POS system UI"
+   (_ds/modernist-f342beae.../styles.css)
+
+   **ทุกอย่างในบล็อกนี้ผูกกับคลาส `.pos-skin` ไม่ใช่ `:root`** โดยตั้งใจ
+   เพราะก้อนนี้ทาสีเฉพาะหน้าจอพนักงาน หน้าลูกค้า/KDS/หลังร้านต้องไม่เปลี่ยน
+   ถ้าจะขยายไปหน้าอื่นในบทถัดไป ให้แปะคลาสนี้ที่ layout ของ route group นั้น
+   ไม่ใช่ย้าย token ขึ้นไปที่ :root
+
+   ชื่อตัวแปรตั้งให้ตรงกับไฟล์ต้นทางเป๊ะ ๆ (--color-text, --space-4, ...)
+   เพื่อให้ก๊อป snippet จาก design มาวางแล้วใช้ได้เลย ไม่ต้องแปลชื่อทีละตัว
+   ══════════════════════════════════════════════════════════════════════════ */
+
+.pos-skin {
+  --color-bg: #f3f2f2;
+  --color-surface: #eae9e9;
+  --color-text: #201e1d;
+  --color-accent: #ec3013;
+  --color-divider: color-mix(in srgb, #201e1d 40%, transparent);
+
+  --color-neutral-100: #f8f4f4;
+  --color-neutral-200: #eae7e7;
+  --color-neutral-300: #d7d3d3;
+  --color-neutral-400: #bab6b6;
+  --color-neutral-500: #9b9797;
+  --color-neutral-600: #7d7979;
+  --color-neutral-700: #605d5d;
+  --color-neutral-800: #444141;
+  --color-neutral-900: #2d2b2b;
+
+  --color-accent-100: #fff2ef;
+  --color-accent-200: #ffe0d9;
+  --color-accent-300: #ffc4b8;
+  --color-accent-600: #dd2b0f;
+  --color-accent-700: #ae1800;
+  --color-accent-800: #7c1405;
+
+  /* ตัวเลข/อังกฤษได้ Archivo ส่วนตัวไทยตกไป Noto Sans Thai ทีละกลีฟ
+     (เบราว์เซอร์ไล่ font stack ต่อกลีฟ ไม่ใช่ต่อบล็อกข้อความ)
+
+     **ตรงนี้จงใจเขียน "Archivo" ตรง ๆ ไม่ใช่ var(--font-archivo)**
+     เพราะ var ที่ next/font สร้างให้มีค่าเป็น `"Archivo", "Archivo Fallback"`
+     และ "Archivo Fallback" คือ `local(Arial)` ที่ปรับ metric แล้ว — Arial
+     **มีกลีฟไทย** ตัวไทยจึงจะไปหยุดที่ Arial ก่อนถึง Noto Sans Thai เสมอ
+     (ตั้ง adjustFontFallback:false ที่ตัว loader แล้วไม่ช่วย เพราะ Turbopack
+     ไม่ทำตาม option นั้น — ตรวจจาก @font-face ที่ออกมาจริงทั้ง dev และ build)
+
+     ส่วน var(--font-noto-thai) ใช้ var ได้ตามปกติ เพราะ fallback ของมัน
+     (Arial เหมือนกัน) อยู่ถูกตำแหน่งแล้วคือ "หลัง" Noto ไม่ใช่ก่อน */
+  --font-heading: "Archivo", var(--font-noto-thai), system-ui, sans-serif;
+  --font-body: "Archivo", var(--font-noto-thai), system-ui, sans-serif;
+
+  --space-1: 4px;
+  --space-2: 8px;
+  --space-3: 12px;
+  --space-4: 16px;
+  --space-6: 24px;
+  --space-8: 32px;
+
+  --shadow-lg: 0 12px 32px color-mix(in srgb, #2d2b2b 22%, transparent);
+
+  background: var(--color-bg);
+  color: var(--color-text);
+  font-family: var(--font-body);
+  font-size: 14px;
+  line-height: 1.55;
+}
+
+/* ระบบนี้ไม่มีมุมมนเลยแม้แต่จุดเดียว (--radius-* ต้นทางเป็น 0px ทั้งหมด)
+   ล้างทับ preflight ของ Tailwind และกันเผลอติด rounded-* มาจากโค้ดเก่า */
+.pos-skin *,
+.pos-skin *::before,
+.pos-skin *::after {
+  border-radius: 0;
+  box-sizing: border-box;
+}
+
+.pos-skin :focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 2px;
+}
+
+.pos-skin ::selection {
+  background: color-mix(in srgb, var(--color-accent) 30%, transparent);
+}
+
+/* — ตัวอักษร —
+   heading ของระบบนี้คือ weight 800 + tracking ติดลบ ไม่ใช่แค่ "ตัวหนา" */
+.pos-skin .display {
+  font-family: var(--font-heading);
+  font-weight: 800;
+  letter-spacing: -0.02em;
+  line-height: 1.12;
+}
+
+/* ป้ายกำกับเล็ก ๆ ตัวพิมพ์ใหญ่ระยะห่างกว้าง — ใช้ทั่วทั้ง design เป็นตัวคุมจังหวะ */
+.pos-skin .kicker {
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-neutral-700);
+}
+
+.pos-skin .kicker-accent {
+  color: var(--color-accent-700);
+  letter-spacing: 0.18em;
+}
+
+/* — โครงสร้าง —
+   เส้น 2px สีหมึกคือตัวแบ่งหลักของระบบนี้ ไม่ใช่เงาหรือมุมมน */
+.pos-skin .rule {
+  height: 2px;
+  background: var(--color-text);
+}
+
+.pos-skin .panel {
+  border: 2px solid var(--color-text);
+  background: var(--color-bg);
+}
+
+/* เส้นตารางในกริด: พื้นหลังหมึก + gap 2px แล้วให้ลูกทับด้วยพื้นของตัวเอง
+   ได้เส้นคั่นคมกริบทุกช่องโดยไม่ต้องคิดเรื่อง border ซ้อนกันที่ขอบ */
+.pos-skin .ink-grid {
+  display: grid;
+  gap: 2px;
+  background: var(--color-text);
+  border: 2px solid var(--color-text);
+}
+
+.pos-skin .ink-row {
+  display: flex;
+  gap: 2px;
+  background: var(--color-text);
+  border: 2px solid var(--color-text);
+}
+
+.pos-skin .ink-grid > *,
+.pos-skin .ink-row > * {
+  background: var(--color-bg);
+}
+
+/* — ปุ่ม — */
+.pos-skin .btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  cursor: pointer;
+  text-decoration: none;
+  font-family: var(--font-heading);
+  font-weight: 800;
+  font-size: 14px;
+  line-height: 1.2;
+  color: var(--color-text);
+  background: transparent;
+  border: 1px solid transparent;
+  padding: var(--space-2) calc(var(--space-3) * 1.2);
+  transition: background-color 120ms ease;
+}
+
+.pos-skin .btn:disabled,
+.pos-skin .btn[aria-disabled="true"] {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.pos-skin .btn-primary {
+  background: var(--color-accent);
+  color: var(--color-bg);
+}
+.pos-skin .btn-primary:not(:disabled):hover { background: var(--color-accent-600); }
+.pos-skin .btn-primary:not(:disabled):active { background: var(--color-accent-700); }
+
+.pos-skin .btn-secondary { border-color: var(--color-divider); }
+.pos-skin .btn-secondary:not(:disabled):hover { background: color-mix(in srgb, var(--color-text) 7%, transparent); }
+.pos-skin .btn-secondary:not(:disabled):active { background: color-mix(in srgb, var(--color-text) 14%, transparent); }
+
+.pos-skin .btn-ghost { color: var(--color-accent); padding-inline: var(--space-1); }
+.pos-skin .btn-ghost:not(:disabled):hover { background: color-mix(in srgb, var(--color-accent) 10%, transparent); }
+
+/* ปุ่มบนกริดหมึก: ขอบมาจากกริดแล้ว ตัวปุ่มจึงมีแค่พื้นหลัง */
+.pos-skin .btn-tile {
+  all: unset;
+  cursor: pointer;
+  box-sizing: border-box;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  background: var(--color-bg);
+  font-family: var(--font-heading);
+  font-weight: 800;
+  transition: background-color 120ms ease;
+}
+.pos-skin .btn-tile:not(:disabled):hover { background: var(--color-accent-200); }
+.pos-skin .btn-tile:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* สถานะ "เลือกอยู่" ของทุก segmented control ในระบบนี้ = พื้น accent ตัวหนังสือขาว */
+.pos-skin .is-active {
+  background: var(--color-accent);
+  color: #fff;
+}
+.pos-skin .is-active:hover { background: var(--color-accent); }
+
+.pos-skin .btn-block { width: 100%; }
+
+/* — ฟอร์ม — */
+.pos-skin .input {
+  width: 100%;
+  min-height: 36px;
+  padding: 8px 12px;
+  font: inherit;
+  font-size: 14px;
+  color: var(--color-text);
+  caret-color: var(--color-accent);
+  background: var(--color-bg);
+  border: 2px solid var(--color-text);
+}
+.pos-skin .input::placeholder { color: var(--color-neutral-500); }
+.pos-skin .input:focus-visible { border-color: var(--color-accent); outline-offset: 0; }
+
+.pos-skin select.input {
+  appearance: none;
+  background-image: linear-gradient(45deg, transparent 50%, var(--color-text) 50%),
+    linear-gradient(135deg, var(--color-text) 50%, transparent 50%);
+  background-position: calc(100% - 18px) center, calc(100% - 12px) center;
+  background-size: 6px 6px, 6px 6px;
+  background-repeat: no-repeat;
+  padding-right: 34px;
+}
+
+/* — ป้ายสถานะ — */
+.pos-skin .tag {
+  display: inline-flex;
+  align-items: center;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  padding: 3px 10px;
+  white-space: nowrap;
+}
+.pos-skin .tag-accent { background: var(--color-accent-100); color: var(--color-accent-800); }
+.pos-skin .tag-neutral { background: var(--color-neutral-200); color: var(--color-neutral-800); }
+.pos-skin .tag-solid { background: var(--color-accent); color: #fff; }
+.pos-skin .tag-outline { border: 2px solid var(--color-text); }
+
+/* — ตัวเพิ่ม/ลดจำนวน — กรอบเดียวแบ่งในด้วยเส้น 2px ตาม design */
+.pos-skin .stepper {
+  display: flex;
+  align-items: stretch;
+  border: 2px solid var(--color-text);
+  background: var(--color-bg);
+}
+.pos-skin .stepper > * { display: flex; }
+.pos-skin .stepper button {
+  all: unset;
+  cursor: pointer;
+  min-width: 38px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  line-height: 1;
+  transition: background-color 120ms ease;
+}
+.pos-skin .stepper button:not(:disabled):hover { background: var(--color-accent-200); }
+.pos-skin .stepper button:disabled { opacity: 0.4; cursor: not-allowed; }
+.pos-skin .stepper .stepper-value {
+  min-width: 42px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  border-left: 2px solid var(--color-text);
+  border-right: 2px solid var(--color-text);
+}
+
+/* — ตาราง — */
+.pos-skin .table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.pos-skin .table th {
+  text-align: left;
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-neutral-700);
+  padding: var(--space-2);
+  border-bottom: 2px solid var(--color-text);
+}
+.pos-skin .table td {
+  padding: var(--space-2);
+  border-bottom: 1px solid var(--color-neutral-300);
+}
+
+/* — แจ้งเตือน error — ระบบนี้ไม่มีสีแดงชุดที่สอง ใช้ accent เป็นสีเตือนเลย */
+.pos-skin .alert {
+  border: 2px solid var(--color-accent);
+  background: var(--color-accent-100);
+  color: var(--color-accent-800);
+  padding: var(--space-2) var(--space-3);
+  font-size: 13px;
+}
+
+/* — โมดัล — */
+.pos-skin .scrim {
+  position: fixed;
+  inset: 0;
+  background: rgba(32, 30, 29, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-4);
+  z-index: 30;
+}
+.pos-skin .modal {
+  background: var(--color-bg);
+  border: 2px solid var(--color-text);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+  max-height: 100%;
+}

@@ -2,6 +2,7 @@ import "server-only";
 
 import { lineTotalOf } from "@/lib/money";
 import { Prisma } from "@/lib/generated/prisma/client";
+import type { OrderChannel } from "@/lib/generated/prisma/enums";
 import { prisma } from "@/lib/server/db";
 
 /**
@@ -94,6 +95,8 @@ type AddToCartInput = {
   quantity: number;
   modifierIds: string[];
   note: string | null;
+  /** ที่มาของบิล — ค่าเริ่มต้นคือลูกค้าสั่งเองผ่าน QR (บทที่ 7) พนักงานสั่งแทนส่ง "POS" (บทที่ 9) */
+  channel?: OrderChannel;
 };
 
 /**
@@ -286,19 +289,27 @@ export async function setCartLineQuantity(
 /**
  * ส่งตะกร้าเข้าครัว: DRAFT → PLACED ทั้งบิลและทุกบรรทัดใน transaction เดียว
  *
- * ชั้นกันกดซ้ำที่ "เชื่อถือได้จริง" อยู่ตรงนี้ ไม่ใช่ที่ปุ่ม disable บนหน้าจอ —
- * updateMany ที่มีเงื่อนไข status: "DRAFT" จะจับ row lock ไว้ ถ้าคำสั่งที่สอง
- * ยิงเข้ามาพร้อมกัน (ลูกค้ากดรัว / สองเครื่องกดพร้อมกัน) มันจะรอจนอันแรก commit
- * แล้วค่อยเช็คเงื่อนไขใหม่ ได้ count = 0 แปลว่ามีคนส่งไปแล้ว ซึ่งไม่ใช่ error —
- * คืนผลสำเร็จของบิลใบเดิมกลับไป ไม่ใช่สร้างบิลซ้ำ
+ * ชั้นกันกดซ้ำที่ "เชื่อถือได้จริง" อยู่ตรงนี้ ไม่ใช่ที่ปุ่ม disable บนหน้าจอ
+ * และมีสองจังหวะที่การกดซ้ำจะมาถึง:
+ *
+ *   1. มาช้ากว่าอันแรกนิดเดียว — ยังอ่านเจอบิล DRAFT ใบเดิม แล้วไปเจอกันที่
+ *      updateMany ซึ่งมีเงื่อนไข status: "DRAFT" ติดอยู่ Postgres จะให้คำสั่งที่สอง
+ *      รอ row lock จนอันแรก commit แล้วเช็คเงื่อนไขใหม่ ได้ count = 0
+ *   2. มาช้ากว่านั้นอีกหน่อย — อ่านตะกร้าไม่เจอแล้วเพราะบิลกลายเป็น PLACED ไปแล้ว
+ *
+ * ทั้งสองกรณี "ไม่ใช่ error" เพราะของถูกส่งเข้าครัวเรียบร้อยแล้ว ต้องคืนผลสำเร็จ
+ * ไม่ใช่ขึ้นข้อความว่าตะกร้าว่างให้ลูกค้าตกใจแล้วกดสั่งใหม่ซ้ำอีกใบ
  */
 export async function placeOrder(
   tableSessionId: string,
-): Promise<CartResult<{ orderNumber: string }>> {
+  options: { placedByStaffId?: string } = {},
+): Promise<CartResult<{ orderNumber: string | null }>> {
   const cart = await getCart(tableSessionId);
 
+  // ไม่มีบิล DRAFT เลย = ถูกส่งไปแล้วจากการกดครั้งก่อน (หรือไม่มีอะไรจะส่งตั้งแต่ต้น)
+  // ปลายทางเหมือนกันคือพาไปหน้าติดตามออร์เดอร์ ให้ลูกค้าเห็นของจริงที่อยู่ในครัว
   if (!cart) {
-    return { ok: false, error: "ยังไม่มีรายการในตะกร้า" };
+    return { ok: true, data: { orderNumber: null } };
   }
 
   if (cart.items.length === 0) {
@@ -312,7 +323,13 @@ export async function placeOrder(
 
     const { count } = await tx.order.updateMany({
       where: { id: cart.id, status: "DRAFT" },
-      data: { status: "PLACED", placedAt, subtotal },
+      data: {
+        status: "PLACED",
+        placedAt,
+        subtotal,
+        // null = ลูกค้ากดส่งเอง / มีค่า = พนักงานคนนี้เป็นคนกดส่งแทน
+        placedByStaffId: options.placedByStaffId ?? null,
+      },
     });
 
     if (count === 0) {
@@ -334,7 +351,7 @@ export async function placeOrder(
  */
 async function getOrCreateDraftOrder(
   tx: Prisma.TransactionClient,
-  input: Pick<AddToCartInput, "tableSessionId" | "branchId" | "tableId" | "timezone">,
+  input: Pick<AddToCartInput, "tableSessionId" | "branchId" | "tableId" | "timezone" | "channel">,
 ) {
   const existing = await tx.order.findFirst({
     where: { tableSessionId: input.tableSessionId, status: "DRAFT" },
@@ -352,7 +369,7 @@ async function getOrCreateDraftOrder(
       tableId: input.tableId,
       orderNumber: await nextOrderNumber(tx, input.branchId, input.timezone),
       status: "DRAFT",
-      channel: "CUSTOMER_QR",
+      channel: input.channel ?? "CUSTOMER_QR",
       type: "DINE_IN",
     },
     include: CART_INCLUDE,
@@ -367,7 +384,7 @@ async function getOrCreateDraftOrder(
  * จึงตั้งใจปล่อยคอลัมน์พวกนั้นเป็น 0 ไว้ก่อน ดีกว่าใส่ค่าครึ่ง ๆ กลาง ๆ
  * ให้หน้าจออื่นอ่านไปใช้ผิด
  */
-async function recalculateOrderSubtotal(
+export async function recalculateOrderSubtotal(
   tx: Prisma.TransactionClient,
   orderId: string,
 ): Promise<number> {

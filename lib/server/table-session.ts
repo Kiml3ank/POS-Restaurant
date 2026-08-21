@@ -3,6 +3,7 @@ import "server-only";
 import { cookies } from "next/headers";
 import { randomBytes } from "node:crypto";
 
+import { TABLE_SESSION_COOKIE } from "@/lib/table-session-cookie";
 import { prisma } from "@/lib/server/db";
 
 /**
@@ -15,8 +16,8 @@ import { prisma } from "@/lib/server/db";
  *      token ของ session เก็บใน cookie httpOnly ฝั่งลูกค้า
  */
 
-/** cookie ที่ถือ token ของ TableSession — httpOnly ทั้งหมด ห้ามให้ JS ฝั่ง client อ่าน */
-export const TABLE_SESSION_COOKIE = "pos_table_session";
+/** ชื่อ cookie มาจาก lib/table-session-cookie.ts เพราะ proxy.ts ต้องใช้ค่าเดียวกัน */
+export { TABLE_SESSION_COOKIE };
 
 /**
  * อายุของหนึ่งรอบโต๊ะ — ตั้งไว้ยาวพอสำหรับมื้อที่กินกันนาน แต่สั้นพอที่ QR
@@ -89,44 +90,66 @@ export async function openTableSession(tableCode: string, pax: number) {
     return null;
   }
 
+  const session = await openOrJoinTableSession({
+    tableId: table.id,
+    branchId: table.branchId,
+    pax,
+  });
+
+  await writeTableSessionCookie(session.token, session.expiresAt);
+
+  return session;
+}
+
+/**
+ * แกนกลางของการเปิด/เข้าร่วมรอบโต๊ะ ใช้ร่วมกันระหว่างลูกค้าที่สแกน QR (บทที่ 5)
+ * กับพนักงานที่กดเปิดโต๊ะจากหน้า POS (บทที่ 9)
+ *
+ * ต่างกันแค่สองอย่าง: ฝั่งพนักงานบันทึก `openedByStaffId` ไว้ด้วย และไม่ต้องเขียน
+ * cookie (เครื่อง POS ไม่ได้เป็นลูกค้าของโต๊ะนั้น) ตรรกะที่เหลือต้องเหมือนกันเป๊ะ
+ * จึงต้องอยู่ฟังก์ชันเดียวกัน ไม่ใช่ก๊อปไปเขียนซ้ำสองที่แล้วค่อย ๆ เพี้ยนออกจากกัน
+ */
+export async function openOrJoinTableSession(input: {
+  tableId: string;
+  branchId: string;
+  pax: number;
+  openedByStaffId?: string;
+}) {
   const now = new Date();
 
-  const session = await prisma.$transaction(async (tx) => {
+  return prisma.$transaction(async (tx) => {
     const existing = await tx.tableSession.findFirst({
-      where: { tableId: table.id, status: "OPEN", expiresAt: { gt: now } },
+      where: { tableId: input.tableId, status: "OPEN", expiresAt: { gt: now } },
       orderBy: { openedAt: "desc" },
     });
 
     if (existing) {
       // เข้าร่วมรอบเดิม — อัปเดตจำนวนลูกค้าเฉพาะตอนที่กรอกมามากกว่าเดิม
       // (คนที่สองที่สแกนเข้ามาไม่ควรลดจำนวนที่คนแรกกรอกไว้)
-      if (pax > existing.pax) {
-        return tx.tableSession.update({ where: { id: existing.id }, data: { pax } });
+      if (input.pax > existing.pax) {
+        return tx.tableSession.update({ where: { id: existing.id }, data: { pax: input.pax } });
       }
       return existing;
     }
 
     const created = await tx.tableSession.create({
       data: {
-        branchId: table.branchId,
-        tableId: table.id,
+        branchId: input.branchId,
+        tableId: input.tableId,
         token: randomBytes(32).toString("base64url"),
-        pax,
+        pax: input.pax,
+        openedByStaffId: input.openedByStaffId,
         expiresAt: new Date(now.getTime() + TABLE_SESSION_TTL_HOURS * 60 * 60 * 1000),
       },
     });
 
     await tx.restaurantTable.update({
-      where: { id: table.id },
+      where: { id: input.tableId },
       data: { status: "OCCUPIED" },
     });
 
     return created;
   });
-
-  await writeTableSessionCookie(session.token, session.expiresAt);
-
-  return session;
 }
 
 /**

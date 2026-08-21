@@ -11,7 +11,8 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
-    seed: "tsx prisma/seed.ts",
+    // --conditions=react-server ทำให้ seed import lib/server/* ที่มี `server-only` ได้
+    seed: "tsx --conditions=react-server prisma/seed.ts",
   },
   datasource: {
     url: env("DATABASE_URL"),

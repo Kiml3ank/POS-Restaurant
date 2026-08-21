@@ -1,0 +1,134 @@
+import Link from "next/link";
+import { notFound, redirect } from "next/navigation";
+
+import { formatBaht } from "@/lib/money";
+import { ORDER_ITEM_STATUS_LABEL, ORDER_STATUS_LABEL } from "@/lib/order-status";
+import { getPlacedOrders } from "@/lib/server/cart";
+import { resolveCustomerContext } from "@/lib/server/table-session";
+
+import { CustomerHeader } from "../_components/customer-header";
+
+/**
+ * หน้าติดตามออร์เดอร์ของโต๊ะ — ปลายทางหลังกดส่งเข้าครัว (บทที่ 7)
+ *
+ * ตอนนี้อัปเดตด้วยการโหลดหน้าใหม่เท่านั้น การ push สถานะจากครัวมาเองแบบ realtime
+ * เป็นงานของบทที่ 8 ซึ่งจะใช้ SSE ผ่าน Route Handler (ห้าม WebSocket ตรง ๆ
+ * เพราะ Route Handler อัปเกรด connection ไม่ได้ — CLAUDE.md หัวข้อ 2)
+ *
+ * สถานะที่แสดงเป็นระดับ "รายการ" ไม่ใช่ระดับบิล เพราะของในบิลเดียวกันเสร็จ
+ * ไม่พร้อมกัน (น้ำมาก่อน ครัวร้อนตามมาทีหลัง)
+ */
+export default async function TableOrdersPage({
+  params,
+}: {
+  params: Promise<{ tableCode: string }>;
+}) {
+  const { tableCode } = await params;
+  const context = await resolveCustomerContext(tableCode);
+
+  if (!context) {
+    notFound();
+  }
+
+  if (!context.session) {
+    redirect(`/t/${tableCode}`);
+  }
+
+  const orders = await getPlacedOrders(context.session.id);
+  const runningTotal = orders
+    .filter((order) => order.status !== "CANCELLED")
+    .reduce((sum, order) => sum + order.subtotal, 0);
+
+  const timeFormatter = new Intl.DateTimeFormat("th-TH", {
+    timeZone: context.branch.timezone,
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+
+  return (
+    <>
+      <CustomerHeader
+        tableName={context.table.name}
+        branchName={context.branch.name}
+        backHref={`/t/${tableCode}`}
+      />
+
+      <main className="flex flex-1 flex-col gap-4 px-4 py-4 pb-24">
+        <h1 className="text-xl font-semibold">ออร์เดอร์ของโต๊ะ {context.table.name}</h1>
+
+        {orders.length === 0 ? (
+          <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-neutral-300 p-6">
+            <p className="text-sm text-neutral-600">ยังไม่ได้ส่งออร์เดอร์เข้าครัว</p>
+            <Link
+              href={`/t/${tableCode}`}
+              className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
+            >
+              เลือกเมนู
+            </Link>
+          </div>
+        ) : (
+          <>
+            <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+              ส่งเข้าครัวแล้ว {orders.length} ใบ — สถานะอัปเดตเมื่อโหลดหน้านี้ใหม่
+            </p>
+
+            <ul className="flex flex-col gap-3">
+              {orders.map((order) => (
+                <li
+                  key={order.id}
+                  className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white p-3"
+                >
+                  <div className="flex items-baseline justify-between">
+                    <span className="font-medium">#{order.orderNumber}</span>
+                    <span className="text-sm text-neutral-500">
+                      {order.placedAt ? timeFormatter.format(order.placedAt) : "—"} ·{" "}
+                      {ORDER_STATUS_LABEL[order.status]}
+                    </span>
+                  </div>
+
+                  <ul className="flex flex-col gap-1">
+                    {order.items.map((line) => (
+                      <li key={line.id} className="flex items-start justify-between gap-3 text-sm">
+                        <span className="min-w-0">
+                          <span className="font-medium">{line.quantity}×</span>{" "}
+                          {line.nameSnapshot}
+                          {line.modifiers.length > 0 ? (
+                            <span className="block text-neutral-500">
+                              {line.modifiers.map((modifier) => modifier.nameSnapshot).join(" · ")}
+                            </span>
+                          ) : null}
+                        </span>
+                        <span className="shrink-0 text-neutral-500">
+                          {ORDER_ITEM_STATUS_LABEL[line.status]}
+                        </span>
+                      </li>
+                    ))}
+                  </ul>
+
+                  <div className="flex justify-between border-t border-neutral-100 pt-2 text-sm">
+                    <span className="text-neutral-600">รวมบิลนี้</span>
+                    <span className="font-medium">{formatBaht(order.subtotal)}</span>
+                  </div>
+                </li>
+              ))}
+            </ul>
+
+            <div className="flex justify-between rounded-xl bg-neutral-100 px-3 py-3">
+              <span className="text-sm text-neutral-600">รวมทั้งโต๊ะ (ยังไม่รวม VAT/เซอร์วิส)</span>
+              <span className="font-semibold">{formatBaht(runningTotal)}</span>
+            </div>
+          </>
+        )}
+      </main>
+
+      <nav className="fixed inset-x-0 bottom-0 mx-auto w-full max-w-md border-t border-neutral-200 bg-white p-3">
+        <Link
+          href={`/t/${tableCode}`}
+          className="block rounded-lg bg-neutral-900 px-4 py-3 text-center text-sm font-medium text-white"
+        >
+          สั่งเพิ่ม
+        </Link>
+      </nav>
+    </>
+  );
+}
