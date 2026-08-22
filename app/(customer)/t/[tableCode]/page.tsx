@@ -2,7 +2,8 @@ import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 
-import { formatBaht } from "@/lib/money";
+import { LiveRefresh } from "@/components/live-refresh";
+import { formatMoney } from "@/lib/money";
 import { getCart } from "@/lib/server/cart";
 import { getCustomerMenu } from "@/lib/server/menu";
 import { resolveCustomerContext } from "@/lib/server/table-session";
@@ -35,6 +36,9 @@ export default async function CustomerMenuPage({
     notFound();
   }
 
+  // สกุลเงินมาจากสาขาเสมอ ห้าม hardcode บาท — สาขาลาว/เวียดนามใช้คนละสกุล
+  const currency = context.branch.currency;
+
   const { table, branch, session } = context;
 
   if (!session) {
@@ -65,6 +69,7 @@ export default async function CustomerMenuPage({
       <CustomerHeader
         tableName={table.name}
         branchName={branch.name}
+        currency={currency}
         cart={{
           href: `/t/${table.tableCode}/cart`,
           itemCount: cartItemCount,
@@ -73,6 +78,20 @@ export default async function CustomerMenuPage({
       />
 
       <main className="flex flex-1 flex-col gap-6 px-4 py-4 pb-28">
+        {/*
+          เมนูเปลี่ยนได้ระหว่างที่ลูกค้านั่งอ่านอยู่ (โมดูล 04)
+          ครัวกด "ของหมด" ตอนสองทุ่ม แต่หน้านี้เปิดค้างมาตั้งแต่ทุ่มครึ่ง —
+          ถ้าไม่มีตัวรับสัญญาณ ลูกค้าจะเห็นของที่หมดไปแล้วและกดสั่ง
+
+          `?table=` เพื่อให้ได้ event ของโต๊ะตัวเองเท่านั้น ส่วน menu.changed
+          เป็น event ระดับสาขาที่อยู่ในรายชื่อ CUSTOMER_BROADCAST_EVENTS
+          จึงถูกส่งถึงทุกโต๊ะ (ดู lib/realtime-events.ts)
+
+          ไม่ได้แสดงข้อความอะไรบนหน้าเมนู — ลูกค้าไม่ต้องรู้ว่ามีสายอยู่
+          ต่างจากจอครัวที่ไฟ "สดอยู่" คือข้อมูลสำคัญของคนทำงาน
+        */}
+        <LiveRefresh src={`/api/realtime?table=${tableCode}`} className="sr-only" />
+
         <nav className="flex gap-2 overflow-x-auto pb-1">
           {menu.map((category) => (
             <a
@@ -122,7 +141,7 @@ export default async function CustomerMenuPage({
                       ) : null}
                     </div>
 
-                    <span className="shrink-0 font-medium">{formatBaht(item.basePrice)}</span>
+                    <span className="shrink-0 font-medium">{formatMoney(item.basePrice, currency)}</span>
                   </Link>
                 </li>
               ))}

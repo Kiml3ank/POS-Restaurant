@@ -2,8 +2,11 @@ import "server-only";
 
 import { Prisma } from "@/lib/generated/prisma/client";
 import { canCancelOrderItem } from "@/lib/rbac";
+import { REALTIME_EVENT_VERSION, type RealtimeEventType } from "@/lib/realtime-events";
 import { recalculateOrderSubtotal } from "@/lib/server/cart";
 import { prisma } from "@/lib/server/db";
+import { syncOrderStatusFromItems } from "@/lib/server/order-progress";
+import { publishRealtimeEvent } from "@/lib/server/realtime";
 import type { CurrentStaff } from "@/lib/server/staff-session";
 import { openOrJoinTableSession } from "@/lib/server/table-session";
 
@@ -147,6 +150,8 @@ export async function openTableByStaff(staff: CurrentStaff, tableId: string, pax
     openedByStaffId: staff.id,
   });
 
+  await announce("table_session.changed", staff.branchId, table.id);
+
   return { ok: true as const, session };
 }
 
@@ -155,8 +160,11 @@ export async function openTableByStaff(staff: CurrentStaff, tableId: string, pax
  *
  * ใช้กับเคส "ลูกค้าลุกไปโดยไม่ได้สั่งอะไร" หรือ "เปิดโต๊ะผิดใบ" เท่านั้น
  * จึงยอมให้ปิดได้เฉพาะรอบที่ไม่มีบิลค้างที่ส่งเข้าครัวไปแล้ว —
- * การปิดรอบที่มีของค้างต้องผ่านการ "จ่ายเงิน" ในบทที่ 10 เสมอ ไม่งั้นตรงนี้
+ * การปิดรอบที่มีของค้างต้องผ่าน `takePayment()` (บทที่ 11) เสมอ ไม่งั้นตรงนี้
  * จะกลายเป็นช่องให้ล้างบิลทิ้งโดยไม่มีร่องรอย (เคสโกงในบทที่ 13)
+ *
+ * ต่างกันที่ปลายทางด้วย: ที่นี่ปิดเป็น `ABANDONED` ส่วนการรับเงินปิดเป็น `CLOSED`
+ * — รายงานบทที่ 15 ต้องแยกสองอย่างนี้ออกจากกันได้ (โต๊ะที่ลูกค้าหนีบิล ไม่ใช่โต๊ะที่ขายได้)
  */
 export async function closeTableSession(staff: CurrentStaff, sessionId: string, reason: string) {
   const note = reason.trim();
@@ -179,7 +187,7 @@ export async function closeTableSession(staff: CurrentStaff, sessionId: string, 
   if (sentToKitchen.length > 0) {
     return {
       ok: false as const,
-      error: "โต๊ะนี้มีบิลที่ส่งเข้าครัวแล้ว ต้องคิดเงินก่อน (ฟังก์ชันคิดเงินอยู่ในบทที่ 10)",
+      error: "โต๊ะนี้มีบิลที่ส่งเข้าครัวแล้ว ต้องรับเงินปิดบิลที่หน้าคิดเงินก่อน",
     };
   }
 
@@ -208,6 +216,8 @@ export async function closeTableSession(staff: CurrentStaff, sessionId: string, 
       },
     });
   });
+
+  await announce("table_session.changed", staff.branchId, session.tableId);
 
   return { ok: true as const };
 }
@@ -238,7 +248,7 @@ export async function cancelOrderItemByStaff(
 
   const item = await prisma.orderItem.findFirst({
     where: { id: orderItemId, branchId: staff.branchId, status: { not: "CANCELLED" } },
-    include: { order: { select: { id: true, status: true, orderNumber: true } } },
+    include: { order: { select: { id: true, status: true, orderNumber: true, tableId: true } } },
   });
 
   if (!item) {
@@ -274,7 +284,32 @@ export async function cancelOrderItemByStaff(
     });
 
     await recalculateOrderSubtotal(tx, item.orderId);
+
+    /**
+     * ยกเลิกรายการแล้วสถานะบิลต้องขยับตามด้วย ในtransaction เดียวกัน (บทที่ 8)
+     *
+     * เคสที่ทำให้ต้องมีบรรทัดนี้: บิลมีสองรายการ น้ำเสิร์ฟไปแล้ว ข้าวผัดยังไม่ได้ทำ
+     * แล้วผู้จัดการยกเลิกข้าวผัดทิ้ง — ถ้าไม่ roll-up บิลจะค้างเป็น PLACED
+     * ตลอดไปทั้งที่ไม่เหลืออะไรให้ครัวทำ แล้วโต๊ะนั้นจะคิดเงินไม่ได้ในบทที่ 10
+     * (เพราะเงื่อนไขปิดบิลคือ SERVED → PAID)
+     *
+     * และถ้ายกเลิกจนหมดทั้งใบ บิลจะกลายเป็น CANCELLED เองโดยไม่ต้องมีปุ่มแยก
+     */
+    await syncOrderStatusFromItems(tx, item.orderId);
   });
 
+  await announce("order_item.cancelled", staff.branchId, item.order.tableId);
+
   return { ok: true as const };
+}
+
+/** ยิง event realtime หลัง commit — เหตุผลและรูปแบบเดียวกับใน lib/server/cart.ts */
+async function announce(type: RealtimeEventType, branchId: string, tableId: string | null) {
+  await publishRealtimeEvent({
+    v: REALTIME_EVENT_VERSION,
+    type,
+    branchId,
+    tableId,
+    at: Date.now(),
+  });
 }

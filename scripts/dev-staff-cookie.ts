@@ -2,7 +2,7 @@ import "dotenv/config";
 
 import { createHmac } from "node:crypto";
 
-import { STAFF_SESSION_COOKIE } from "@/lib/staff-session-cookie";
+import { STAFF_SESSION_COOKIES } from "@/lib/staff-session-cookie";
 import { prisma } from "@/lib/server/db";
 
 /**
@@ -11,6 +11,9 @@ import { prisma } from "@/lib/server/db";
  *
  *     npm run dev:staff-cookie 001
  *     curl -H "Cookie: pos_staff_session=<token>" http://localhost:3000/pos
+ *
+ * token ใบเดียวใช้ได้ทั้งสองจอ เพราะเนื้อในเหมือนกัน ต่างกันแค่ "ชื่อ cookie"
+ * ที่แต่ละจออ่าน (บทที่ 8 แยก cookie ต่อจอ ดู lib/staff-session-cookie.ts)
  *
  * ตั้งใจให้เป็นเครื่องมือ dev เท่านั้น — มันข้ามการตรวจ PIN ทั้งหมด
  * จึงเช็ค NODE_ENV ก่อน และตัวลายเซ็นยังต้องตรงกับ AUTH_SECRET ของเครื่องนั้นอยู่ดี
@@ -66,7 +69,11 @@ async function main() {
 
   console.error(`${staff.name} (${staff.role}) · สาขา ${staff.branch.name}`);
   console.error(`หมดอายุ ${new Date(exp).toISOString()}`);
-  console.error(`curl -H "Cookie: ${STAFF_SESSION_COOKIE}=<token>" http://localhost:3000/pos`);
+  console.error(`curl -H "Cookie: ${STAFF_SESSION_COOKIES.pos}=<token>" http://localhost:3000/pos`);
+  console.error(`curl -H "Cookie: ${STAFF_SESSION_COOKIES.kds}=<token>" http://localhost:3000/kds`);
+  console.error(
+    `curl -H "Cookie: ${STAFF_SESSION_COOKIES.admin}=<token>" http://localhost:3000/admin/menu`,
+  );
   console.log(`${body}.${signature}`);
 }
 

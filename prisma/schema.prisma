@@ -80,6 +80,42 @@ enum TableSessionStatus {
   ABANDONED
 }
 
+/// สกุลเงินที่ระบบรองรับ — บทที่ 10
+///
+/// เป็น enum ไม่ใช่ String เพราะการเพิ่มสกุลเงินไม่ใช่แค่เปลี่ยนสัญลักษณ์:
+/// **จำนวนทศนิยมไม่เท่ากัน** (ดู lib/money.ts) เลขจำนวนเต็มก้อนเดียวกันใน DB
+/// จึงแปลว่าคนละมูลค่ากันตามสกุลเงินของสาขา ถ้าปล่อยเป็น String แล้วมีใคร
+/// พิมพ์ "thb" หรือ "USD" ลงไป ระบบจะแสดงราคาผิดโดยไม่มีอะไรฟ้อง
+///
+/// การเพิ่มสกุลใหม่ต้องแก้สองที่เสมอ: enum นี้ + ตารางใน lib/money.ts
+/// (TypeScript จะฟ้องเองถ้าเติมที่นี่แล้วลืมอีกที่)
+enum Currency {
+  /// บาทไทย — มีสตางค์ 2 ตำแหน่ง
+  THB
+  /// กีบลาว — ไม่ใช้ทศนิยม
+  LAK
+  /// ดองเวียดนาม — ไม่ใช้ทศนิยม
+  VND
+}
+
+/// วิธีที่ลูกค้าจ่ายเงิน (บทที่ 11)
+///
+/// ⚠ **ก้อนนี้เป็นโหมดสาธิต** ระบบไม่ได้ต่อกับ payment gateway จริง ไม่มี webhook
+/// และไม่มีการยืนยันยอดจากธนาคาร — แคชเชียร์เป็นคนกดยืนยันเองว่าได้รับเงินแล้ว
+/// (ตรงกับความจริงของ "เงินสด" อยู่แล้ว แต่ **ไม่ตรง** สำหรับ QR ซึ่งของจริงต้อง
+/// รอ callback จากธนาคาร) วันที่ต่อของจริงต้องเพิ่มสถานะ/reference ของรายการโอน
+/// ที่ตารางนี้ ไม่ใช่ไปเพิ่มที่ Order
+///
+/// วิธีจ่ายผูกกับประเทศของสาขา ไม่ใช่ค่าคงที่ของทั้งระบบ: PromptPay เป็นของไทย
+/// ลาวใช้ LAO QR (BCEL One) เวียดนามใช้ VietQR (NAPAS) — ทั้งหมดเป็น EMVCo
+/// เหมือนกันแต่คนละ tag/ผู้ให้บริการ จึงเก็บกว้าง ๆ ว่า "QR" ไว้ก่อน
+enum PaymentMethod {
+  CASH
+  QR
+  /// ยังไม่เปิดใช้ในก้อนนี้ — บัตรต้องมีเครื่อง EDC/gateway จริงถึงจะมีความหมาย
+  CARD
+}
+
 /// บทบาทพนักงาน — ฐานของ RBAC ในบทที่ 13
 enum StaffRole {
   OWNER
@@ -119,7 +155,7 @@ model Branch {
   pricesIncludeVat Boolean @default(true)
 
   timezone String @default("Asia/Bangkok")
-  currency String @default("THB")
+  currency Currency @default(THB)
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -138,6 +174,7 @@ model Branch {
   orderItems     OrderItem[]
   staff          Staff[]
   auditLogs      AuditLog[]
+  payments       Payment[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -351,6 +388,7 @@ model TableSession {
   table         RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
   openedByStaff Staff?          @relation(fields: [openedByStaffId], references: [id], onDelete: SetNull)
   orders        Order[]
+  payments      Payment[]
 
   @@index([branchId, status])
   @@index([tableId, status])
@@ -396,6 +434,10 @@ model Order {
   vatRateBp        Int?
   pricesIncludeVat Boolean?
 
+  /// การรับเงินที่ปิดบิลใบนี้ (บทที่ 11) — null = ยังไม่ได้จ่าย
+  /// หลายบิลชี้มาที่ Payment ใบเดียวกันได้ เพราะคิดเงินทีเดียวทั้ง "รอบโต๊ะ"
+  paymentId String?
+
   note String?
 
   // ── timestamp ของแต่ละสถานะ: ใช้วัดเวลาครัวและทำ audit trail ในบทที่ 13/15 ──
@@ -415,12 +457,14 @@ model Order {
   tableSession  TableSession?    @relation(fields: [tableSessionId], references: [id], onDelete: Restrict)
   table         RestaurantTable? @relation(fields: [tableId], references: [id], onDelete: Restrict)
   placedByStaff Staff?           @relation(fields: [placedByStaffId], references: [id], onDelete: SetNull)
+  payment       Payment?         @relation(fields: [paymentId], references: [id], onDelete: Restrict)
   items         OrderItem[]
 
   @@unique([branchId, orderNumber])
   @@index([branchId, status])
   @@index([tableSessionId])
   @@index([branchId, placedAt])
+  @@index([paymentId])
   @@map("orders")
 }
 
@@ -489,6 +533,62 @@ model OrderItemModifier {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// การรับเงิน (บทที่ 11)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// การรับเงินหนึ่งครั้ง = การปิดบิลของ "รอบโต๊ะ" หนึ่งรอบ
+///
+/// ── ทำไมต้องเป็นตารางแยก ไม่ยัดยอดลง Order ให้จบ ──────────────────────
+/// เพราะบิลคิดที่ระดับรอบโต๊ะ (รวม subtotal ทุกใบก่อน แล้วคิดเซอร์วิสชาร์จ/VAT
+/// ครั้งเดียว — ดู lib/server/billing.ts) แต่คอลัมน์ยอดเงินอยู่ที่ระดับ Order
+/// ซึ่งมีได้หลายใบต่อรอบ **ยอดที่ลูกค้าจ่ายจริงจึงเป็นของแถวนี้ ไม่ใช่ผลบวกของ Order**
+/// (ยอดใน Order เป็นส่วนแบ่งที่กระจายลงไปเพื่อทำรายงานแยกช่องทาง — บทที่ 15)
+///
+/// ตารางนี้ยังเป็นที่ที่บทที่ 12 จะแขวนเลขที่ใบกำกับภาษีอย่างย่อที่ต้องเดินต่อเนื่อง
+model Payment {
+  id             String @id @default(cuid())
+  branchId       String
+  tableSessionId String
+
+  method PaymentMethod
+  /// snapshot สกุลเงิน ณ เวลาที่จ่าย — ห้ามอ่านจาก Branch ตอนพิมพ์ใบเสร็จย้อนหลัง
+  /// (สาขาย้ายประเทศไม่ได้ก็จริง แต่ข้อมูลที่ตีความยอดเงินต้องติดอยู่กับยอดเสมอ)
+  currency Currency
+
+  // ── ยอดเงิน: Int หน่วยย่อยที่สุดของสกุลเงินนั้น (ดู lib/money.ts) ──────────
+  subtotal            Int
+  discountAmount      Int @default(0)
+  serviceChargeAmount Int
+  vatAmount           Int
+  /// มูลค่าสินค้าก่อน VAT — ตัวเลขที่ต้องขึ้นใบกำกับภาษีในบทที่ 12
+  netAmount           Int
+  grandTotal          Int
+
+  /// เงินสดที่รับมาจริง — null เมื่อจ่ายด้วย QR (ไม่มีการทอน)
+  receivedAmount Int?
+  changeAmount   Int?
+
+  // snapshot อัตราที่ใช้คิดครั้งนี้ — เหตุผลเดียวกับคอลัมน์ชุดเดียวกันใน Order
+  serviceChargeBp  Int
+  vatRateBp        Int
+  pricesIncludeVat Boolean
+
+  paidByStaffId String?
+  paidAt        DateTime @default(now())
+  createdAt     DateTime @default(now())
+
+  branch       Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  /// Restrict: รอบโต๊ะที่จ่ายเงินแล้วห้ามถูกลบจนหลักฐานการรับเงินหายตาม
+  tableSession TableSession @relation(fields: [tableSessionId], references: [id], onDelete: Restrict)
+  paidByStaff  Staff?       @relation(fields: [paidByStaffId], references: [id], onDelete: SetNull)
+  orders       Order[]
+
+  @@index([branchId, paidAt])
+  @@index([tableSessionId])
+  @@map("payments")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // พนักงาน สิทธิ์ และ audit log (บทที่ 13)
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -514,6 +614,7 @@ model Staff {
   openedSessions TableSession[]
   placedOrders   Order[]
   auditLogs      AuditLog[]
+  payments       Payment[]
 
   @@unique([branchId, code])
   @@index([branchId, isActive])

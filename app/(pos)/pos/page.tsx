@@ -1,7 +1,9 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { formatBaht } from "@/lib/money";
+import { LiveRefresh } from "@/components/live-refresh";
+import type { Currency } from "@/lib/generated/prisma/enums";
+import { formatMoney } from "@/lib/money";
 import { canAccessScreen } from "@/lib/rbac";
 import { getPosTables, type PosTableSummary } from "@/lib/server/pos";
 import { getCurrentStaff } from "@/lib/server/staff-session";
@@ -20,28 +22,37 @@ import { getCurrentStaff } from "@/lib/server/staff-session";
  * อ่านง่ายกว่าเพราะตาจับ "ใบที่ต่างจากพวก" ได้เร็วกว่าจับเฉดสี
  */
 export default async function PosTableMapPage() {
-  const staff = await getCurrentStaff();
+  const staff = await getCurrentStaff("pos");
 
   if (!staff || !canAccessScreen(staff.role, "pos")) {
     redirect("/pos/login");
   }
 
+  const currency = staff.branch.currency;
   const tables = await getPosTables(staff.branchId);
   const openTables = tables.filter((table) => table.session !== null);
   const totalOnFloor = openTables.reduce((sum, table) => sum + table.runningTotal, 0);
   const needAttention = tables.filter((table) => table.readyItems > 0).length;
 
   return (
-    <main className="flex min-h-0 flex-1 flex-col gap-6 overflow-auto p-8">
+    <main className="flex min-h-0 flex-1 flex-col gap-5 overflow-auto p-4 lg:gap-6 lg:p-8">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-2">
           <p className="kicker kicker-accent">
             {needAttention > 0 ? `มีของพร้อมเสิร์ฟค้างอยู่ ${needAttention} โต๊ะ` : "ไม่มีของค้างรอยก"}
           </p>
-          <h1 className="display text-[40px]">ผังโต๊ะ</h1>
+          {/* หัวเรื่องย่อลงบนจอแคบ เพราะ 40px กินความสูงไปหนึ่งแถวโต๊ะเต็ม ๆ */}
+          <h1 className="display text-[28px] lg:text-[40px]">ผังโต๊ะ</h1>
         </div>
 
-        <div className="flex items-end gap-8">
+        <div className="flex flex-wrap items-end gap-4 lg:gap-8">
+          {/*
+            ผังโต๊ะรับ event เดียวกับจอครัว (บทที่ 8) — โต๊ะที่ลูกค้าเพิ่งสแกน QR เปิดเอง
+            และตัวเลข "พร้อมเสิร์ฟ" ที่ครัวเพิ่งกด จะขึ้นเองโดยพนักงานไม่ต้องกดโหลดใหม่
+            ซึ่งเป็นเหตุผลทั้งหมดที่หน้านี้มีอยู่: พนักงานเดินผ่านแล้วเหลือบมอง ไม่ได้มายืนกด
+          */}
+          <LiveRefresh src="/api/realtime" className="text-[var(--color-accent-700)]" />
+
           <div className="flex flex-col gap-1">
             <span className="kicker">เปิดอยู่</span>
             <span className="display text-[22px]">
@@ -50,7 +61,7 @@ export default async function PosTableMapPage() {
           </div>
           <div className="flex flex-col gap-1">
             <span className="kicker">ยอดค้างบนโต๊ะรวม</span>
-            <span className="display text-[22px]">{formatBaht(totalOnFloor)}</span>
+            <span className="display text-[22px]">{formatMoney(totalOnFloor, currency)}</span>
           </div>
         </div>
       </div>
@@ -62,23 +73,23 @@ export default async function PosTableMapPage() {
           สาขานี้ยังไม่มีโต๊ะ — เพิ่มได้ในหน้าหลังร้าน (บทที่ 13)
         </p>
       ) : (
-        <ul className="ink-grid grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+        <ul className="ink-grid ink-grid-sparse grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {tables.map((table) => (
             <li key={table.id}>
-              <TableCard table={table} />
+              <TableCard table={table} currency={currency} />
             </li>
           ))}
         </ul>
       )}
 
       <p className="kicker mt-auto">
-        ย้าย/รวมโต๊ะ และแยกบิล ยังไม่ได้ทำในก้อนนี้ · คิดเงินอยู่ในบทที่ 10
+        คิดเงิน/รับชำระ กดได้จากในหน้าโต๊ะ · ย้าย/รวมโต๊ะ และแยกบิล ยังไม่ได้ทำ
       </p>
     </main>
   );
 }
 
-function TableCard({ table }: { table: PosTableSummary }) {
+function TableCard({ table, currency }: { table: PosTableSummary; currency: Currency }) {
   const isOpen = table.session !== null;
   const needsAttention = table.readyItems > 0;
 
@@ -114,7 +125,7 @@ function TableCard({ table }: { table: PosTableSummary }) {
 
           <div className="flex items-baseline justify-between gap-3">
             <span className="kicker">ยอดสะสม</span>
-            <span className="display text-[24px]">{formatBaht(table.runningTotal)}</span>
+            <span className="display text-[24px]">{formatMoney(table.runningTotal, currency)}</span>
           </div>
 
           {/* ปุ่มท้ายการ์ดตาม design ("Resume tab") — การ์ดทั้งใบเป็นลิงก์อยู่แล้ว

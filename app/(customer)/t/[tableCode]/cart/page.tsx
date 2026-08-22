@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { formatBaht } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { getCart } from "@/lib/server/cart";
 import { resolveCustomerContext } from "@/lib/server/table-session";
 
@@ -32,6 +32,9 @@ export default async function CartPage({
     notFound();
   }
 
+  // สกุลเงินมาจากสาขาเสมอ ห้าม hardcode บาท — สาขาลาว/เวียดนามใช้คนละสกุล
+  const currency = context.branch.currency;
+
   if (!context.session) {
     redirect(`/t/${tableCode}`);
   }
@@ -45,6 +48,7 @@ export default async function CartPage({
       <CustomerHeader
         tableName={context.table.name}
         branchName={context.branch.name}
+        currency={currency}
         backHref={`/t/${tableCode}`}
       />
 
@@ -82,9 +86,9 @@ export default async function CartPage({
                   ) : null}
 
                   <span className="text-sm text-neutral-600">
-                    {formatBaht(line.unitPriceSnapshot + line.modifierTotal)} × {line.quantity} ={" "}
+                    {formatMoney(line.unitPriceSnapshot + line.modifierTotal, currency)} × {line.quantity} ={" "}
                     <span className="font-medium text-neutral-900">
-                      {formatBaht(line.lineTotal)}
+                      {formatMoney(line.lineTotal, currency)}
                     </span>
                   </span>
                 </div>
@@ -104,7 +108,7 @@ export default async function CartPage({
         <div className="fixed inset-x-0 bottom-0 mx-auto w-full max-w-md border-t border-neutral-200 bg-white p-3">
           <div className="flex items-baseline justify-between pb-2 text-sm">
             <span className="text-neutral-600">ยอดรวมค่าอาหาร</span>
-            <span className="text-lg font-semibold">{formatBaht(cart?.subtotal ?? 0)}</span>
+            <span className="text-lg font-semibold">{formatMoney(cart?.subtotal ?? 0, currency)}</span>
           </div>
           <p className="pb-2 text-xs text-neutral-500">
             ยังไม่รวมเซอร์วิสชาร์จและ VAT — คิดตอนเช็คบิลที่เคาน์เตอร์
@@ -114,6 +118,7 @@ export default async function CartPage({
             tableCode={tableCode}
             subtotal={cart?.subtotal ?? 0}
             itemCount={itemCount}
+            currency={currency}
           />
         </div>
       ) : null}

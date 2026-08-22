@@ -3,7 +3,15 @@ import "server-only";
 import { cookies } from "next/headers";
 import { createHmac, timingSafeEqual } from "node:crypto";
 
-import { STAFF_SESSION_COOKIE } from "@/lib/staff-session-cookie";
+import {
+  LAST_STAFF_TTL_DAYS,
+  decodeLastStaff,
+  encodeLastStaff,
+  lastStaffCookieName,
+  type LastStaffOnDevice,
+} from "@/lib/last-staff-cookie";
+import type { StaffScreen } from "@/lib/rbac";
+import { ALL_STAFF_SESSION_COOKIES, STAFF_SESSION_COOKIES } from "@/lib/staff-session-cookie";
 import { prisma } from "@/lib/server/db";
 import { verifyPin } from "@/lib/server/pin";
 
@@ -17,9 +25,13 @@ import { verifyPin } from "@/lib/server/pin";
  * บทที่ 13 ที่ต้องมีปุ่ม "เตะพนักงานคนนี้ออกทุกเครื่อง" ค่อยเพิ่มตาราง StaffSession
  * แล้วเช็ค revoke list ทับอีกชั้น
  *
+ * **ทุกฟังก์ชันในไฟล์นี้ผูกกับ "หน้าจอ" เสมอ** เพราะ /pos กับ /kds ถือ cookie
+ * คนละใบ (ดูเหตุผลเต็มใน lib/staff-session-cookie.ts — ใบเดียวทำให้สองจอ
+ * บนเครื่องเดียวกันเตะกันเองทุกครั้งที่อีกฝั่งขยับ)
+ *
  * รูปแบบค่าใน cookie: base64url(payload).base64url(hmac)
  */
-export { STAFF_SESSION_COOKIE };
+export { STAFF_SESSION_COOKIES };
 
 /** อายุ session — สั้นพอที่เครื่องที่ลืมล็อกจะหมดอายุเองภายในกะเดียว */
 const SESSION_TTL_HOURS = 8;
@@ -92,8 +104,13 @@ function attemptKey(branchCode: string, staffCode: string) {
   return `${branchCode}:${staffCode}`;
 }
 
-/** ล็อกอินด้วยรหัสพนักงาน + PIN */
-export async function loginStaff(staffCode: string, pin: string) {
+/**
+ * ล็อกอินด้วยรหัสพนักงาน + PIN แล้วออก session ให้ "หน้าจอนั้นหน้าจอเดียว"
+ *
+ * ล็อกอินเข้าจอครัวไม่แตะ session ของเครื่อง POS ที่เปิดค้างอยู่ในเบราว์เซอร์
+ * เดียวกันเลย และกลับกันด้วย
+ */
+export async function loginStaff(staffCode: string, pin: string, screen: StaffScreen) {
   const code = staffCode.trim();
 
   if (!code || !pin) {
@@ -147,20 +164,62 @@ export async function loginStaff(staffCode: string, pin: string) {
   const expiresAt = new Date(Date.now() + SESSION_TTL_HOURS * 60 * 60 * 1000);
   const store = await cookies();
 
-  store.set(STAFF_SESSION_COOKIE, createToken({ sid: staff.id, bid: staff.branchId, exp: expiresAt.getTime() }), {
-    httpOnly: true,
-    sameSite: "lax",
-    secure: process.env.NODE_ENV === "production",
-    path: "/",
-    expires: expiresAt,
-  });
+  store.set(
+    STAFF_SESSION_COOKIES[screen],
+    createToken({ sid: staff.id, bid: staff.branchId, exp: expiresAt.getTime() }),
+    {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      expires: expiresAt,
+    },
+  );
+
+  /**
+   * จำไว้ว่าใครใช้เครื่องนี้ล่าสุด เพื่อโชว์บนหน้าล็อกจอครั้งถัดไป
+   *
+   * อยู่คนละ cookie กับ session โดยตั้งใจ เพราะอายุคนละแบบ: session ต้องหมดใน
+   * 8 ชั่วโมง (กะเดียว) แต่ชื่อคนล่าสุดต้องอยู่ข้ามกะ — ถ้ายัดรวมกัน พอกดล็อกจอ
+   * แล้วชื่อจะหายไปพร้อมกัน ซึ่งคือช่วงเวลาเดียวที่มันมีประโยชน์พอดี
+   */
+  store.set(
+    lastStaffCookieName(screen),
+    encodeLastStaff({ name: staff.name, role: staff.role, at: Date.now() }),
+    {
+      httpOnly: true,
+      sameSite: "lax",
+      secure: process.env.NODE_ENV === "production",
+      path: "/",
+      maxAge: LAST_STAFF_TTL_DAYS * 24 * 60 * 60,
+    },
+  );
 
   return { ok: true as const, staff };
 }
 
-export async function logoutStaff() {
+/**
+ * ใครใช้เครื่องนี้ล่าสุด — สำหรับแสดงผลบนหน้าล็อกจอเท่านั้น
+ *
+ * **ห้ามเอาไปใช้ตัดสินใจเรื่องสิทธิ์** ค่านี้ไม่ได้เซ็นลายเซ็นและมาจาก cookie
+ * ที่คนหน้าเครื่องแก้เองได้ (ดูเหตุผลเต็มใน lib/last-staff-cookie.ts)
+ */
+export async function readLastStaffOnDevice(
+  screen: StaffScreen,
+): Promise<LastStaffOnDevice | null> {
   const store = await cookies();
-  store.delete(STAFF_SESSION_COOKIE);
+  return decodeLastStaff(store.get(lastStaffCookieName(screen))?.value);
+}
+
+/**
+ * ล็อกจอ — ปิด session ของ "หน้าจอนี้" เท่านั้น
+ *
+ * กดล็อกจอที่เครื่อง POS แล้วจอครัวที่เปิดอยู่อีกแท็บต้องไม่ถูกเตะออกตาม
+ * เพราะอาจเป็นคนละคนกด (และที่หน้าร้านจริงคือคนละเครื่อง)
+ */
+export async function logoutStaff(screen: StaffScreen) {
+  const store = await cookies();
+  store.delete(STAFF_SESSION_COOKIES[screen]);
 }
 
 /**
@@ -169,11 +228,24 @@ export async function logoutStaff() {
  * ยัง query Staff ทุกครั้งแม้จะมี id อยู่ใน cookie แล้ว เพราะต้องรู้ว่า
  * บัญชีถูกปิด (isActive = false) หรือเปลี่ยนตำแหน่งไปแล้วหรือยัง —
  * cookie ที่เซ็นไว้เมื่อเช้าไม่ควรมีอำนาจของตำแหน่งที่ถูกถอดไปแล้วเมื่อบ่าย
+ *
+ * `screen` บอกว่าจะอ่าน cookie ใบไหน — **ทุกหน้าจอต้องระบุเสมอ**
+ * ละไว้ได้เฉพาะที่เดียวคือ /api/realtime ซึ่งเป็นท่อกลางที่ทั้งสองจอต่อเข้ามา
+ * และให้สิทธิ์แค่ "ฟัง event ของสาขาตัวเอง" ไม่ใช่สิทธิ์กดอะไร
  */
-export async function getCurrentStaff() {
+export async function getCurrentStaff(screen?: StaffScreen) {
   const store = await cookies();
-  const token = store.get(STAFF_SESSION_COOKIE)?.value;
-  const payload = token ? readToken(token) : null;
+
+  const tokens = screen
+    ? [store.get(STAFF_SESSION_COOKIES[screen])?.value]
+    : ALL_STAFF_SESSION_COOKIES.map((name) => store.get(name)?.value);
+
+  // ใบแรกที่ลายเซ็นผ่านและยังไม่หมดอายุชนะ — ตอนไม่ระบุ screen เราสนใจแค่ว่า
+  // "คนนี้เป็นพนักงานของสาขาไหน" ไม่ได้สนใจว่ามาจากจอไหน
+  const payload = tokens.reduce<ReturnType<typeof readToken>>(
+    (found, token) => found ?? (token ? readToken(token) : null),
+    null,
+  );
 
   if (!payload) {
     return null;

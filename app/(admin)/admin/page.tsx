@@ -1,13 +1,14 @@
+import { redirect } from "next/navigation";
+
 /**
- * หลังร้าน (บทที่ 14-15)
- * ยอดขาย / เมนูขายดี / สต็อก / X report / ปิดกะ / Z report ปิดวัน
+ * หลังร้าน — หน้าแรก
+ *
+ * ตั้งใจไม่ทำเป็นหน้ารวมลิงก์ (dashboard) เพราะตอนนี้มีโมดูลเดียวที่ใช้งานได้จริง
+ * หน้ารวมที่มีปุ่มเดียวคือหน้าที่ทุกคนต้องกดผ่านโดยไม่ได้อะไร — พาไปที่งานเลยดีกว่า
+ *
+ * วันที่โมดูล 05 (สต็อก) และ 06 (รายงาน) เข้ามา ค่อยเปลี่ยนที่นี่เป็นหน้ารวมจริง
+ * แล้วเมนูข้างใน AdminNav จะมีมากกว่าสองรายการเอง
  */
-export default function AdminPage() {
-  return (
-    <main className="flex flex-1 flex-col gap-2 p-6">
-      <p className="text-xs tracking-wide text-neutral-500 uppercase">หลังร้าน</p>
-      <h1 className="text-2xl font-semibold">Admin &amp; Report</h1>
-      <p className="text-sm text-neutral-600">โครงหน้าจอ — รายงานและสต็อกอยู่ในบทที่ 14-15</p>
-    </main>
-  );
+export default function AdminHomePage() {
+  redirect("/admin/menu");
 }

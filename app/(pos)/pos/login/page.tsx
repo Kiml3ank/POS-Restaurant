@@ -1,9 +1,10 @@
 import { redirect } from "next/navigation";
 
+import { PinForm } from "@/components/pin-form";
 import { canAccessScreen } from "@/lib/rbac";
-import { getCurrentStaff } from "@/lib/server/staff-session";
+import { getCurrentStaff, readLastStaffOnDevice } from "@/lib/server/staff-session";
 
-import { PinForm } from "../_components/pin-form";
+import { loginAction } from "../actions";
 
 /**
  * หน้าล็อกจอของเครื่อง POS (บทที่ 13 ส่วนที่ดึงมาทำก่อน)
@@ -17,22 +18,28 @@ import { PinForm } from "../_components/pin-form";
  * ทั้งกะคือการแจกครึ่งหนึ่งของข้อมูลที่ต้องใช้ล็อกอินให้ฟรี และขัดกับที่
  * loginStaff() ตั้งใจตอบข้อความเดียวกันทั้งกรณีรหัสผิดและ PIN ผิด
  *
+ * สิ่งที่โชว์แทนคือ **ชื่อคนล่าสุดที่ใช้เครื่องนี้เครื่องเดียว** (จาก cookie ของ
+ * เครื่อง ไม่ใช่ query รายชื่อพนักงาน) และไม่โชว์รหัสพนักงานคู่กัน —
+ * ตอบคำถาม "รับกะต่อจากใคร" ได้โดยไม่กลายเป็นรายชื่อให้ไล่สุ่ม
+ * รายละเอียดการแลกได้แลกเสียอยู่ที่ lib/last-staff-cookie.ts
+ *
  * หัวเรื่องใหญ่คงเป็นตัวโรมันตาม design เพราะเป็น wordmark ไม่ใช่ข้อความที่ต้องอ่าน
  * และ line-height 0.92 ของ design ตัดหัว-หางสระไทยขาดถ้าเอาตัวไทยมาวางตรงนี้
  */
 export default async function PosLoginPage() {
-  const staff = await getCurrentStaff();
+  const staff = await getCurrentStaff("pos");
+  const lastStaff = await readLastStaffOnDevice("pos");
 
   if (staff && canAccessScreen(staff.role, "pos")) {
     redirect("/pos");
   }
 
   return (
-    <main className="grid flex-1 grid-cols-1 lg:grid-cols-[1fr_620px]">
-      <div className="flex flex-col justify-between gap-10 border-b-2 border-[var(--color-text)] p-10 lg:border-r-2 lg:border-b-0 lg:p-16">
+    <main className="grid flex-1 grid-cols-1 xl:grid-cols-[1fr_620px]">
+      <div className="flex min-w-0 flex-col justify-between gap-10 border-b-2 border-[var(--color-text)] p-6 sm:p-10 xl:border-r-2 xl:border-b-0 xl:p-16">
         <div className="flex flex-col gap-4">
           <p className="kicker kicker-accent">เครื่องพนักงาน · เคาน์เตอร์ 01</p>
-          <p className="display text-[56px] leading-[0.92] tracking-[-0.03em] lg:text-[76px]">
+          <p className="display text-[40px] leading-[0.92] tracking-[-0.03em] sm:text-[56px] xl:text-[76px]">
             POINT OF
             <br />
             SALE
@@ -54,9 +61,9 @@ export default async function PosLoginPage() {
         </div>
       </div>
 
-      <div className="flex items-center justify-center bg-[var(--color-neutral-100)] p-10 lg:p-14">
+      <div className="flex items-center justify-center bg-[var(--color-neutral-100)] p-5 sm:p-10 xl:p-14">
         <div className="w-full max-w-[440px]">
-          <PinForm />
+          <PinForm action={loginAction} lastStaff={lastStaff} />
         </div>
       </div>
     </main>

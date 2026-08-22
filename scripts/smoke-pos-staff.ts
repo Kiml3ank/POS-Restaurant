@@ -57,6 +57,9 @@ async function resetTables(tableIds: string[]) {
 
   await prisma.auditLog.deleteMany({ where: { entityId: { in: [...sessionIds, ...itemIds] } } });
   await prisma.order.deleteMany({ where: { tableSessionId: { in: sessionIds } } });
+  // ต้องลบหลัง Order (Order → Payment เป็น Restrict) และก่อน TableSession
+  // (Payment → TableSession เป็น Restrict) — บทที่ 11
+  await prisma.payment.deleteMany({ where: { tableSessionId: { in: sessionIds } } });
   await prisma.tableSession.deleteMany({ where: { id: { in: sessionIds } } });
   await prisma.restaurantTable.updateMany({
     where: { id: { in: tableIds } },
@@ -181,8 +184,22 @@ async function main() {
 
   const tablesPlaced = await getPosTables(branchId);
   const cardPlaced = tablesPlaced.find((row) => row.id === MAIN_TABLE_ID);
-  check("ผังโต๊ะนับของที่ครัวกำลังทำ = 3 ชิ้น", cardPlaced?.pendingItems === 3, `ได้ ${cardPlaced?.pendingItems}`);
-  check("ยังไม่มีของพร้อมเสิร์ฟ", cardPlaced?.readyItems === 0);
+  /**
+   * บิลนี้มีน้ำเปล่า 2 ขวด (ไม่ผูกสถานีครัว) + ชาเย็น 1 แก้ว (บาร์น้ำ)
+   *
+   * ตั้งแต่บทที่ 8 ทั้งสองอย่างแยกทางกันตั้งแต่วินาทีที่กดส่ง:
+   *   - ชาเย็น  → PLACED  รอครัวรับ  → นับเป็น pendingItems
+   *   - น้ำเปล่า → READY   รอคนไปหยิบ → นับเป็น readyItems
+   *
+   * ตัวเลขคู่นี้คือสิ่งที่พนักงานเสิร์ฟอ่านจากผังโต๊ะ การที่น้ำเปล่าเด้งขึ้น
+   * readyItems ทันทีจึงถูกแล้ว — มีของรอยกอยู่จริงตั้งแต่วินาทีนั้น
+   */
+  check("ผังโต๊ะนับของที่ครัวกำลังทำ = 1 ชิ้น (ชาเย็น)", cardPlaced?.pendingItems === 1, `ได้ ${cardPlaced?.pendingItems}`);
+  check(
+    "ผังโต๊ะนับของพร้อมเสิร์ฟ = 2 ชิ้น (น้ำเปล่าที่หยิบเองได้เลย)",
+    cardPlaced?.readyItems === 2,
+    `ได้ ${cardPlaced?.readyItems}`,
+  );
   check("ตะกร้าค้างหายไปจากผังโต๊ะ", cardPlaced?.draftCount === 0);
 
   const detail = await getPosTable(branchId, MAIN_TABLE_ID);

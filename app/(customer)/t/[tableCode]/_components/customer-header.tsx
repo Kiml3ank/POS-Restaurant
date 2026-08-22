@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { formatBaht } from "@/lib/money";
+import type { Currency } from "@/lib/generated/prisma/enums";
+import { formatMoney } from "@/lib/money";
 
 /**
  * แถบหัวของหน้าจอลูกค้า — Server Component ล้วน ไม่มี JS ส่งไปฝั่ง client เลย
@@ -11,11 +12,14 @@ export function CustomerHeader({
   branchName,
   backHref,
   cart,
+  currency,
 }: {
   tableName: string;
   branchName: string;
   backHref?: string;
   cart?: { href: string; itemCount: number; subtotal: number };
+  /** สกุลเงินของสาขา — บังคับส่งเสมอ ห้ามเดาเป็นบาท (ดู lib/money.ts) */
+  currency: Currency;
 }) {
   return (
     <header className="sticky top-0 z-10 flex items-center gap-3 border-b border-neutral-200 bg-white/95 px-4 py-3 backdrop-blur">
@@ -39,7 +43,7 @@ export function CustomerHeader({
           href={cart.href}
           className="shrink-0 rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
         >
-          ตะกร้า {cart.itemCount} · {formatBaht(cart.subtotal)}
+          ตะกร้า {cart.itemCount} · {formatMoney(cart.subtotal, currency)}
         </Link>
       ) : null}
     </header>

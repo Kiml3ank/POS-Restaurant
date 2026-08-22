@@ -3,8 +3,10 @@ import "server-only";
 import { cookies } from "next/headers";
 import { randomBytes } from "node:crypto";
 
+import { REALTIME_EVENT_VERSION } from "@/lib/realtime-events";
 import { TABLE_SESSION_COOKIE } from "@/lib/table-session-cookie";
 import { prisma } from "@/lib/server/db";
+import { publishRealtimeEvent } from "@/lib/server/realtime";
 
 /**
  * โต๊ะ + รอบการใช้โต๊ะ (บทที่ 5) — ชั้นที่กันเคสในเล่ม
@@ -97,6 +99,17 @@ export async function openTableSession(tableCode: string, pax: number) {
   });
 
   await writeTableSessionCookie(session.token, session.expiresAt);
+
+  // ผังโต๊ะของพนักงานต้องเห็นโต๊ะเปลี่ยนเป็น "เปิดอยู่" ทันทีที่ลูกค้าสแกน QR
+  // โดยไม่ต้องกดโหลดใหม่ (บทที่ 8) — เรียกหลัง transaction ใน openOrJoinTableSession
+  // commit ไปแล้วเท่านั้น
+  await publishRealtimeEvent({
+    v: REALTIME_EVENT_VERSION,
+    type: "table_session.changed",
+    branchId: table.branchId,
+    tableId: table.id,
+    at: Date.now(),
+  });
 
   return session;
 }

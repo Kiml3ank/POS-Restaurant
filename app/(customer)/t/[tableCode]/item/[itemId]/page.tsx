@@ -1,7 +1,7 @@
 import Image from "next/image";
 import { notFound, redirect } from "next/navigation";
 
-import { formatBaht } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { getCustomerMenuItem } from "@/lib/server/menu";
 import { resolveCustomerContext } from "@/lib/server/table-session";
 
@@ -30,6 +30,9 @@ export default async function MenuItemPage({
   if (!context) {
     notFound();
   }
+
+  // สกุลเงินมาจากสาขาเสมอ ห้าม hardcode บาท — สาขาลาว/เวียดนามใช้คนละสกุล
+  const currency = context.branch.currency;
 
   // ยังไม่ได้เปิดโต๊ะ (หรือรอบหมดอายุ) — กลับไปเริ่มที่หน้าแรกของโต๊ะก่อน
   if (!context.session) {
@@ -60,6 +63,7 @@ export default async function MenuItemPage({
       <CustomerHeader
         tableName={context.table.name}
         branchName={context.branch.name}
+        currency={currency}
         backHref={`/t/${tableCode}`}
       />
 
@@ -81,7 +85,7 @@ export default async function MenuItemPage({
           {item.description ? (
             <p className="text-sm text-neutral-600">{item.description}</p>
           ) : null}
-          <p className="pt-1 text-lg font-medium">{formatBaht(item.basePrice)}</p>
+          <p className="pt-1 text-lg font-medium">{formatMoney(item.basePrice, currency)}</p>
         </div>
 
         <ItemOptionsForm
@@ -89,6 +93,7 @@ export default async function MenuItemPage({
           hiddenFields={{ tableCode, menuItemId: item.id }}
           basePrice={item.basePrice}
           groups={groups}
+          currency={currency}
         />
       </main>
     </>

@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-import { STAFF_SESSION_COOKIE } from "@/lib/staff-session-cookie";
+import { STAFF_SESSION_COOKIES } from "@/lib/staff-session-cookie";
 import { TABLE_SESSION_COOKIE } from "@/lib/table-session-cookie";
 
 /**
@@ -13,8 +13,9 @@ import { TABLE_SESSION_COOKIE } from "@/lib/table-session-cookie";
  *
  *   - บทที่ 9: ทุกหน้าใน /pos ที่ยังไม่มี cookie ของพนักงาน เด้งไปหน้าใส่ PIN
  *
- * ของที่จะมาต่อ:
- *   - บทที่ 13: /kds, /admin + เช็ค RBAC ให้ครบทุกหน้า
+ *   - บทที่ 8: ทุกหน้าใน /kds ที่ยังไม่มี cookie ของพนักงาน เด้งไปหน้าใส่ PIN ของครัว
+ *
+ *   - โมดูล 04: ทุกหน้าใน /admin ที่ยังไม่มี cookie ของหลังร้าน เด้งไปหน้าใส่ PIN
  *
  * ข้อควรระวัง: proxy รันก่อน render และอาจถูก deploy ไปอยู่ที่ CDN
  * จึงห้ามพึ่ง shared module / global state และห้าม import Prisma เข้ามาที่นี่
@@ -34,6 +35,24 @@ const CUSTOMER_SESSION_REQUIRED = /^\/t\/[^/]+\/(cart|item|orders)(\/|$)/;
  */
 const STAFF_SESSION_REQUIRED = /^\/pos(?!\/login(\/|$))(\/|$)/;
 
+/**
+ * จอครัวก็ต้องล็อกอินเหมือนกัน (บทที่ 8) — ก่อนหน้านี้ /kds เปิดได้โดยไม่ต้องใส่ PIN
+ *
+ * เขียนเป็น regex ตัวที่สองแทนที่จะรวมกับของ /pos เพราะปลายทางที่เด้งไปคนละหน้า:
+ * พนักงานครัวที่ถูกส่งไป /pos/login จะล็อกอินไม่ผ่าน (ครัวไม่มีสิทธิ์เข้า POS)
+ * แล้วจะงงว่าทำไมใส่ PIN ถูกแล้วยังเข้าไม่ได้
+ */
+const KDS_SESSION_REQUIRED = /^\/kds(?!\/login(\/|$))(\/|$)/;
+
+/**
+ * หลังร้าน (โมดูล 04) — รูปแบบเดียวกับสองตัวบน และเป็น regex ตัวที่สามด้วยเหตุผลเดิม:
+ * ปลายทางที่เด้งไปคนละหน้า และ cookie ที่เช็คคนละใบ
+ *
+ * จอนี้ทุกตำแหน่งเข้าได้ (ดู SCREEN_ROLES.admin) การเด้งจึงไม่มีทางพาไปเจอหน้า
+ * ล็อกอินที่ใส่ PIN ถูกแล้วยังเข้าไม่ได้ — ต่างจาก /pos ที่ครัวเข้าไม่ได้
+ */
+const ADMIN_SESSION_REQUIRED = /^\/admin(?!\/login(\/|$))(\/|$)/;
+
 export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
@@ -42,8 +61,18 @@ export function proxy(request: NextRequest) {
     return NextResponse.redirect(new URL(`/t/${tableCode}`, request.url));
   }
 
-  if (STAFF_SESSION_REQUIRED.test(pathname) && !request.cookies.has(STAFF_SESSION_COOKIE)) {
+  // แต่ละหน้าจอเช็ค cookie "ของตัวเอง" — เครื่องที่ล็อกอินจอครัวไว้แล้วต้องยัง
+  // ถูกถามหา PIN ตอนเปิด /pos (ดูเหตุผลใน lib/staff-session-cookie.ts)
+  if (STAFF_SESSION_REQUIRED.test(pathname) && !request.cookies.has(STAFF_SESSION_COOKIES.pos)) {
     return NextResponse.redirect(new URL("/pos/login", request.url));
+  }
+
+  if (KDS_SESSION_REQUIRED.test(pathname) && !request.cookies.has(STAFF_SESSION_COOKIES.kds)) {
+    return NextResponse.redirect(new URL("/kds/login", request.url));
+  }
+
+  if (ADMIN_SESSION_REQUIRED.test(pathname) && !request.cookies.has(STAFF_SESSION_COOKIES.admin)) {
+    return NextResponse.redirect(new URL("/admin/login", request.url));
   }
 
   return NextResponse.next({

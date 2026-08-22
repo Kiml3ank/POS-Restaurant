@@ -1,19 +1,23 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { formatBaht } from "@/lib/money";
+import { LiveRefresh } from "@/components/live-refresh";
+import type { Currency } from "@/lib/generated/prisma/enums";
+import { formatMoney } from "@/lib/money";
 import { ORDER_ITEM_STATUS_LABEL, ORDER_STATUS_LABEL } from "@/lib/order-status";
-import { canAccessScreen, canCancelOrderItem } from "@/lib/rbac";
+import { canAccessScreen, canCancelOrderItem, canServeOrderItem } from "@/lib/rbac";
 import { getCustomerMenu } from "@/lib/server/menu";
 import { getPosTable, type PosOrder } from "@/lib/server/pos";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
+import { CartPanel } from "../../_components/cart-panel";
 import {
   CancelItemForm,
   CloseTableForm,
   OpenTableForm,
   PosLineControls,
   PosPlaceOrderForm,
+  ServeItemForm,
 } from "../../_components/table-actions";
 
 /**
@@ -39,7 +43,7 @@ export default async function PosTablePage({
   params: Promise<{ tableId: string }>;
   searchParams: Promise<{ view?: string; cat?: string }>;
 }) {
-  const staff = await getCurrentStaff();
+  const staff = await getCurrentStaff("pos");
 
   if (!staff || !canAccessScreen(staff.role, "pos")) {
     redirect("/pos/login");
@@ -52,6 +56,7 @@ export default async function PosTablePage({
     notFound();
   }
 
+  const currency = staff.branch.currency;
   const { table, session, orders, runningTotal } = detail;
   const cart = orders.find((order) => order.status === "DRAFT") ?? null;
   const sentOrders = orders.filter((order) => order.status !== "DRAFT");
@@ -78,12 +83,17 @@ export default async function PosTablePage({
           ‹
         </Link>
 
-        <div className="flex flex-none items-center border-r-2 border-[var(--color-text)] px-6">
+        <div className="flex flex-none items-center border-r-2 border-[var(--color-text)] px-4 lg:px-6">
           <span className="display text-[19px] whitespace-nowrap">โต๊ะ {table.name}</span>
         </div>
 
-        <div className="flex flex-1 items-center justify-between gap-6 px-6">
-          <span className="kicker truncate">
+        <div className="flex min-w-0 flex-1 items-center justify-between gap-3 px-4 lg:gap-6 lg:px-6">
+          {/*
+            จำนวนคน/เวลาเปิด/รหัส QR เป็นข้อมูลอ้างอิงที่ดูนาน ๆ ครั้ง ไม่ใช่ของที่
+            ต้องเห็นตลอด — จอแคบตัดทิ้งเพื่อให้ "ยอดสะสม" กับไฟสถานะ realtime
+            ซึ่งเป็นสองอย่างที่พนักงานเหลือบมองทุกนาที ไม่ถูกเบียดจนหาย
+          */}
+          <span className="kicker hidden truncate lg:inline">
             {session
               ? `${session.pax} คน · เปิดเมื่อ ${formatTime(session.openedAt, staff.branch.timezone)}`
               : "ยังไม่ได้เปิดโต๊ะ"}
@@ -91,12 +101,26 @@ export default async function PosTablePage({
             {table.tableCode}
           </span>
 
-          {session ? (
-            <span className="flex items-baseline gap-3 whitespace-nowrap">
-              <span className="kicker">ยอดสะสม</span>
-              <span className="display text-[24px]">{formatBaht(runningTotal)}</span>
-            </span>
-          ) : null}
+          <span className="ml-auto flex items-center gap-3 whitespace-nowrap lg:gap-6">
+            {/*
+              จอนี้ต้อง realtime มากกว่าทุกจอในระบบ (บทที่ 8) เพราะเป็นจอเดียวที่
+              "สองคนแก้ของชิ้นเดียวกันพร้อมกัน" ได้จริง: ลูกค้ากดใส่ตะกร้าจากมือถือ
+              ขณะที่พนักงานยืนถือเครื่องอยู่ที่โต๊ะเดียวกัน — ตะกร้าเป็นใบเดียวกัน
+              ถ้าจอไม่อัปเดตเอง พนักงานจะกดสั่งซ้ำของที่ลูกค้าเพิ่งใส่ไปเอง
+            */}
+            <LiveRefresh src="/api/realtime" className="text-[var(--color-accent-700)]" />
+
+            {session ? (
+              <span className="flex items-baseline gap-2 lg:gap-3">
+                {/* ป้าย "ยอดสะสม" ตัดทิ้งบนจอแคบ — ตัวเลขที่มีสัญลักษณ์เงินนำหน้า
+                    อยู่ตรงมุมนี้ อ่านออกอยู่แล้วว่าคือยอดของโต๊ะ ไม่ต้องมีป้ายบอก */}
+                <span className="kicker hidden sm:inline">ยอดสะสม</span>
+                <span className="display text-[18px] lg:text-[24px]">
+                  {formatMoney(runningTotal, currency)}
+                </span>
+              </span>
+            ) : null}
+          </span>
         </div>
       </div>
 
@@ -109,9 +133,12 @@ export default async function PosTablePage({
           </section>
         </div>
       ) : (
-        <div className="flex min-h-0 flex-1">
+        /* จอแคบวางตะกร้าไว้ใต้เมนูเป็นแถบสรุป · จอกว้างวางไว้ขวาแบบ design เดิม */
+        <div className="flex min-h-0 flex-1 flex-col xl:flex-row">
           <section className="flex min-h-0 min-w-0 flex-1 flex-col">
-            <div className="flex h-[58px] flex-none items-stretch border-b-2 border-[var(--color-text)]">
+            {/* แถบหมวดเมนูเลื่อนแนวนอนได้เมื่อหมวดเยอะเกินความกว้างจอ
+                (ร้านที่มี 12 หมวดบนแท็บเล็ตแนวตั้งคือเคสปกติ ไม่ใช่เคสสุดโต่ง) */}
+            <div className="flex h-[58px] flex-none items-stretch overflow-x-auto border-b-2 border-[var(--color-text)]">
               <Link
                 href={base}
                 className={`display flex flex-none items-center border-r-2 border-[var(--color-text)] px-5 text-[15px] whitespace-nowrap transition-colors ${
@@ -131,6 +158,22 @@ export default async function PosTablePage({
                   {sentOrders.length}
                 </span>
               </Link>
+
+              {/*
+                ทางเข้าหน้าคิดเงิน/รับชำระ (บทที่ 10-11) — โผล่เฉพาะตอนมีของให้คิดเงินจริง
+                ไม่ใช่ปุ่มที่อยู่ตลอดเวลาแล้วกดไปเจอหน้าเปล่า
+
+                เป็น accent เต็มใบเพราะเป็นปลายทางของทั้งรอบโต๊ะ และเป็นปุ่มที่
+                พนักงานหาอยู่ตอนลูกค้าเรียก "เช็คบิล" ซึ่งเป็นจังหวะที่รีบที่สุดของกะ
+              */}
+              {sentOrders.length > 0 ? (
+                <Link
+                  href={`${base}/bill`}
+                  className="display flex flex-none items-center border-r-2 border-[var(--color-text)] bg-[var(--color-accent)] px-5 text-[15px] whitespace-nowrap text-white transition-colors hover:bg-[var(--color-accent-600)]"
+                >
+                  คิดเงิน
+                </Link>
+              ) : null}
 
               {onBills ? (
                 <div className="flex flex-1 items-center px-6">
@@ -175,6 +218,8 @@ export default async function PosTablePage({
                         order={order}
                         timezone={staff.branch.timezone}
                         canCancel={canCancelOrderItem(staff.role)}
+                        canServe={canServeOrderItem(staff.role)}
+                        currency={currency}
                       />
                     ))
                   )}
@@ -188,7 +233,7 @@ export default async function PosTablePage({
                   ยังไม่มีเมนูที่เปิดขายในสาขานี้ — เปิด/ปิดเมนูได้ในหน้าหลังร้าน (บทที่ 13)
                 </p>
               ) : (
-                <ul className="ink-grid grid-cols-2 xl:grid-cols-3">
+                <ul className="ink-grid ink-grid-sparse grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
                   {activeCategory.items.map((item) => (
                     <li key={item.id}>
                       <Link
@@ -201,7 +246,7 @@ export default async function PosTablePage({
                         <span className="flex w-full items-end justify-between gap-2">
                           <span className="kicker">{item.hasOptions ? "มีตัวเลือก" : ""}</span>
                           <span className="display text-[19px]">
-                            {formatBaht(item.basePrice)}
+                            {formatMoney(item.basePrice, currency)}
                           </span>
                         </span>
                       </Link>
@@ -212,15 +257,7 @@ export default async function PosTablePage({
             </div>
           </section>
 
-          <aside className="flex w-[412px] flex-none flex-col border-l-2 border-[var(--color-text)] bg-[var(--color-neutral-100)]">
-            <div className="flex flex-none items-center justify-between gap-3 border-b-2 border-[var(--color-text)] px-6 py-4">
-              <div className="flex flex-col gap-0.5">
-                <span className="display text-[20px]">ตะกร้า</span>
-                <span className="kicker">ยังไม่ส่งเข้าครัว</span>
-              </div>
-              <span className="display text-[20px]">{cartItemCount} รายการ</span>
-            </div>
-
+          <CartPanel itemCount={cartItemCount} totalLabel={formatMoney(cart?.subtotal ?? 0, currency)}>
             <div className="min-h-0 flex-1 overflow-auto">
               {!cart || cart.items.length === 0 ? (
                 <p className="px-6 py-12 leading-relaxed text-[var(--color-neutral-600)]">
@@ -254,7 +291,7 @@ export default async function PosTablePage({
                     />
 
                     <span className="display w-16 shrink-0 text-right text-[16px] leading-[38px]">
-                      {formatBaht(line.lineTotal)}
+                      {formatMoney(line.lineTotal, currency)}
                     </span>
                   </div>
                 ))
@@ -264,7 +301,7 @@ export default async function PosTablePage({
             <div className="flex flex-none flex-col gap-2 border-t-2 border-[var(--color-text)] px-6 py-4">
               <div className="flex justify-between text-[var(--color-neutral-700)]">
                 <span>ค่าอาหาร</span>
-                <span>{formatBaht(cart?.subtotal ?? 0)}</span>
+                <span>{formatMoney(cart?.subtotal ?? 0, currency)}</span>
               </div>
               <p className="kicker">เซอร์วิสชาร์จและ VAT คิดตอนเก็บเงิน (บทที่ 10)</p>
 
@@ -272,7 +309,7 @@ export default async function PosTablePage({
 
               <div className="flex items-baseline justify-between">
                 <span className="kicker">รวมตะกร้านี้</span>
-                <span className="display text-[34px]">{formatBaht(cart?.subtotal ?? 0)}</span>
+                <span className="display text-[34px]">{formatMoney(cart?.subtotal ?? 0, currency)}</span>
               </div>
 
               <div className="mt-2">
@@ -287,7 +324,7 @@ export default async function PosTablePage({
                 />
               </div>
             </div>
-          </aside>
+          </CartPanel>
         </div>
       )}
     </main>
@@ -298,10 +335,14 @@ function OrderCard({
   order,
   timezone,
   canCancel,
+  canServe,
+  currency,
 }: {
   order: PosOrder;
   timezone: string;
   canCancel: boolean;
+  canServe: boolean;
+  currency: Currency;
 }) {
   return (
     <article className="panel flex flex-col">
@@ -356,9 +397,22 @@ function OrderCard({
                       : "display text-[16px]"
                   }
                 >
-                  {formatBaht(line.lineTotal)}
+                  {formatMoney(line.lineTotal, currency)}
                 </span>
-                {line.station ? <span className="kicker">{line.station.name}</span> : null}
+                {line.station ? (
+                  <span className="kicker">{line.station.name}</span>
+                ) : (
+                  // ของที่ไม่ผูกสถานี = หยิบจากตู้เย็นหน้าร้าน ไม่เคยขึ้นจอครัว
+                  // (ดู lib/server/cart.ts ตอน placeOrder) จึงบอกไว้ตรงนี้ให้ชัด
+                  // ว่าไม่ต้องรอครัว
+                  <span className="kicker">หยิบเอง</span>
+                )}
+
+                {/* ปุ่มเสิร์ฟอยู่ทั้งที่นี่และบนจอครัว — ที่นี่คือทางเดียวที่ปิด
+                    รายการซึ่งไม่ผ่านครัวได้ (บทที่ 8) */}
+                {line.status === "READY" && canServe ? (
+                  <ServeItemForm orderItemId={line.id} />
+                ) : null}
               </div>
             </li>
           );
@@ -367,7 +421,7 @@ function OrderCard({
 
       <div className="flex items-baseline justify-between px-5 py-3">
         <span className="kicker">รวมบิลนี้</span>
-        <span className="display text-[20px]">{formatBaht(order.subtotal)}</span>
+        <span className="display text-[20px]">{formatMoney(order.subtotal, currency)}</span>
       </div>
     </article>
   );

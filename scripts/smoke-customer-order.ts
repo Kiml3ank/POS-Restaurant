@@ -117,8 +117,21 @@ async function main() {
 
   const placed = await getPlacedOrders(session.id);
   check("มีบิลที่ส่งแล้ว 1 ใบ", placed.length === 1, `ได้ ${placed.length}`);
-  check("สถานะบิล = PLACED", placed[0]?.status === "PLACED", placed[0]?.status);
-  check("สถานะรายการ = PLACED", placed[0]?.items.every((item) => item.status === "PLACED") ?? false);
+  /**
+   * ถึงตรงนี้ในตะกร้าเหลือแค่ "น้ำเปล่า" (กะเพราถูกลบไปในเคสที่ 6) ซึ่งเป็นเมนู
+   * ที่ `stationId = null` — ไม่ต้องผ่านครัว
+   *
+   * ตั้งแต่บทที่ 8 ของแบบนี้จะข้ามไป READY ตั้งแต่วินาทีที่กดส่ง ไม่ใช่ PLACED
+   * เพราะมันไม่ขึ้นจอครัวเลย จึงไม่มีใครกดเปลี่ยนสถานะให้มันได้ ถ้าปล่อยเป็น
+   * PLACED บิลจะค้างไม่มีวันถึง SERVED แล้วคิดเงินไม่ได้ในบทที่ 10
+   * (ดู placeOrder ใน lib/server/cart.ts และเคสเต็มใน npm run smoke:kds)
+   */
+  check("สถานะบิลที่มีแต่ของหยิบเอง = READY", placed[0]?.status === "READY", placed[0]?.status);
+  check(
+    "รายการที่ไม่ผูกสถานีครัว = READY ทันที",
+    placed[0]?.items.every((item) => item.status === "READY") ?? false,
+    placed[0]?.items.map((item) => `${item.nameSnapshot}:${item.status}`).join(", "),
+  );
   check("placedAt ถูกเซ็ต", placed[0]?.placedAt !== null);
   check("ตะกร้าว่างหลังส่ง", (await getCart(session.id)) === null);
 

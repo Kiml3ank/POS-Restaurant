@@ -2,10 +2,10 @@
 
 import { useActionState, useState } from "react";
 
-import { formatBaht, formatPriceDelta, lineTotalOf } from "@/lib/money";
-
-import { IDLE_FORM_STATE, type FormState } from "@/lib/form-state";
 import { SubmitButton } from "@/components/submit-button";
+import { IDLE_FORM_STATE, type FormState } from "@/lib/form-state";
+import type { Currency } from "@/lib/generated/prisma/enums";
+import { formatMoney, formatMoneyDelta, lineTotalOf } from "@/lib/money";
 
 /**
  * ฟอร์มเลือกตัวเลือก + จำนวน ก่อนใส่ตะกร้า (บทที่ 6-7 และใช้ซ้ำที่ POS บทที่ 9)
@@ -42,6 +42,7 @@ export function ItemOptionsForm({
   hiddenFields,
   basePrice,
   groups,
+  currency,
   submitLabel = "ใส่ตะกร้า",
   skin = "default",
 }: {
@@ -50,6 +51,8 @@ export function ItemOptionsForm({
   hiddenFields: Record<string, string>;
   basePrice: number;
   groups: OptionGroupView[];
+  /** สกุลเงินของสาขา — ต้องส่งมาเสมอ ห้ามเดาเป็นบาท (ดู lib/money.ts) */
+  currency: Currency;
   submitLabel?: string;
   skin?: "default" | "pos";
 }) {
@@ -163,7 +166,7 @@ export function ItemOptionsForm({
                         <span className="font-bold">{modifier.name}</span>
                         {modifier.priceDelta !== 0 ? (
                           <span className="text-[11px] opacity-80">
-                            {formatPriceDelta(modifier.priceDelta)}
+                            {formatMoneyDelta(modifier.priceDelta, currency)}
                           </span>
                         ) : null}
                       </>
@@ -171,7 +174,7 @@ export function ItemOptionsForm({
                       <>
                         <span className="flex-1">{modifier.name}</span>
                         <span className="text-neutral-500">
-                          {formatPriceDelta(modifier.priceDelta)}
+                          {formatMoneyDelta(modifier.priceDelta, currency)}
                         </span>
                       </>
                     )}
@@ -275,7 +278,7 @@ export function ItemOptionsForm({
             : "rounded-lg bg-neutral-900 px-4 py-3 text-center font-medium text-white"
         }
       >
-        {submitLabel} · {formatBaht(total)}
+        {submitLabel} · {formatMoney(total, currency)}
       </SubmitButton>
     </form>
   );

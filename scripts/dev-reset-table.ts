@@ -26,6 +26,11 @@ async function main() {
 
   // ลบออร์เดอร์ก่อนเสมอ เพราะ TableSession → Order ตั้ง onDelete: Restrict ไว้
   const orders = await prisma.order.deleteMany({ where: { tableSessionId: { in: sessionIds } } });
+  // การรับเงินต้องลบหลังออร์เดอร์ (Order → Payment ก็ Restrict) และก่อนรอบโต๊ะ
+  // — โต๊ะที่เคยปิดบิลแล้วจะรีเซ็ตไม่ได้เลยถ้าไม่มีบรรทัดนี้ (บทที่ 11)
+  const payments = await prisma.payment.deleteMany({
+    where: { tableSessionId: { in: sessionIds } },
+  });
   const removed = await prisma.tableSession.deleteMany({ where: { id: { in: sessionIds } } });
 
   await prisma.restaurantTable.update({
@@ -34,7 +39,7 @@ async function main() {
   });
 
   console.log(
-    `โต๊ะ ${table.name} (${tableCode}): ลบ ${removed.count} รอบ, ${orders.count} บิล, สถานะกลับเป็น AVAILABLE`,
+    `โต๊ะ ${table.name} (${tableCode}): ลบ ${removed.count} รอบ, ${orders.count} บิล, ${payments.count} การรับเงิน, สถานะกลับเป็น AVAILABLE`,
   );
 }
 

@@ -3,7 +3,10 @@ import "server-only";
 import { lineTotalOf } from "@/lib/money";
 import { Prisma } from "@/lib/generated/prisma/client";
 import type { OrderChannel } from "@/lib/generated/prisma/enums";
+import { REALTIME_EVENT_VERSION, type RealtimeEventType } from "@/lib/realtime-events";
 import { prisma } from "@/lib/server/db";
+import { syncOrderStatusFromItems } from "@/lib/server/order-progress";
+import { publishRealtimeEvent } from "@/lib/server/realtime";
 
 /**
  * ตะกร้าและการส่งออร์เดอร์ (บทที่ 7)
@@ -235,6 +238,10 @@ export async function addToCart(input: AddToCartInput): Promise<CartResult<undef
     }),
   );
 
+  // หลัง commit เท่านั้น — เครื่อง POS ของพนักงานจะเห็นตะกร้าที่ลูกค้ากดจากมือถือ
+  // โตขึ้นเองโดยไม่ต้องกดโหลดใหม่ (บทที่ 8)
+  await announce("cart.changed", input.branchId, input.tableId);
+
   return { ok: true, data: undefined };
 }
 
@@ -261,6 +268,7 @@ export async function setCartLineQuantity(
       status: "DRAFT",
       order: { tableSessionId, status: "DRAFT" },
     },
+    include: { order: { select: { tableId: true } } },
   });
 
   if (!line) {
@@ -282,6 +290,8 @@ export async function setCartLineQuantity(
 
     await recalculateOrderSubtotal(tx, line.orderId);
   });
+
+  await announce("cart.changed", line.branchId, line.order.tableId);
 
   return { ok: true, data: undefined };
 }
@@ -318,7 +328,7 @@ export async function placeOrder(
 
   const placedAt = new Date();
 
-  await prisma.$transaction(async (tx) => {
+  const placed = await prisma.$transaction(async (tx) => {
     const subtotal = await recalculateOrderSubtotal(tx, cart.id);
 
     const { count } = await tx.order.updateMany({
@@ -333,16 +343,65 @@ export async function placeOrder(
     });
 
     if (count === 0) {
-      return;
+      return false;
     }
 
     await tx.orderItem.updateMany({
-      where: { orderId: cart.id, status: "DRAFT" },
+      where: { orderId: cart.id, status: "DRAFT", stationId: { not: null } },
       data: { status: "PLACED" },
     });
+
+    /**
+     * ของที่ไม่ผูกสถานีครัว (น้ำเปล่าขวด ขนมซอง) ข้ามไป READY ตั้งแต่ตอนส่งเลย
+     *
+     * เพราะมันไม่ขึ้นจอครัว (ตามกฎในบทที่ 8) จึงไม่มีใครกดเปลี่ยนสถานะให้มันได้
+     * ถ้าปล่อยเป็น PLACED ค้างไว้ บิลที่มีน้ำเปล่าปนอยู่จะไม่มีวันขึ้นเป็น READY
+     * เพราะสถานะบิลคือสถานะของรายการที่ช้าที่สุด — แล้วโต๊ะนั้นจะคิดเงินไม่ได้เลย
+     * ในบทที่ 10 (เงื่อนไขปิดบิลคือ SERVED → PAID)
+     *
+     * และมันถูกตามความจริงด้วย: ขวดน้ำในตู้เย็น "พร้อมเสิร์ฟ" ตั้งแต่วินาทีที่สั่ง
+     * สิ่งที่ยังไม่เกิดคือมีคนไปหยิบมาวางบนโต๊ะ ซึ่งคือขั้น SERVED ที่พนักงานกดเอง
+     */
+    await tx.orderItem.updateMany({
+      where: { orderId: cart.id, status: "DRAFT", stationId: null },
+      data: { status: "READY", readyAt: placedAt },
+    });
+
+    // บิลที่มีแต่ของหยิบเอง (สั่งน้ำเปล่าอย่างเดียว) ต้องขึ้นเป็น READY ทันที
+    // ไม่ใช่ค้างที่ PLACED ที่ updateMany ด้านบนเพิ่งเขียนไป
+    await syncOrderStatusFromItems(tx, cart.id);
+
+    return true;
   });
 
+  /**
+   * ประกาศเฉพาะตอนที่บิลถูกส่งจริงในการกดครั้งนี้ (count > 0)
+   *
+   * การกดซ้ำที่มาช้ากว่าอันแรกได้ count = 0 และต้อง "ไม่" ยิง event ซ้ำ —
+   * ไม่งั้นจอครัวจะกะพริบสองรอบต่อการสั่งหนึ่งครั้ง แล้วครัวจะเริ่มไม่ไว้ใจว่า
+   * ที่เห็นกะพริบคือมีของใหม่เข้ามาจริงหรือแค่จอเสีย
+   */
+  if (placed) {
+    await announce("order.placed", cart.branchId, cart.tableId);
+  }
+
   return { ok: true, data: { orderNumber: cart.orderNumber } };
+}
+
+/**
+ * ยิง event realtime หลัง transaction commit
+ *
+ * แยกเป็นฟังก์ชันสั้น ๆ เพื่อให้จุดที่เรียกอ่านออกในบรรทัดเดียวว่ากำลังประกาศอะไร
+ * และเพื่อให้ `v` (เวอร์ชัน payload) กับ `at` ถูกเติมที่เดียว ไม่ต้องจำไปเขียนซ้ำ
+ */
+async function announce(type: RealtimeEventType, branchId: string, tableId: string | null) {
+  await publishRealtimeEvent({
+    v: REALTIME_EVENT_VERSION,
+    type,
+    branchId,
+    tableId,
+    at: Date.now(),
+  });
 }
 
 /**

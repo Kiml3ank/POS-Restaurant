@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
-import { formatBaht } from "@/lib/money";
+import { LiveRefresh } from "@/components/live-refresh";
+import { formatMoney } from "@/lib/money";
 import { ORDER_ITEM_STATUS_LABEL, ORDER_STATUS_LABEL } from "@/lib/order-status";
 import { getPlacedOrders } from "@/lib/server/cart";
 import { resolveCustomerContext } from "@/lib/server/table-session";
@@ -11,9 +12,9 @@ import { CustomerHeader } from "../_components/customer-header";
 /**
  * หน้าติดตามออร์เดอร์ของโต๊ะ — ปลายทางหลังกดส่งเข้าครัว (บทที่ 7)
  *
- * ตอนนี้อัปเดตด้วยการโหลดหน้าใหม่เท่านั้น การ push สถานะจากครัวมาเองแบบ realtime
- * เป็นงานของบทที่ 8 ซึ่งจะใช้ SSE ผ่าน Route Handler (ห้าม WebSocket ตรง ๆ
- * เพราะ Route Handler อัปเกรด connection ไม่ได้ — CLAUDE.md หัวข้อ 2)
+ * สถานะจากครัว push มาเองแบบ realtime แล้ว (บทที่ 8) ผ่าน SSE ที่ /api/realtime
+ * — ไม่ใช่ WebSocket เพราะ Route Handler ของ Next.js อัปเกรด connection ไม่ได้
+ * (CLAUDE.md หัวข้อ 2) ตัวรับอยู่ที่ <LiveRefresh> ด้านล่าง
  *
  * สถานะที่แสดงเป็นระดับ "รายการ" ไม่ใช่ระดับบิล เพราะของในบิลเดียวกันเสร็จ
  * ไม่พร้อมกัน (น้ำมาก่อน ครัวร้อนตามมาทีหลัง)
@@ -29,6 +30,9 @@ export default async function TableOrdersPage({
   if (!context) {
     notFound();
   }
+
+  // สกุลเงินมาจากสาขาเสมอ ห้าม hardcode บาท — สาขาลาว/เวียดนามใช้คนละสกุล
+  const currency = context.branch.currency;
 
   if (!context.session) {
     redirect(`/t/${tableCode}`);
@@ -50,6 +54,7 @@ export default async function TableOrdersPage({
       <CustomerHeader
         tableName={context.table.name}
         branchName={context.branch.name}
+        currency={currency}
         backHref={`/t/${tableCode}`}
       />
 
@@ -68,8 +73,18 @@ export default async function TableOrdersPage({
           </div>
         ) : (
           <>
-            <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-              ส่งเข้าครัวแล้ว {orders.length} ใบ — สถานะอัปเดตเมื่อโหลดหน้านี้ใหม่
+            <p className="flex items-center justify-between gap-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+              <span>ส่งเข้าครัวแล้ว {orders.length} ใบ</span>
+              {/*
+                สถานะจากครัววิ่งมาเองผ่าน SSE (บทที่ 8) — ลูกค้าไม่ต้องกดโหลดใหม่
+                และไม่ต้องเรียกพนักงานมาถามว่า "อาหารถึงไหนแล้ว" ซึ่งเป็นเหตุผล
+                ครึ่งหนึ่งที่หน้านี้มีอยู่ตั้งแต่แรก
+
+                ต่อสายด้วย ?table= เพื่อให้ฝั่ง server กรองให้เหลือเฉพาะ event ของ
+                โต๊ะนี้ (ดู app/api/realtime/route.ts) — มือถือของลูกค้าโต๊ะนี้
+                ต้องไม่ได้รับแม้แต่สัญญาณเปล่าของโต๊ะอื่น
+              */}
+              <LiveRefresh src={`/api/realtime?table=${tableCode}`} className="text-emerald-800" />
             </p>
 
             <ul className="flex flex-col gap-3">
@@ -107,7 +122,7 @@ export default async function TableOrdersPage({
 
                   <div className="flex justify-between border-t border-neutral-100 pt-2 text-sm">
                     <span className="text-neutral-600">รวมบิลนี้</span>
-                    <span className="font-medium">{formatBaht(order.subtotal)}</span>
+                    <span className="font-medium">{formatMoney(order.subtotal, currency)}</span>
                   </div>
                 </li>
               ))}
@@ -115,7 +130,7 @@ export default async function TableOrdersPage({
 
             <div className="flex justify-between rounded-xl bg-neutral-100 px-3 py-3">
               <span className="text-sm text-neutral-600">รวมทั้งโต๊ะ (ยังไม่รวม VAT/เซอร์วิส)</span>
-              <span className="font-semibold">{formatBaht(runningTotal)}</span>
+              <span className="font-semibold">{formatMoney(runningTotal, currency)}</span>
             </div>
           </>
         )}

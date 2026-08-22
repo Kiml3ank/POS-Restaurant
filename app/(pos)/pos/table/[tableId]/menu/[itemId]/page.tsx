@@ -2,7 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { ItemOptionsForm, type OptionGroupView } from "@/components/item-options-form";
-import { formatBaht } from "@/lib/money";
+import { formatMoney } from "@/lib/money";
 import { canAccessScreen } from "@/lib/rbac";
 import { getCustomerMenuItem } from "@/lib/server/menu";
 import { getPosTable } from "@/lib/server/pos";
@@ -27,13 +27,14 @@ export default async function PosMenuItemPage({
 }: {
   params: Promise<{ tableId: string; itemId: string }>;
 }) {
-  const staff = await getCurrentStaff();
+  const staff = await getCurrentStaff("pos");
 
   if (!staff || !canAccessScreen(staff.role, "pos")) {
     redirect("/pos/login");
   }
 
   const { tableId, itemId } = await params;
+  const currency = staff.branch.currency;
   const detail = await getPosTable(staff.branchId, tableId);
 
   if (!detail) {
@@ -64,24 +65,25 @@ export default async function PosMenuItemPage({
   }));
 
   return (
-    <main className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-8">
+    <main className="flex min-h-0 flex-1 items-start justify-center overflow-auto p-4 lg:p-8">
       <div className="modal w-full max-w-[640px]">
-        <div className="flex flex-none items-baseline justify-between gap-4 border-b-2 border-[var(--color-text)] p-6">
+        <div className="flex flex-none items-baseline justify-between gap-4 border-b-2 border-[var(--color-text)] p-4 lg:p-6">
           <div className="flex min-w-0 flex-col gap-1">
             <span className="kicker truncate">
               โต๊ะ {detail.table.name} · {item.category.name}
             </span>
             <h1 className="display text-[28px] leading-tight">{item.name}</h1>
           </div>
-          <span className="display shrink-0 text-[22px]">{formatBaht(item.basePrice)}</span>
+          <span className="display shrink-0 text-[22px]">{formatMoney(item.basePrice, currency)}</span>
         </div>
 
-        <div className="flex flex-col gap-6 p-6">
+        <div className="flex flex-col gap-6 p-4 lg:p-6">
           <ItemOptionsForm
             action={posAddToCartAction}
             hiddenFields={{ tableId, menuItemId: item.id }}
             basePrice={item.basePrice}
             groups={groups}
+            currency={currency}
             submitLabel="เพิ่มลงตะกร้าโต๊ะ"
             skin="pos"
           />

@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 
-import { formatBaht } from "@/lib/money";
+import type { Currency } from "@/lib/generated/prisma/enums";
+import { formatMoney } from "@/lib/money";
 
 import { placeOrderAction } from "../actions";
 import { IDLE_FORM_STATE, type FormState } from "@/lib/form-state";
@@ -20,10 +21,12 @@ export function PlaceOrderForm({
   tableCode,
   subtotal,
   itemCount,
+  currency,
 }: {
   tableCode: string;
   subtotal: number;
   itemCount: number;
+  currency: Currency;
 }) {
   const [state, formAction] = useActionState<FormState, FormData>(
     placeOrderAction,
@@ -45,7 +48,7 @@ export function PlaceOrderForm({
         disabled={itemCount === 0}
         className="rounded-lg bg-neutral-900 px-4 py-4 text-center text-base font-medium text-white"
       >
-        ส่ง {itemCount} รายการเข้าครัว · {formatBaht(subtotal)}
+        ส่ง {itemCount} รายการเข้าครัว · {formatMoney(subtotal, currency)}
       </SubmitButton>
 
       <p className="text-center text-xs text-neutral-500">

@@ -26,7 +26,7 @@ import { PosSidebar } from "./pos/_components/pos-sidebar";
 export default async function PosLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  const staff = await getCurrentStaff();
+  const staff = await getCurrentStaff("pos");
 
   if (!staff) {
     return <div className="pos-skin flex min-h-dvh flex-col">{children}</div>;
@@ -34,21 +34,23 @@ export default async function PosLayout({
 
   return (
     <div className="pos-skin flex h-dvh flex-col overflow-hidden">
-      <header className="flex h-[66px] flex-none items-stretch border-b-2 border-[var(--color-text)]">
+      <header className="flex h-[58px] flex-none items-stretch border-b-2 border-[var(--color-text)] lg:h-[66px]">
         <Link
           href="/pos"
-          className="flex w-[268px] flex-none items-center gap-3 border-r-2 border-[var(--color-text)] px-6"
+          className="flex flex-none items-center gap-2 border-r-2 border-[var(--color-text)] px-4 lg:w-[268px] lg:gap-3 lg:px-6"
         >
           <span className="size-3.5 flex-none bg-[var(--color-accent)]" />
           <span className="display text-[17px]">POS</span>
-          <span className="kicker truncate">{staff.branch.name}</span>
+          {/* ชื่อสาขาเป็นข้อมูลยืนยัน ไม่ใช่ข้อมูลที่ต้องอ่านทุกวินาที — จอแคบตัดทิ้งก่อน */}
+          <span className="kicker hidden truncate sm:inline">{staff.branch.name}</span>
         </Link>
 
-        <div className="flex flex-1 items-center justify-end gap-6 px-6">
-          <span className="kicker whitespace-nowrap">รหัส {staff.code}</span>
-          <span className="display text-[15px] whitespace-nowrap">{staff.name}</span>
+        <div className="flex min-w-0 flex-1 items-center justify-end gap-3 px-4 lg:gap-6 lg:px-6">
+          {/* รหัสพนักงานซ้ำกับชื่อที่อยู่ข้าง ๆ อยู่แล้ว จอแคบเก็บแค่ชื่อไว้ */}
+          <span className="kicker hidden whitespace-nowrap lg:inline">รหัส {staff.code}</span>
+          <span className="display truncate text-[15px]">{staff.name}</span>
 
-          <form action={logoutAction}>
+          <form action={logoutAction} className="flex-none">
             <button type="submit" className="btn btn-secondary h-[38px] whitespace-nowrap">
               ล็อกจอ
             </button>
@@ -56,7 +58,13 @@ export default async function PosLayout({
         </div>
       </header>
 
-      <div className="flex min-h-0 flex-1">
+      {/*
+        `flex-col-reverse lg:flex-row` — ใน DOM แถบโมดูลมาก่อนเนื้อหาเสมอ
+        (ลำดับที่ถูกสำหรับ screen reader และปุ่ม tab: เมนู → เนื้อหา)
+        แล้วให้ CSS เป็นคนย้ายมันไปไว้ "ล่างจอ" ตอนจอแคบ ไม่ใช่สลับลำดับใน DOM
+        — ถ้าสลับใน DOM จอกว้างจะกลายเป็น tab เจอเนื้อหาก่อนเมนู ซึ่งกลับด้านกัน
+      */}
+      <div className="flex min-h-0 flex-1 flex-col-reverse lg:flex-row">
         <PosSidebar role={staff.role} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
       </div>

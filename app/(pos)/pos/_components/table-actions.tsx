@@ -10,6 +10,7 @@ import {
   closeTableAction,
   openTableAction,
   posPlaceOrderAction,
+  posServeItemAction,
   posSetLineQuantityAction,
 } from "../actions";
 
@@ -113,6 +114,35 @@ export function CloseTableForm({ sessionId }: { sessionId: string }) {
 }
 
 /** ยกเลิกอาหารหนึ่งรายการ — บังคับกรอกเหตุผล แล้วเขียนลง AuditLog */
+/**
+ * "เสิร์ฟแล้ว" ของบรรทัดที่ครัวทำเสร็จ (READY → SERVED) — บทที่ 8
+ *
+ * ต้องมีที่นี่ด้วยนอกจากบนจอครัว เพราะจอครัวแสดงเฉพาะของที่ผ่านครัว
+ * ของที่หยิบเอง (น้ำเปล่า) ไม่เคยขึ้นจอครัวเลย จึงต้องปิดจากหน้านี้เท่านั้น
+ */
+export function ServeItemForm({ orderItemId }: { orderItemId: string }) {
+  const [state, formAction] = useActionState<FormState, FormData>(
+    posServeItemAction,
+    IDLE_FORM_STATE,
+  );
+
+  return (
+    <form action={formAction} className="flex flex-col items-end gap-1">
+      <input type="hidden" name="orderItemId" value={orderItemId} />
+
+      <SubmitButton pendingLabel="..." className="btn btn-secondary h-9 whitespace-nowrap">
+        เสิร์ฟแล้ว
+      </SubmitButton>
+
+      {state.status === "error" ? (
+        <span role="alert" className="alert text-[12px]">
+          {state.message}
+        </span>
+      ) : null}
+    </form>
+  );
+}
+
 export function CancelItemForm({ orderItemId }: { orderItemId: string }) {
   const [state, formAction] = useActionState<FormState, FormData>(
     cancelItemAction,

@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import type { FormState } from "@/lib/form-state";
 import { canAccessScreen } from "@/lib/rbac";
 import { addToCart, placeOrder, setCartLineQuantity } from "@/lib/server/cart";
+import { serveOrderItem } from "@/lib/server/kds";
+import { takePayment } from "@/lib/server/payment";
 import {
   cancelOrderItemByStaff,
   closeTableSession,
@@ -27,7 +29,7 @@ const NOT_SIGNED_IN: FormState = {
 };
 
 async function requirePosStaff() {
-  const staff = await getCurrentStaff();
+  const staff = await getCurrentStaff("pos");
   return staff && canAccessScreen(staff.role, "pos") ? staff : null;
 }
 
@@ -41,6 +43,7 @@ export async function loginAction(_prevState: FormState, formData: FormData): Pr
   const result = await loginStaff(
     String(formData.get("staffCode") ?? ""),
     String(formData.get("pin") ?? ""),
+    "pos",
   );
 
   if (!result.ok) {
@@ -48,7 +51,7 @@ export async function loginAction(_prevState: FormState, formData: FormData): Pr
   }
 
   if (!canAccessScreen(result.staff.role, "pos")) {
-    await logoutStaff();
+    await logoutStaff("pos");
     return { status: "error", message: "ตำแหน่งของคุณไม่มีสิทธิ์เข้าหน้า POS" };
   }
 
@@ -56,7 +59,7 @@ export async function loginAction(_prevState: FormState, formData: FormData): Pr
 }
 
 export async function logoutAction(): Promise<void> {
-  await logoutStaff();
+  await logoutStaff("pos");
   redirect("/pos/login");
 }
 
@@ -107,6 +110,97 @@ export async function closeTableAction(
   }
 
   redirect("/pos");
+}
+
+/**
+ * พนักงานกด "เสิร์ฟแล้ว" จากหน้าบิลของโต๊ะ (READY → SERVED)
+ *
+ * มีปุ่มนี้ทั้งที่จอครัวก็มี เพราะจอครัวแสดงเฉพาะของที่ต้องผ่านครัว —
+ * น้ำเปล่าที่หยิบจากตู้เย็นไม่เคยขึ้นจอครัวเลย ถ้าไม่มีปุ่มตรงนี้จะไม่มีใคร
+ * ปิดรายการพวกนั้นได้ แล้วบิลจะค้างไม่ถึง SERVED จนคิดเงินไม่ได้ในบทที่ 10
+ *
+ * ใช้ requirePosStaff() ไม่ใช่ requireKdsStaff() เพราะแคชเชียร์เข้าจอครัวไม่ได้
+ * แต่กดเสิร์ฟได้ (ดู canServeOrderItem ใน lib/rbac.ts) — ตัวตรวจสิทธิ์จริง
+ * อยู่ใน serveOrderItem() อีกชั้น
+ */
+export async function posServeItemAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requirePosStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const result = await serveOrderItem(staff, String(formData.get("orderItemId") ?? ""));
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  refresh();
+
+  return { status: "success", message: "เสิร์ฟแล้ว" };
+}
+
+/**
+ * รับเงินและปิดบิลของโต๊ะ (บทที่ 11 — โหมดสาธิต)
+ *
+ * ส่งจากหน้าจอมาแค่ **"วิธีจ่าย" กับ "รับเงินสดมาเท่าไหร่"** เท่านั้น
+ * ยอดที่ต้องจ่ายคิดใหม่ฝั่ง server ทุกครั้งใน takePayment() —
+ * ค่า `expectedTotal` ที่แนบมาด้วยไม่ได้ถูกใช้เป็นยอด แต่ใช้ตรวจว่าบิลเปลี่ยนไป
+ * ระหว่างที่แคชเชียร์กำลังกดหรือเปล่า (ดูเหตุผลใน lib/server/payment.ts)
+ *
+ * สำเร็จแล้ว redirect ไปหน้าเดิมพร้อม `?paid=<id>` ซึ่งจะกลายเป็นหน้าสรุปการรับเงิน
+ * — ต้อง redirect ไม่ใช่ refresh() เพราะพอปิดบิลแล้วรอบโต๊ะถูกปิดไปด้วย
+ * หน้าคิดเงินเดิมจะไม่มีอะไรให้แสดงอีกเลย
+ */
+export async function takePaymentAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requirePosStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const tableId = String(formData.get("tableId") ?? "");
+  const method = String(formData.get("method") ?? "");
+
+  if (method !== "CASH" && method !== "QR") {
+    return { status: "error", message: "กรุณาเลือกวิธีชำระเงิน" };
+  }
+
+  const result = await takePayment(staff, tableId, {
+    method,
+    receivedAmount: parseMinorAmount(formData.get("receivedAmount")),
+    expectedTotal: parseMinorAmount(formData.get("expectedTotal")),
+  });
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  redirect(`/pos/table/${tableId}/bill?paid=${result.paymentId}`);
+}
+
+/**
+ * อ่านจำนวนเงินจากฟอร์มเป็น "จำนวนเต็มหน่วยย่อย" — คืน null เมื่อไม่ได้กรอกมา
+ *
+ * ฟอร์มส่งมาเป็นหน่วยย่อยอยู่แล้ว (หน้าจอเป็นคนแปลงจากที่คนกรอก) ที่นี่จึงแค่
+ * ตรวจว่าเป็นจำนวนเต็มจริง — **ห้ามมีการหาร 100 ที่นี่** เพราะสาขา LAK/VND
+ * ไม่มีหน่วยย่อย เลขที่กรอกคือจำนวนเต็มของสกุลนั้นตรง ๆ (ดู lib/money.ts)
+ */
+function parseMinorAmount(value: FormDataEntryValue | null): number | null {
+  if (value === null || String(value).trim() === "") {
+    return null;
+  }
+
+  const parsed = Number.parseInt(String(value), 10);
+
+  return Number.isFinite(parsed) ? parsed : null;
 }
 
 /** ยกเลิกรายการอาหารพร้อมเหตุผล (บันทึก AuditLog ทุกครั้ง) */
