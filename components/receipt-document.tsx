@@ -2,6 +2,7 @@ import { formatBp } from "@/lib/bill";
 import { formatMoney } from "@/lib/money";
 import { PAYMENT_METHOD_LABEL } from "@/lib/payment-method";
 import { RECEIPT_COPY_LABEL, RECEIPT_KIND_TITLE } from "@/lib/receipt";
+import { dailyOrderNumber } from "@/lib/order-number";
 import { salePointDisplayName, salePointFieldLabel, showsInTableMap } from "@/lib/sale-point";
 import type { ReceiptDetail } from "@/lib/server/receipt";
 
@@ -105,7 +106,7 @@ export function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
           <Line label="จำนวนลูกค้า" value={`${payment.tableSession.pax} คน`} />
         ) : null}
         {payment.paidByStaff ? <Line label="พนักงาน" value={payment.paidByStaff.name} /> : null}
-        <Line label="อ้างอิงบิล" value={orderNumbers.map((number) => `#${number}`).join(" ")} />
+        <Line label="อ้างอิงบิล" value={orderNumbers.map((number) => `#${dailyOrderNumber(number)}`).join(" ")} />
       </dl>
 
       <div className="my-3 border-t-2 border-dashed border-[var(--color-text)]" />
@@ -218,7 +219,15 @@ export function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
       <div className="my-3 border-t-2 border-dashed border-[var(--color-text)]" />
 
       <footer className="flex flex-col items-center gap-1 text-center text-[11px]">
-        <span>ขอบคุณที่ใช้บริการ</span>
+        {/*
+          ข้อความท้ายใบมาจาก snapshot ของใบนั้น ไม่ใช่จากค่าตั้งปัจจุบันของสาขา —
+          ร้านเปลี่ยนข้อความแล้วใบที่ออกไปแล้วต้องพิมพ์ซ้ำได้เหมือนเดิมเป๊ะ
+          (เหตุผลเดียวกับชื่อร้าน/ที่อยู่ที่อยู่ในกลุ่ม seller* ทั้งหมด)
+          · null = ใบเก่าก่อนมีคอลัมน์นี้ หรือร้านยังไม่ได้ตั้ง → ใช้ข้อความเริ่มต้น
+        */}
+        <span className="leading-snug whitespace-pre-line">
+          {receipt.sellerFooter ?? "ขอบคุณที่ใช้บริการ"}
+        </span>
         {/*
           โหมดสาธิตต้องเขียนไว้บนตัวเอกสาร ไม่ใช่แค่บนหน้าจอ — ใบที่พิมพ์ออกมาแล้ว
           จะถูกอ่านโดยคนที่ไม่เคยเห็นหน้าจอนี้ และต้องรู้ได้เองว่ามันไม่ใช่ของจริง

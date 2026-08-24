@@ -3,17 +3,19 @@ import Link from "next/link";
 import { LiveRefresh } from "@/components/live-refresh";
 import type { Currency } from "@/lib/generated/prisma/enums";
 import { formatMoney } from "@/lib/money";
+import { dailyOrderNumber } from "@/lib/order-number";
 import { ORDER_ITEM_STATUS_LABEL, ORDER_STATUS_LABEL } from "@/lib/order-status";
 import { canCancelOrderItem, canServeOrderItem } from "@/lib/rbac";
-import { showsInTableMap } from "@/lib/sale-point";
+import { needsQueueNumber, showsInTableMap } from "@/lib/sale-point";
 import { getCustomerMenu } from "@/lib/server/menu";
-import { type PosOrder, type PosTableDetail } from "@/lib/server/pos";
+import { CUSTOMER_NAME_MAX_LENGTH, type PosOrder, type PosTableDetail } from "@/lib/server/pos";
 import type { CurrentStaff } from "@/lib/server/staff-session";
 
 import { CartPanel } from "./cart-panel";
 import {
   CancelItemForm,
   CloseTableForm,
+  CustomerNameForm,
   OpenTableForm,
   PosLineControls,
   PosPlaceOrderForm,
@@ -191,7 +193,17 @@ export async function SalePointScreen({
 
               {onBills ? (
                 <div className="flex flex-1 items-center px-6">
-                  <span className="kicker">ยกเลิกรายการและปิดรอบโต๊ะทำได้ที่นี่</span>
+                  {/*
+                    ⚠ ต้อง whitespace-nowrap — แถบนี้สูงตายตัว 58px และเป็น flex
+                    ตัวหนังสือที่ตัดบรรทัดได้จะสูง 119px ที่จอ 390px แล้วโดนกรอบตัดครึ่ง
+                    (วัดเจอด้วยสคริปต์ตรวจจอ ไม่ใช่ด้วยตา) แถบเลื่อนแนวนอนได้อยู่แล้ว
+                    ข้อความยาวจึงเลื่อนไปอ่านต่อได้ ไม่ต้องตัดบรรทัด
+                  */}
+                  <span className="kicker whitespace-nowrap">
+                    {needsQueueNumber(table.kind)
+                      ? "ตั้งชื่อลูกค้า ยกเลิกรายการ และปิดบิลทำได้ที่นี่"
+                      : "ยกเลิกรายการและปิดรอบโต๊ะทำได้ที่นี่"}
+                  </span>
                 </div>
               ) : (
                 <>
@@ -220,6 +232,16 @@ export async function SalePointScreen({
             <div className="min-h-0 flex-1 overflow-auto p-6">
               {onBills ? (
                 <div className="flex flex-col gap-6">
+                  {needsQueueNumber(table.kind) ? (
+                    <div className="max-w-md">
+                      <CustomerNameForm
+                        sessionId={session.id}
+                        customerName={session.customerName}
+                        maxLength={CUSTOMER_NAME_MAX_LENGTH}
+                      />
+                    </div>
+                  ) : null}
+
                   {sentOrders.length === 0 ? (
                     <p className="panel p-6 text-[var(--color-neutral-700)]">
                       ยังไม่มีบิลที่ส่งเข้าครัว — เลือกเมนูจากแท็บ &ldquo;เมนู&rdquo;
@@ -363,7 +385,7 @@ function OrderCard({
   return (
     <article className="panel flex flex-col">
       <div className="flex flex-wrap items-baseline justify-between gap-3 border-b-2 border-[var(--color-text)] px-5 py-3">
-        <span className="display text-[17px]">#{order.orderNumber}</span>
+        <span className="display text-[17px]">#{dailyOrderNumber(order.orderNumber)}</span>
         <span className="kicker">
           {order.placedAt ? formatTime(order.placedAt, timezone) : "—"} ·{" "}
           {ORDER_STATUS_LABEL[order.status]} ·{" "}

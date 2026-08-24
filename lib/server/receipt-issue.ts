@@ -31,6 +31,8 @@ export type IssueReceiptInput = {
     taxId: string | null;
     addressLine: string | null;
     phone: string | null;
+    /** ข้อความท้ายใบที่ร้านตั้งไว้ ณ วินาทีที่ออกใบ — null = ใช้ข้อความเริ่มต้นของระบบ */
+    receiptFooter: string | null;
   };
   issuedAt: Date;
 };
@@ -81,6 +83,7 @@ export async function issueReceipt(
       sellerBranchName: input.seller.branchName,
       sellerAddress: input.seller.addressLine,
       sellerPhone: input.seller.phone,
+      sellerFooter: input.seller.receiptFooter,
       issuedAt: input.issuedAt,
     },
     select: { id: true, number: true },

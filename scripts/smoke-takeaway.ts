@@ -7,17 +7,22 @@ import {
   chargesServiceCharge,
   joinsExistingSession,
   needsQueueNumber,
+  salePointBasePath,
+  salePointDisplayName,
+  salePointFieldLabel,
   showsInTableMap,
 } from "@/lib/sale-point";
 import { branchDayKey } from "@/lib/branch-day";
 import { addToCart, placeOrder } from "@/lib/server/cart";
 import { getSessionBill, getTableBill } from "@/lib/server/billing";
 import { prisma } from "@/lib/server/db";
+import { getKitchenTickets } from "@/lib/server/kds";
 import {
   getOpenSalePointSessions,
   getPosSession,
   getPosTables,
   openSalePointSession,
+  setSessionCustomerName,
 } from "@/lib/server/pos";
 import {
   openOrJoinTableSession,
@@ -25,6 +30,7 @@ import {
   resolveCustomerContext,
 } from "@/lib/server/table-session";
 import { takePayment } from "@/lib/server/payment";
+import { listReceipts } from "@/lib/server/receipt";
 import type { SalePointKind } from "@/lib/generated/prisma/enums";
 
 /**
@@ -40,6 +46,8 @@ import type { SalePointKind } from "@/lib/generated/prisma/enums";
  *      (ลูกค้าซื้อกลับสองคนที่มาพร้อมกันต้องไม่ได้บิลใบเดียวกัน)
  *   2. บิลซื้อกลับ **ไม่คิดเซอร์วิสชาร์จ** — ข้อที่ถ้าพลาดคือลูกค้าโดนเก็บเงินเกินทุกใบ
  *   3. โต๊ะนั่งต้องมีพฤติกรรมเหมือนเดิมเป๊ะ (regression ของบทที่ 5/9/10)
+ *   4. ตั๋วครัวและใบเสร็จของบิลซื้อกลับต้องเรียกบิลด้วย **เลขคิว** ไม่ใช่ชื่อช่อง
+ *      (ครัวอ่านชื่อช่องซึ่งเหมือนกันทุกใบแล้วไม่รู้ว่าเป็นของลูกค้าคนไหน)
  */
 
 const COUNTER_ID = "seed-counter-1";
@@ -329,7 +337,105 @@ async function main() {
   });
   check("Order.type ของบิลโต๊ะ = DINE_IN", dineOrder.type === "DINE_IN", dineOrder.type);
 
-  console.log("\n── 7. เคาน์เตอร์ไม่โผล่ที่ไหนที่ไม่ควรโผล่ ──────────────────────\n");
+
+  console.log("\n── 7. ชื่อบิลบนตั๋วครัวและใบเสร็จ ───────────────────────────────\n");
+
+  /**
+   * ก่อนก้อนนี้ ทุกที่ในระบบเขียน `table.name` ตรง ๆ แล้วแปะคำว่า "โต๊ะ" ไว้ข้างหน้า
+   * พอมีเคาน์เตอร์ ครัวจึงได้ตั๋วที่เขียนว่า "เคาน์เตอร์ซื้อกลับ" เหมือนกันทุกใบ
+   * — บอก **ชื่อช่อง** แทนที่จะบอกว่าเป็นบิลของใคร ซึ่งที่เคาน์เตอร์คือเลขคิว
+   * (ร้านมีเคาน์เตอร์เดียวแต่ลูกค้าหลายคน ชื่อช่องจึงไม่ช่วยอะไรเลย)
+   */
+  check(
+    "ชื่อบิลของโต๊ะนั่ง = โต๊ะ + ชื่อโต๊ะ",
+    salePointDisplayName(dineTable, dineFirst) === `โต๊ะ ${dineTable.name}`,
+    salePointDisplayName(dineTable, dineFirst),
+  );
+  check(
+    "ชื่อบิลของเคาน์เตอร์ = ช่องทาง + เลขคิว",
+    salePointDisplayName(counter, first) === `ซื้อกลับ คิว ${first.queueNumber}`,
+    salePointDisplayName(counter, first),
+  );
+  check(
+    "ชื่อบิลของเคาน์เตอร์ไม่ใช่ชื่อช่อง (บั๊กเดิมที่ครัวอ่านแล้วไม่รู้ว่าของใคร)",
+    !salePointDisplayName(counter, first).includes(counter.name),
+    `ชื่อช่องคือ "${counter.name}"`,
+  );
+  check(
+    "ไรเดอร์ใช้กฎเดียวกับเคาน์เตอร์ (ช่องทาง + เลขคิว)",
+    salePointDisplayName({ name: "ช่องไรเดอร์", kind: "DELIVERY" }, { queueNumber: 7 }) ===
+      "ไรเดอร์ คิว 7",
+    salePointDisplayName({ name: "ช่องไรเดอร์", kind: "DELIVERY" }, { queueNumber: 7 }),
+  );
+  check(
+    "ไม่มีเลขคิว (ข้อมูลก่อนมีคอลัมน์นี้) ตกกลับไปใช้ชื่อจุดขาย ไม่ใช่คำว่า 'คิว null'",
+    salePointDisplayName(counter, null) === `${SALE_POINT_LABEL.COUNTER} · ${counter.name}`,
+    salePointDisplayName(counter, null),
+  );
+  check(
+    "โต๊ะนั่งที่มีเลขคิวติดมาด้วยยังอ่านว่า 'โต๊ะ' (กฎตัดสินที่ kind ไม่ใช่ที่ว่ามีเลขคิวไหม)",
+    salePointDisplayName(dineTable, { queueNumber: 99 }) === `โต๊ะ ${dineTable.name}`,
+    salePointDisplayName(dineTable, { queueNumber: 99 }),
+  );
+  /**
+   * ลิงก์ที่พาไปผิดตระกูล URL เป็นบั๊กเงียบ: หน้าเปิดได้ 200 เหมือนกัน แต่พนักงาน
+   * ไปอยู่บนเส้นทางของโต๊ะทั้งที่ถือบิลซื้อกลับ (เจอจริงที่หน้าใบเสร็จของจอ POS)
+   */
+  check(
+    "เส้นทางฐานของโต๊ะนั่งชี้ด้วย tableId",
+    salePointBasePath(dineTable, dineFirst) === `/pos/table/${dineTable.id}`,
+    salePointBasePath(dineTable, dineFirst),
+  );
+  check(
+    "เส้นทางฐานของเคาน์เตอร์ชี้ด้วย sessionId (เพราะมีบิลเปิดพร้อมกันได้หลายใบ)",
+    salePointBasePath(counter, first) === `/pos/counter/${first.id}`,
+    salePointBasePath(counter, first),
+  );
+  check(
+    "ป้ายของช่องข้อมูลบนใบเสร็จ: โต๊ะนั่ง = 'โต๊ะ' · ที่เหลือ = 'ช่องทาง'",
+    salePointFieldLabel("DINE_IN") === "โต๊ะ" &&
+      salePointFieldLabel("COUNTER") === "ช่องทาง" &&
+      salePointFieldLabel("DELIVERY") === "ช่องทาง",
+  );
+
+  /**
+   * ชั้นที่พังได้จริงคือ query ไม่ใช่ฟังก์ชัน — ถ้า `getKitchenTickets()` ลืม
+   * select `tableSession.queueNumber` ฟังก์ชันข้างบนจะยังผ่านหมด แต่ตั๋วจริง
+   * บนจอครัวจะตกไปใช้ชื่อช่องทั้งวันโดยไม่มีอะไรฟ้อง
+   */
+  const tickets = await getKitchenTickets(counter.branchId);
+  const counterTicket = tickets.find((ticket) => ticket.id === counterOrder.id);
+  const dineTicket = tickets.find((ticket) => ticket.id === dineOrder.id);
+
+  check("ตั๋วครัวของบิลซื้อกลับขึ้นจอ", counterTicket !== undefined, `${tickets.length} ใบบนจอ`);
+  check("ตั๋วครัวของบิลโต๊ะนั่งขึ้นจอ", dineTicket !== undefined);
+  check(
+    "ตั๋วครัวดึงเลขคิวมาด้วยจริง (ไม่ใช่แค่ฟังก์ชันแปลงป้ายที่ถูก)",
+    counterTicket?.tableSession?.queueNumber === first.queueNumber,
+    String(counterTicket?.tableSession?.queueNumber),
+  );
+  /**
+   * `ticket.table` เป็น null ได้ตาม schema (ออร์เดอร์ที่ไม่ผูกจุดขาย) จอครัวจึงมี
+   * ternary คุมอยู่ — ที่นี่ต้องเดินทางเดียวกัน ไม่ใช่ใส่ ! ทับให้ tsc เงียบ
+   */
+  const counterTicketLabel = counterTicket?.table
+    ? salePointDisplayName(counterTicket.table, counterTicket.tableSession)
+    : null;
+  const dineTicketLabel = dineTicket?.table
+    ? salePointDisplayName(dineTicket.table, dineTicket.tableSession)
+    : null;
+
+  check(
+    "ป้ายบนตั๋วซื้อกลับอ่านว่า 'ซื้อกลับ คิว N'",
+    counterTicketLabel === `ซื้อกลับ คิว ${first.queueNumber}`,
+    counterTicketLabel ?? "ไม่มีป้าย",
+  );
+  check(
+    "ป้ายบนตั๋วโต๊ะนั่งไม่เปลี่ยนไปจากเดิม (regression ของบทที่ 8)",
+    dineTicketLabel === `โต๊ะ ${dineTable.name}`,
+    dineTicketLabel ?? "ไม่มีป้าย",
+  );
+  console.log("\n── 8. เคาน์เตอร์ไม่โผล่ที่ไหนที่ไม่ควรโผล่ ──────────────────────\n");
 
   const posTables = await getPosTables(counter.branchId);
   check(
@@ -362,7 +468,7 @@ async function main() {
   const openedByScan = await openTableSession(COUNTER_CODE, 1);
   check("เปิดรอบเคาน์เตอร์ผ่านเส้นทางลูกค้า (openTableSession) ไม่ได้", openedByScan === null);
 
-  console.log("\n── 8. รับเงินต้องไม่เดาว่าเป็นบิลใบไหน ──────────────────────────\n");
+  console.log("\n── 9. รับเงินต้องไม่เดาว่าเป็นบิลใบไหน ──────────────────────────\n");
 
   const cashierStaff = await prisma.staff.findFirstOrThrow({
     where: { code: "002" },
@@ -409,9 +515,122 @@ async function main() {
       "บิลที่เหลืออีกใบยังเปิดอยู่ ไม่ถูกปิดตามไปด้วย",
       (await prisma.tableSession.findUniqueOrThrow({ where: { id: second.id } })).status === "OPEN",
     );
+
+    /**
+     * เอกสารที่ลูกค้าถือกลับบ้านต้องเรียกบิลด้วยเลขคิวเหมือนตั๋วครัว — ไม่ใช่
+     * "โต๊ะ: เคาน์เตอร์ซื้อกลับ" ซึ่งเรียกสิ่งที่ไม่ใช่โต๊ะว่าโต๊ะ
+     * (ลิสต์ใบเสร็จเป็นสิทธิ์ของ OWNER/MANAGER จึงต้องเปลี่ยนคนถาม ไม่ใช่แคชเชียร์)
+     */
+    const ownerStaff = await prisma.staff.findFirstOrThrow({
+      where: { code: "001" },
+      include: { branch: true },
+    });
+    const receiptRow = await prisma.receipt.findFirstOrThrow({
+      where: { paymentId: paid.paymentId },
+      select: { id: true },
+    });
+    /**
+     * ที่เคาน์เตอร์ลูกค้า **จ่ายก่อนแล้วยืนรอ** ของถึงจะออกจากครัว — ถ้าตั๋วหลุด
+     * จากจอครัวตอนกดรับเงิน ครัวจะไม่มีวันเห็นออร์เดอร์นั้นเลย (ลูกค้าจ่ายแล้ว
+     * แต่ไม่มีใครทำอาหาร) จอครัวจึงต้องกรองด้วยสถานะ **ของรายการ** ไม่ใช่ของบิล
+     */
+    const ticketsAfterPaid = await getKitchenTickets(counter.branchId);
+    check(
+      "จ่ายเงินแล้วแต่ครัวยังไม่ได้ทำ = ตั๋วยังอยู่บนจอครัว",
+      ticketsAfterPaid.some((ticket) => ticket.id === counterOrder.id),
+      `${ticketsAfterPaid.length} ใบบนจอ`,
+    );
+
+    const listed = await listReceipts(ownerStaff, {});
+    const listedRow = listed.ok ? listed.rows.find((row) => row.id === receiptRow.id) : undefined;
+    check(
+      "ชื่อบิลบนใบเสร็จซื้อกลับ = ซื้อกลับ คิว N (ไม่ใช่ชื่อช่อง ไม่ใช่คำว่าโต๊ะ)",
+      listedRow?.tableName === `ซื้อกลับ คิว ${first.queueNumber}`,
+      listedRow?.tableName ?? "ไม่มีแถว",
+    );
+
+    /**
+     * ลูกค้าที่เดินกลับมาถามถึงใบเสร็จของตัวเองพูดว่า "คิว 12" — บิลซื้อกลับ
+     * ไม่มีชื่อโต๊ะให้ค้น ถ้าค้นด้วยเลขคิวไม่ได้ก็ต้องไล่เปิดดูทีละใบ
+     */
+    const byQueue = await listReceipts(ownerStaff, { q: `คิว ${first.queueNumber}` });
+    check(
+      "ค้นใบเสร็จด้วย 'คิว N' เจอใบของบิลซื้อกลับ",
+      byQueue.ok === true && byQueue.rows.some((row) => row.id === receiptRow.id),
+      byQueue.ok ? `${byQueue.rows.length} แถว` : byQueue.error,
+    );
+
+    const byOtherQueue = await listReceipts(ownerStaff, { q: "คิว 99999" });
+    check(
+      "ค้นด้วยเลขคิวที่ไม่มี = ไม่เจอใบนี้ (ไม่ใช่คืนทุกแถว)",
+      byOtherQueue.ok === true && !byOtherQueue.rows.some((row) => row.id === receiptRow.id),
+      byOtherQueue.ok ? `${byOtherQueue.rows.length} แถว` : byOtherQueue.error,
+    );
+
+    const receiptNumber = listedRow?.number ?? "";
+    const byNumber = await listReceipts(ownerStaff, { q: receiptNumber });
+    check(
+      "ค้นด้วยเลขที่ใบยังทำงานเหมือนเดิม (เลขยาวต้องไม่ไปพังที่เงื่อนไขเลขคิว)",
+      byNumber.ok === true && byNumber.rows.some((row) => row.id === receiptRow.id),
+      byNumber.ok ? `${receiptNumber} → ${byNumber.rows.length} แถว` : byNumber.error,
+    );
   }
 
-  console.log("\n── 9. ทางเข้าของหน้าจอเคาน์เตอร์ ────────────────────────────────\n");
+  console.log("\n── 10. ชื่อลูกค้าของบิลซื้อกลับ ─────────────────────────────────\n");
+
+  /**
+   * ใช้บิลใบที่ยังเปิดอยู่ (`second`) เพราะ `first` ถูกปิดไปตอนรับเงินข้างบนแล้ว
+   */
+  const named = await setSessionCustomerName(cashierStaff, second.id, "  คุณนัท  ");
+  check(
+    "ตั้งชื่อลูกค้าได้ และตัดช่องว่างหัวท้ายทิ้ง",
+    named.ok === true && named.customerName === "คุณนัท",
+    named.ok ? String(named.customerName) : named.error,
+  );
+  check(
+    "ชื่อถูกเขียนลงรอบขายจริง",
+    (await prisma.tableSession.findUniqueOrThrow({ where: { id: second.id } })).customerName ===
+      "คุณนัท",
+  );
+  check(
+    "แถบคิวเห็นชื่อลูกค้า",
+    (await getOpenSalePointSessions(counter.branchId)).find((entry) => entry.id === second.id)
+      ?.customerName === "คุณนัท",
+  );
+
+  const cleared = await setSessionCustomerName(cashierStaff, second.id, "   ");
+  check(
+    "ส่งค่าว่างมา = ล้างชื่อเป็น null ไม่ใช่เก็บสตริงว่าง (ไม่งั้นจอจะมีบรรทัดเปล่า)",
+    cleared.ok === true && cleared.customerName === null,
+    cleared.ok ? String(cleared.customerName) : cleared.error,
+  );
+
+  const tooLong = await setSessionCustomerName(cashierStaff, second.id, "ก".repeat(41));
+  check(
+    "ชื่อยาวเกินกำหนด = ปฏิเสธ",
+    tooLong.ok === false,
+    tooLong.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : tooLong.error,
+  );
+
+  const onDineInName = await setSessionCustomerName(cashierStaff, dineFirst.id, "คุณเอ");
+  check(
+    "โต๊ะนั่งตั้งชื่อลูกค้าไม่ได้ (ชื่อโต๊ะทำหน้าที่นี้อยู่แล้ว)",
+    onDineInName.ok === false,
+    onDineInName.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : onDineInName.error,
+  );
+
+  /**
+   * รอบที่ปิดไปแล้วต้องแก้ชื่อไม่ได้ — ไม่งั้นชื่อบนใบเสร็จที่พิมพ์ไปแล้วกับชื่อ
+   * ในฐานข้อมูลจะไม่ตรงกัน โดยที่ไม่มีร่องรอยเลยว่าใครแก้ตอนไหน
+   */
+  const onClosed = await setSessionCustomerName(cashierStaff, first.id, "คุณบี");
+  check(
+    "รอบที่ปิดไปแล้ว (จ่ายเงินแล้ว) ตั้งชื่อไม่ได้",
+    onClosed.ok === false,
+    onClosed.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : onClosed.error,
+  );
+
+  console.log("\n── 11. ทางเข้าของหน้าจอเคาน์เตอร์ ────────────────────────────────\n");
 
   const third = await openSalePointSession(cashierStaff, counter.id);
   check("เปิดบิลซื้อกลับใบใหม่ผ่าน openSalePointSession ได้", third.ok === true);

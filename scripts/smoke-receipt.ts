@@ -298,6 +298,7 @@ async function main() {
           branchName: branch.name,
           tenantName: tenant.name,
           taxId: tenant.taxId,
+          receiptFooter: branch.receiptFooter,
           addressLine: branch.addressLine,
           phone: branch.phone,
         },

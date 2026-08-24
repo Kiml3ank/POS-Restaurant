@@ -2,6 +2,8 @@ import "dotenv/config";
 
 import { randomBytes } from "node:crypto";
 
+import { branchDayKey } from "@/lib/branch-day";
+import { dailyOrderNumber, orderNumberDay } from "@/lib/order-number";
 import { addToCart, getCart, getPlacedOrders, placeOrder, setCartLineQuantity } from "@/lib/server/cart";
 import { prisma } from "@/lib/server/db";
 
@@ -142,6 +144,48 @@ async function main() {
     "สั่งเพิ่ม = บิลใบใหม่ เลขไม่ซ้ำ",
     !!secondCart && secondCart.orderNumber !== placed[0].orderNumber,
     `${placed[0].orderNumber} -> ${secondCart?.orderNumber}`,
+  );
+
+  console.log("\n── เลขที่บิลที่คนอ่าน ─────────────────────────────────────────────\n");
+
+  /**
+   * เลขในฐานเป็น "YYYYMMDD-NNNN" เพื่อกันซ้ำข้ามวันและใช้ทำรายงาน แต่คนพูดถึงบิล
+   * ว่า "บิลที่ 7" — สองอย่างนี้ต้องแยกกัน และจอทุกจอต้องแสดงผ่าน
+   * dailyOrderNumber() ไม่ใช่พิมพ์ค่าดิบออกไป
+   */
+  check(
+    "เลขที่คนอ่าน = ตัดวันและศูนย์นำหน้าออก",
+    dailyOrderNumber("20260824-0007") === "7",
+    dailyOrderNumber("20260824-0007"),
+  );
+  check("บิลใบแรกของวันคือ 1 ไม่ใช่ 0", dailyOrderNumber("20260824-0001") === "1");
+  check("เลขสามหลักไม่ถูกตัดผิด", dailyOrderNumber("20260824-0123") === "123");
+  check("เลขเกินสี่หลักยังอ่านได้", dailyOrderNumber("20260824-12345") === "12345");
+  check(
+    "คนละวันใช้เลขเดียวกันได้ (รีเซ็ตทุกวันตามที่ตั้งใจ)",
+    dailyOrderNumber("20260824-0003") === dailyOrderNumber("20260825-0003"),
+  );
+  check(
+    "ค่าที่ไม่ตรงรูปแบบคืนทั้งก้อน ไม่ใช่หายไปจากจอ",
+    dailyOrderNumber("LEGACY-7") === "LEGACY-7" && dailyOrderNumber("") === "",
+  );
+  check("อ่านวันของบิลจากเลขที่ได้", orderNumberDay("20260824-0007") === "20260824");
+  check("รูปแบบแปลก ๆ คืนวันเป็น null ไม่ใช่เดา", orderNumberDay("LEGACY-7") === null);
+
+  /**
+   * เลขจริงจากฐาน — เทสต์นี้จะแดงทันทีถ้าใครเปลี่ยนรูปแบบของ nextOrderNumber()
+   * โดยลืมว่ามีห้าจอที่แปลค่านี้ให้คนอ่าน
+   */
+  const todayPrefix = branchDayKey(table.branch.timezone);
+  check(
+    "เลขบิลจริงขึ้นต้นด้วยวันของสาขา",
+    placed[0].orderNumber.startsWith(`${todayPrefix}-`),
+    placed[0].orderNumber,
+  );
+  check(
+    "เลขลำดับที่คนอ่านเป็นจำนวนเต็มบวก",
+    Number.parseInt(dailyOrderNumber(placed[0].orderNumber), 10) >= 1,
+    `#${dailyOrderNumber(placed[0].orderNumber)}`,
   );
 
   // ล้างข้อมูลที่สร้างระหว่างทดสอบ

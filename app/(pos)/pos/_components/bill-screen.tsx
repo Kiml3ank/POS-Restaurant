@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { LiveRefresh } from "@/components/live-refresh";
+import { dailyOrderNumber } from "@/lib/order-number";
 import { formatBp } from "@/lib/bill";
 import { formatMoney } from "@/lib/money";
 import { ORDER_ITEM_STATUS_LABEL } from "@/lib/order-status";
@@ -143,7 +144,7 @@ export async function BillScreen({
                             จะมีเลขบิลไปต่อท้ายชื่อเมนูในบรรทัดเดียวกัน อ่านเป็น
                             "น้ำเปล่า#20260822-0003" ซึ่งดูเหมือนชื่อเมนูเพี้ยน */}
                         <span className="kicker block">
-                          #{line.orderNumber} · {ORDER_ITEM_STATUS_LABEL[line.status]}
+                          #{dailyOrderNumber(line.orderNumber)} · {ORDER_ITEM_STATUS_LABEL[line.status]}
                         </span>
                         {/* ราคา/หน่วยของจอแคบ ที่ตัดคอลัมน์ทิ้งไป */}
                         <span className="block text-xs text-[var(--color-neutral-700)] sm:hidden">
@@ -361,7 +362,7 @@ export function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; base: 
               <span className="kicker tabular-nums">{payment.tableSession.pax} คน</span>
             </div>
             <span className="kicker tabular-nums">
-              {orderNumbers.map((number) => `#${number}`).join(" · ")}
+              {orderNumbers.map((number) => `#${dailyOrderNumber(number)}`).join(" · ")}
             </span>
             <span className="kicker">
               {formatPaidAt(payment.paidAt, payment.branch.timezone)}

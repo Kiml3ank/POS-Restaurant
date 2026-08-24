@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { ORDER_ITEM_STATUS_LABEL, isKitchenActionable } from "@/lib/order-status";
 import { canAccessScreen, canCookOrderItem, canServeOrderItem } from "@/lib/rbac";
+import { dailyOrderNumber } from "@/lib/order-number";
 import { salePointDisplayName } from "@/lib/sale-point";
 import { getKitchenStations, getKitchenTickets, type KitchenTicket } from "@/lib/server/kds";
 import { getCurrentStaff } from "@/lib/server/staff-session";
@@ -186,7 +187,7 @@ function TicketCard({
               ? salePointDisplayName(ticket.table, ticket.tableSession)
               : "กลับบ้าน"}
           </span>
-          <span className="kicker truncate">#{ticket.orderNumber}</span>
+          <span className="kicker truncate">#{dailyOrderNumber(ticket.orderNumber)}</span>
         </div>
 
         <div className="flex flex-none flex-col items-end">

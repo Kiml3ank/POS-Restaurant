@@ -3,6 +3,7 @@ import "server-only";
 import { Prisma } from "@/lib/generated/prisma/client";
 import { canCancelOrderItem } from "@/lib/rbac";
 import { REALTIME_EVENT_VERSION, type RealtimeEventType } from "@/lib/realtime-events";
+import { needsQueueNumber } from "@/lib/sale-point";
 import { recalculateOrderSubtotal } from "@/lib/server/cart";
 import { prisma } from "@/lib/server/db";
 import { syncOrderStatusFromItems } from "@/lib/server/order-progress";
@@ -246,6 +247,67 @@ export async function openSalePointSession(staff: CurrentStaff, tableId: string)
   await announce("table_session.changed", staff.branchId, table.id);
 
   return { ok: true as const, session };
+}
+
+/**
+ * ความยาวสูงสุดของชื่อลูกค้า — สั้นพอที่จะไม่ดันหน้าจอแถบคิวเสียรูป
+ * และยาวพอสำหรับ "คุณนัท ตึกฝั่งตรงข้าม" ที่พนักงานจดจริง
+ */
+export const CUSTOMER_NAME_MAX_LENGTH = 40;
+
+/**
+ * ตั้งชื่อลูกค้าของรอบขาย (ช่องทางที่ไม่ใช่โต๊ะนั่ง)
+ *
+ * ── ทำไมต้องมีทั้งที่มีเลขคิวแล้ว ────────────────────────────────────────
+ * เลขคิวใช้เรียกของได้ก็จริง แต่ร้านจริงเรียกชื่อเมื่อคิวชนกันหลายเจ้าหรือ
+ * ลูกค้าประจำสั่งทางโทรศัพท์ไว้ก่อน — ชื่อจึงเป็นของ **เพิ่มเติม** ไม่ใช่ของบังคับ
+ * (ฟอร์มตอนเปิดบิลไม่ถามอะไรเลยโดยตั้งใจ ดู report/2026-08-24-takeaway-screens.md)
+ *
+ * ── กติกา ────────────────────────────────────────────────────────────────
+ * - ตั้งได้เฉพาะรอบที่ **ยังเปิดอยู่** ในสาขาของพนักงานคนนั้น
+ * - ส่งค่าว่างมา = ล้างชื่อทิ้ง (คืนเป็น null) ไม่ใช่เก็บสตริงว่าง —
+ *   ทุกที่ที่แสดงผลเช็คด้วย `customerName ? ...` สตริงว่างจะกลายเป็นบรรทัดเปล่า
+ * - โต๊ะนั่งไม่รับ เพราะชื่อโต๊ะทำหน้าที่นี้อยู่แล้ว และช่องกรอกที่ไม่มีใครใช้
+ *   คือช่องที่พนักงานจะกรอกอะไรก็ได้ลงไป
+ *
+ * ไม่เขียน AuditLog เพราะไม่แตะเงินและไม่ใช่สิทธิ์พิเศษ — ต่างจากส่วนลดพนักงาน
+ * ที่ต้องมีเสมอ (ดู lib/server/staff-meal.ts)
+ */
+export async function setSessionCustomerName(
+  staff: CurrentStaff,
+  sessionId: string,
+  rawName: string,
+) {
+  const session = await prisma.tableSession.findFirst({
+    where: { id: sessionId, branchId: staff.branchId, status: "OPEN" },
+    include: { table: { select: { id: true, kind: true } } },
+  });
+
+  if (!session) {
+    return { ok: false as const, error: "ไม่พบบิลที่เปิดอยู่ใบนี้ในสาขาของคุณ" };
+  }
+
+  if (!needsQueueNumber(session.table.kind)) {
+    return { ok: false as const, error: "บิลของโต๊ะนั่งใช้ชื่อโต๊ะเรียกอยู่แล้ว" };
+  }
+
+  const name = rawName.trim();
+
+  if (name.length > CUSTOMER_NAME_MAX_LENGTH) {
+    return {
+      ok: false as const,
+      error: `ชื่อลูกค้ายาวเกิน ${CUSTOMER_NAME_MAX_LENGTH} ตัวอักษร`,
+    };
+  }
+
+  await prisma.tableSession.update({
+    where: { id: session.id },
+    data: { customerName: name.length > 0 ? name : null },
+  });
+
+  await announce("table_session.changed", staff.branchId, session.table.id);
+
+  return { ok: true as const, customerName: name.length > 0 ? name : null };
 }
 
 /** จุดขายที่ไม่ใช่โต๊ะนั่งทั้งหมดของสาขา — ใช้เลือกว่าจะเปิดบิลใหม่ที่ช่องไหน */

@@ -98,12 +98,12 @@ export default async function AdminReceiptsPage({
             </label>
 
             <label className="flex min-w-[180px] flex-1 flex-col gap-1">
-              <span className="kicker">เลขที่ใบ หรือชื่อโต๊ะ</span>
+              <span className="kicker">เลขที่ใบ · ชื่อโต๊ะ · เลขคิว</span>
               <input
                 type="search"
                 name="q"
                 defaultValue={query.q ?? ""}
-                placeholder="เช่น HQ-00000012 หรือ A3"
+                placeholder="เช่น HQ-00000012 · A3 · คิว 12"
                 className="input h-10"
               />
             </label>
@@ -140,7 +140,7 @@ export default async function AdminReceiptsPage({
                           <span className="display text-[15px] tabular-nums">{row.number}</span>
                           <span className="kicker">
                             {formatIssuedAt(row.issuedAt, staff.branch.timezone)}
-                            {row.tableName ? ` · โต๊ะ ${row.tableName}` : ""}
+                            {row.tableName ? ` · ${row.tableName}` : ""}
                             {row.staffName ? ` · ${row.staffName}` : ""}
                           </span>
                         </div>

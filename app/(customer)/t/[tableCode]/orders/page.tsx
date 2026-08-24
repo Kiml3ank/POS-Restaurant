@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { LiveRefresh } from "@/components/live-refresh";
+import { dailyOrderNumber } from "@/lib/order-number";
 import { formatMoney } from "@/lib/money";
 import { ORDER_ITEM_STATUS_LABEL, ORDER_STATUS_LABEL } from "@/lib/order-status";
 import { getPlacedOrders } from "@/lib/server/cart";
@@ -94,7 +95,7 @@ export default async function TableOrdersPage({
                   className="flex flex-col gap-2 rounded-xl border border-neutral-200 bg-white p-3"
                 >
                   <div className="flex items-baseline justify-between">
-                    <span className="font-medium">#{order.orderNumber}</span>
+                    <span className="font-medium">#{dailyOrderNumber(order.orderNumber)}</span>
                     <span className="text-sm text-neutral-500">
                       {order.placedAt ? timeFormatter.format(order.placedAt) : "—"} ·{" "}
                       {ORDER_STATUS_LABEL[order.status]}

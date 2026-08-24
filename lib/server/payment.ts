@@ -340,6 +340,7 @@ export async function takePayment(
         taxId: branch.tenant.taxId,
         addressLine: branch.addressLine,
         phone: branch.phone,
+        receiptFooter: branch.receiptFooter,
       },
       issuedAt: paidAt,
     });
@@ -534,6 +535,9 @@ export async function getPayment(branchId: string, paymentId: string) {
       receipt: { select: { id: true, number: true } },
       tableSession: {
         select: {
+          // id ของรอบขายคือตัวชี้บิลของช่องทางที่เปิดพร้อมกันได้หลายใบ —
+          // หน้าใบเสร็จใช้ประกอบลิงก์กลับ (/pos/counter/<sessionId>) ผ่าน salePointBasePath()
+          id: true,
           pax: true,
           queueNumber: true,
           // ต้องมี kind เพื่อให้หน้าสรุปเขียนหัวเรื่องได้ถูกช่องทาง

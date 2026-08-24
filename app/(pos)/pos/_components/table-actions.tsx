@@ -13,6 +13,7 @@ import {
   posPlaceOrderAction,
   posServeItemAction,
   posSetLineQuantityAction,
+  setCustomerNameAction,
 } from "../actions";
 
 /**
@@ -144,6 +145,60 @@ export function CloseTableForm({ sessionId }: { sessionId: string }) {
         </SubmitButton>
       </form>
     </details>
+  );
+}
+
+/**
+ * ชื่อลูกค้าของบิลซื้อกลับ — ไม่บังคับกรอก
+ *
+ * อยู่ในแท็บ "บิลที่ส่งแล้ว" ซึ่งเป็นโซนที่ **เลื่อนได้** โดยตั้งใจ ไม่ใช่ในตะกร้า
+ * หรือบนหัวจอที่เป็น `flex-none` — ของที่เพิ่มในโซน flex-none จะไปกินพื้นที่ของ
+ * โซนที่เลื่อนได้เสมอ (กฎที่ CLAUDE.md บันทึกไว้หลังบั๊ก "รวมทั้งสิ้นหายจากจอ")
+ *
+ * ปุ่มเดียวใช้ได้ทั้งตั้งชื่อและล้างชื่อ — ส่งช่องว่างมา = ล้าง จึงไม่ต้องมีปุ่มลบ
+ * แยกอีกใบให้กดผิด
+ */
+export function CustomerNameForm({
+  sessionId,
+  customerName,
+  maxLength,
+}: {
+  sessionId: string;
+  customerName: string | null;
+  maxLength: number;
+}) {
+  const [state, formAction] = useActionState<FormState, FormData>(
+    setCustomerNameAction,
+    IDLE_FORM_STATE,
+  );
+
+  return (
+    <form action={formAction} className="panel flex flex-col gap-3 p-4">
+      <label className="flex flex-col gap-1">
+        <span className="kicker">ชื่อลูกค้า (ไม่บังคับ — ใช้เรียกตอนของเสร็จ)</span>
+        <input
+          name="customerName"
+          type="text"
+          defaultValue={customerName ?? ""}
+          maxLength={maxLength}
+          placeholder="เช่น คุณนัท"
+          className="input h-12"
+        />
+      </label>
+
+      <input type="hidden" name="sessionId" value={sessionId} />
+
+      {state.status === "error" ? (
+        <p role="alert" className="alert">
+          {state.message}
+        </p>
+      ) : null}
+      {state.status === "success" ? <p className="kicker">{state.message}</p> : null}
+
+      <SubmitButton pendingLabel="กำลังบันทึก..." className="btn btn-secondary h-12">
+        บันทึกชื่อ
+      </SubmitButton>
+    </form>
   );
 }
 

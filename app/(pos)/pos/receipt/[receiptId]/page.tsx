@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { ReceiptDocument } from "@/components/receipt-document";
 import { ReceiptPrintButton } from "@/components/receipt-print-button";
 import { canAccessScreen, canReprintReceipt } from "@/lib/rbac";
+import { salePointBasePath, salePointDisplayName, showsInTableMap } from "@/lib/sale-point";
 import { getReceipt } from "@/lib/server/receipt";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
@@ -34,7 +35,13 @@ export default async function PosReceiptPage({
     notFound();
   }
 
-  const tableId = detail.payment.tableSession.table.id;
+  const { table } = detail.payment.tableSession;
+
+  /**
+   * ปุ่มกลับต้องพาไป URL ตระกูลของจุดขายนั้น ไม่ใช่ `/pos/table/...` เสมอ
+   * — บิลซื้อกลับชี้ด้วย sessionId เพราะเคาน์เตอร์มีบิลเปิดพร้อมกันได้หลายใบ
+   */
+  const base = salePointBasePath(table, detail.payment.tableSession);
 
   return (
     <main className="flex min-h-0 flex-1 flex-col overflow-auto bg-[var(--color-neutral-100)]">
@@ -46,17 +53,24 @@ export default async function PosReceiptPage({
         <div className="flex min-w-0 flex-col">
           <span className="display text-[17px]">ใบเสร็จ {detail.receipt.number}</span>
           <span className="kicker">
-            โต๊ะ {detail.payment.tableSession.table.name} · พิมพ์แล้ว {detail.receipt.printCount} ครั้ง
+            {salePointDisplayName(table, detail.payment.tableSession)} · พิมพ์แล้ว{" "}
+            {detail.receipt.printCount} ครั้ง
           </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <Link href={`/pos/table/${tableId}/bill?paid=${detail.payment.id}`} className="btn btn-ghost h-10 text-[14px]">
+          <Link href={`${base}/bill?paid=${detail.payment.id}`} className="btn btn-ghost h-10 text-[14px]">
             ‹ กลับไปสรุปการรับเงิน
           </Link>
-          <Link href="/pos" className="btn btn-secondary h-10 text-[14px]">
-            ผังโต๊ะ
-          </Link>
+          {showsInTableMap(table.kind) ? (
+            <Link href="/pos" className="btn btn-secondary h-10 text-[14px]">
+              ผังโต๊ะ
+            </Link>
+          ) : (
+            <Link href="/pos/counter" className="btn btn-secondary h-10 text-[14px]">
+              คิวซื้อกลับ
+            </Link>
+          )}
 
           {/*
             ซ่อนปุ่มตามสิทธิ์ **และ** ตรวจซ้ำฝั่ง server ใน recordReceiptPrint()

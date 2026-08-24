@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 
 import type { FormState } from "@/lib/form-state";
 import { canAccessScreen } from "@/lib/rbac";
-import { showsInTableMap } from "@/lib/sale-point";
+import { salePointBasePath, showsInTableMap } from "@/lib/sale-point";
 import type { SalePointKind } from "@/lib/generated/prisma/enums";
 import { addToCart, placeOrder, setCartLineQuantity } from "@/lib/server/cart";
 import { serveOrderItem } from "@/lib/server/kds";
@@ -17,6 +17,7 @@ import {
   getPosTable,
   openSalePointSession,
   openTableByStaff,
+  setSessionCustomerName,
 } from "@/lib/server/pos";
 import { recordReceiptPrint } from "@/lib/server/receipt";
 import { clearStaffMeal, setStaffMeal } from "@/lib/server/staff-meal";
@@ -90,9 +91,7 @@ async function resolveOpenTarget(branchId: string, tableId: string, sessionId?: 
  * ซึ่งเป็นบั๊กที่ดูเหมือน "จอค้าง" มากกว่าดูเหมือนบั๊กของลิงก์
  */
 function salePointBase(target: { session: { id: string }; table: { id: string; kind: SalePointKind } }) {
-  return showsInTableMap(target.table.kind)
-    ? `/pos/table/${target.table.id}`
-    : `/pos/counter/${target.session.id}`;
+  return salePointBasePath(target.table, target.session);
 }
 
 export async function loginAction(_prevState: FormState, formData: FormData): Promise<FormState> {
@@ -426,6 +425,40 @@ export async function openSalePointAction(
   }
 
   redirect(`/pos/counter/${result.session.id}`);
+}
+
+/**
+ * ตั้ง/ล้างชื่อลูกค้าของบิลซื้อกลับ
+ *
+ * ไม่ redirect เพราะพนักงานยังอยู่กับบิลใบเดิม — แค่ `refresh()` ให้หัวจอกับ
+ * แถบคิวอ่านชื่อใหม่ (และ `announce()` ฝั่ง server ทำให้จออื่นที่เปิดค้างขยับตาม)
+ */
+export async function setCustomerNameAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requirePosStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const result = await setSessionCustomerName(
+    staff,
+    String(formData.get("sessionId") ?? ""),
+    String(formData.get("customerName") ?? ""),
+  );
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  refresh();
+
+  return {
+    status: "success",
+    message: result.customerName ? `บันทึกชื่อ "${result.customerName}" แล้ว` : "ล้างชื่อลูกค้าแล้ว",
+  };
 }
 
 /**

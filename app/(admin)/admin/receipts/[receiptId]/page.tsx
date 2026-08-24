@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { ReceiptDocument } from "@/components/receipt-document";
 import { ReceiptPrintButton } from "@/components/receipt-print-button";
 import { canAccessScreen, canBrowseReceipts, canReprintReceipt } from "@/lib/rbac";
+import { salePointDisplayName } from "@/lib/sale-point";
 import { getReceipt } from "@/lib/server/receipt";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
@@ -60,7 +61,8 @@ export default async function AdminReceiptPage({
         <div className="flex min-w-0 flex-col">
           <span className="display text-[17px]">ใบเสร็จ {detail.receipt.number}</span>
           <span className="kicker">
-            โต๊ะ {detail.payment.tableSession.table.name} · พิมพ์แล้ว {detail.receipt.printCount} ครั้ง
+            {salePointDisplayName(detail.payment.tableSession.table, detail.payment.tableSession)}{" "}
+            · พิมพ์แล้ว {detail.receipt.printCount} ครั้ง
           </span>
         </div>
 
