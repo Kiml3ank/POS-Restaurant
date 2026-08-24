@@ -3,7 +3,7 @@
  *
  *     npm run build && npm run start -- -p 3002       # ต้องวัดกับ build จริง
  *     AUDIT_COOKIES='[{"name":"pos_staff_session","value":"<token>","domain":"localhost","path":"/"}]' \
- *     AUDIT_PAGES='[{"path":"/pos","mustSee":["ซื้อกลับ"]}]' \
+ *     AUDIT_PAGES='[{"path":"/pos","mustSee":["ซื้อกลับ"],"openDetails":true}]' \
  *     npm run audit:screens
  *
  * token ออกด้วย `npm run dev:staff-cookie <รหัสพนักงาน>` · AUDIT_ORIGIN เปลี่ยนพอร์ตได้
@@ -136,9 +136,19 @@ const AUDIT_FN = `(mustSee) => {
 
   const missing = [];
   for (const text of mustSee) {
-    const nodes = [...document.querySelectorAll("body *")].filter(
-      (el) => el.children.length === 0 && el.textContent.trim().includes(text),
-    );
+    /**
+     * หา element ที่ "ลึกที่สุดที่ยังมีข้อความนี้ครบ" ไม่ใช่ element ที่ไม่มีลูก
+     *
+     * เดิมกรองด้วย \`children.length === 0\` ซึ่งพลาดสองทาง:
+     *   - ข้อความที่มี <strong> คั่นกลาง จะไม่มีใบไหนถือครบทั้งประโยค
+     *   - <script> ของ RSC payload **เป็นใบและมีข้อความนั้นอยู่** สคริปต์จึงไป
+     *     วัดแท็ก script แล้วรายงานว่า "ถูกซ่อนทุกตัว" ทั้งที่ของจริงอยู่บนจอ
+     */
+    const nodes = [...document.querySelectorAll("body *")].filter((el) => {
+      if (/^(SCRIPT|STYLE|NOSCRIPT|TEMPLATE)$/.test(el.tagName)) return false;
+      if (!el.textContent.includes(text)) return false;
+      return ![...el.children].some((child) => child.textContent.includes(text));
+    });
 
     if (nodes.length === 0) {
       missing.push({ text, why: "ไม่มีบนหน้านี้เลย" });
@@ -199,6 +209,19 @@ for (const target of pages) {
     await loaded;
     await new Promise((r) => setTimeout(r, 350));
 
+    /**
+     * `openDetails: true` = กาง <details> ทุกใบก่อนวัด
+     *
+     * ของที่พับอยู่ไม่มีความสูง สคริปต์จึงบอกว่า "ไม่ล้น" ได้เสมอ ทั้งที่ตอนคนกดกาง
+     * จริงอาจดันจอพัง — แผงย้าย/รวมโต๊ะกับปุ่มปิดรอบโต๊ะเป็นแบบนั้นทั้งคู่
+     */
+    if (target.openDetails) {
+      await send("Runtime.evaluate", {
+        expression: `document.querySelectorAll("details").forEach((d) => { d.open = true; })`,
+      });
+      await new Promise((r) => setTimeout(r, 200));
+    }
+
     const href = await send("Runtime.evaluate", { expression: "location.pathname + location.search", returnByValue: true });
     const evaluated = await send("Runtime.callFunctionOn", {
       functionDeclaration: AUDIT_FN,
@@ -212,6 +235,7 @@ for (const target of pages) {
       path: target.path,
       actual: href.result.value,
       viewport: viewport.name,
+      scrolls: target.scrolls === true,
       ...evaluated.result.value,
     });
   }
@@ -222,7 +246,13 @@ for (const r of results) {
   const problems = [];
   if (r.actual !== r.path.split("#")[0]) problems.push(`ไปโผล่ที่ ${r.actual}`);
   if (r.horizontal > 0) problems.push(`ล้นแนวนอน ${r.horizontal}px`);
-  if (r.vertical > 0) problems.push(`ล้นแนวตั้ง ${r.vertical}px`);
+  /**
+   * `scrolls: true` = หน้านี้ตั้งใจให้ทั้งหน้าเลื่อนได้ (หน้าจอลูกค้าไม่ได้อยู่ในเชลล์
+   * `h-dvh overflow-hidden` ของจอพนักงาน) — วัดแนวตั้งกับมันจะได้ FAIL ทุกครั้ง
+   * ที่เมนูยาวเกินจอ ซึ่งไม่ใช่บั๊ก · ห้ามใส่ให้หน้าในเชลล์เด็ดขาด เพราะที่นั่น
+   * "ทั้งหน้าเลื่อนได้" คือสัญญาณของบั๊กจริง (เคส sr-only ในโมดูล 04)
+   */
+  if (!r.scrolls && r.vertical > 0) problems.push(`ล้นแนวตั้ง ${r.vertical}px`);
   for (const s of r.squeezed) problems.push(`โซนเลื่อนถูกบีบ ${s.tag} ${s.clientHeight}/${s.scrollHeight}px`);
   for (const m of r.missing) problems.push(`"${m.text}" ${m.why}`);
 
