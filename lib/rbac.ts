@@ -270,3 +270,17 @@ export function canEditTaxSettings(role: StaffRole): boolean {
 export function canViewDashboard(role: StaffRole): boolean {
   return role === "OWNER" || role === "MANAGER";
 }
+
+/**
+ * ย้ายโต๊ะ / รวมโต๊ะ — **ทุกตำแหน่งที่เข้าจอ POS ได้ รวมพนักงานเสิร์ฟ**
+ *
+ * เหตุผลเดียวกับ `canSetStaffMeal`: คนที่เห็นลูกค้าย้ายโต๊ะจริงคือเด็กเสิร์ฟ
+ * ถ้าต้องเรียกแคชเชียร์ทุกครั้ง งานจะชะงักแล้วคนจะเลี่ยงไปใช้วิธีที่แย่กว่าและ
+ * มองไม่เห็นในระบบเลย (สั่งของของโต๊ะใหม่ใส่บิลเก่า)
+ *
+ * ตัวคุมจึงไม่ใช่การจำกัดสิทธิ์ แต่คือ **AuditLog ที่เก็บยอดเงินที่ถูกย้าย**
+ * บวกกับด่าน "ห้ามแตะรอบที่รับเงินไปแล้ว" ใน `lib/server/table-move.ts`
+ */
+export function canMoveTableSession(role: StaffRole): boolean {
+  return canAccessScreen(role, "pos");
+}

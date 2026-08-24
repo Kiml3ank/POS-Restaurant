@@ -19,6 +19,8 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "payment.take": "รับเงิน / ปิดบิล",
   "order_item.cancel": "ยกเลิกรายการอาหาร",
   "table_session.abandon": "ปิดรอบโต๊ะทิ้ง",
+  "table_session.move": "ย้ายโต๊ะ",
+  "table_session.merge": "รวมโต๊ะ",
   "staff.login_failed": "ใส่ PIN ผิด",
   "menu.item.upsert": "แก้ไขเมนู",
   "menu.category.upsert": "แก้ไขหมวดเมนู",
