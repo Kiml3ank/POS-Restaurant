@@ -5,10 +5,15 @@ import type { Currency } from "@/lib/generated/prisma/enums";
 import { formatMoney } from "@/lib/money";
 import { dailyOrderNumber } from "@/lib/order-number";
 import { ORDER_ITEM_STATUS_LABEL, ORDER_STATUS_LABEL } from "@/lib/order-status";
-import { canCancelOrderItem, canServeOrderItem } from "@/lib/rbac";
+import { canCancelOrderItem, canMoveTableSession, canServeOrderItem } from "@/lib/rbac";
 import { needsQueueNumber, showsInTableMap } from "@/lib/sale-point";
 import { getCustomerMenu } from "@/lib/server/menu";
-import { CUSTOMER_NAME_MAX_LENGTH, type PosOrder, type PosTableDetail } from "@/lib/server/pos";
+import {
+  CUSTOMER_NAME_MAX_LENGTH,
+  getMoveTargets,
+  type PosOrder,
+  type PosTableDetail,
+} from "@/lib/server/pos";
 import type { CurrentStaff } from "@/lib/server/staff-session";
 
 import { CartPanel } from "./cart-panel";
@@ -16,6 +21,7 @@ import {
   CancelItemForm,
   CloseTableForm,
   CustomerNameForm,
+  MoveTableForm,
   OpenTableForm,
   PosLineControls,
   PosPlaceOrderForm,
@@ -87,6 +93,17 @@ export async function SalePointScreen({
    * ส่งไปก็ไม่ผิด แต่ส่ง undefined ไว้เพื่อให้เส้นทางเดิมของบทที่ 9 ไม่เปลี่ยนพฤติกรรมเลย
    */
   const sessionId = session && !showsInTableMap(table.kind) ? session.id : undefined;
+
+  /**
+   * ปลายทางของการย้าย/รวมโต๊ะ — ดึงเฉพาะเมื่อจะแสดงจริงเท่านั้น
+   *
+   * เงื่อนไขสามข้อ: เป็นโต๊ะนั่ง · รอบเปิดอยู่ · ตำแหน่งนี้ย้ายโต๊ะได้
+   * (การซ่อนปุ่มไม่ใช่การกันสิทธิ์ — `table-move.ts` ตรวจซ้ำเองอีกชั้นเสมอ)
+   */
+  const moveTargets =
+    session && showsInTableMap(table.kind) && canMoveTableSession(staff.role)
+      ? await getMoveTargets(staff.branchId, table.id)
+      : null;
 
   // ดึงเมนูเฉพาะตอนที่โต๊ะเปิดอยู่จริง — โต๊ะว่างแสดงแค่ฟอร์มเปิดโต๊ะ ไม่ต้อง query
   const menu = session
@@ -259,6 +276,23 @@ export async function SalePointScreen({
                       />
                     ))
                   )}
+
+                  {/*
+                    ย้าย/รวมโต๊ะ — เฉพาะโต๊ะนั่ง เพราะบิลซื้อกลับไม่คิดเซอร์วิสชาร์จ
+                    การขยับข้ามช่องทางจะเปลี่ยนยอดที่ลูกค้าต้องจ่ายโดยไม่มีใครกด
+                    อะไรที่เกี่ยวกับเงินเลย (`lib/server/table-move.ts` ปฏิเสธไว้อีกชั้น)
+                  */}
+                  {moveTargets ? (
+                    <div className="max-w-md">
+                      <MoveTableForm
+                        sessionId={session.id}
+                        currentTotal={runningTotal}
+                        currency={currency}
+                        free={moveTargets.free}
+                        occupied={moveTargets.occupied}
+                      />
+                    </div>
+                  ) : null}
 
                   <div className="max-w-md">
                     <CloseTableForm sessionId={session.id} />

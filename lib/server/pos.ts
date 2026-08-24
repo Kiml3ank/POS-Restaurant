@@ -4,6 +4,7 @@ import { Prisma } from "@/lib/generated/prisma/client";
 import { canCancelOrderItem } from "@/lib/rbac";
 import { REALTIME_EVENT_VERSION, type RealtimeEventType } from "@/lib/realtime-events";
 import { needsQueueNumber } from "@/lib/sale-point";
+import { getSessionBill } from "@/lib/server/billing";
 import { recalculateOrderSubtotal } from "@/lib/server/cart";
 import { prisma } from "@/lib/server/db";
 import { syncOrderStatusFromItems } from "@/lib/server/order-progress";
@@ -212,6 +213,54 @@ export async function getOpenSalePointSessions(branchId: string) {
 }
 
 export type SalePointQueueEntry = Awaited<ReturnType<typeof getOpenSalePointSessions>>[number];
+
+/**
+ * ปลายทางที่ย้าย/รวมโต๊ะไปได้ — แยกสองกลุ่มเพราะเป็นคนละการกระทำ
+ *
+ * `free` = โต๊ะว่าง → **ย้าย** (ปลอดภัย ย้อนกลับได้ด้วยการย้ายกลับ)
+ * `occupied` = โต๊ะที่มีบิลเปิดอยู่ → **รวม** (แยกกลับไม่ได้)
+ *
+ * กลุ่มหลังแนบ `total` มาด้วยเสมอ เพราะคนกดต้องเห็นว่ากำลังจะรวมเงินก้อนไหน
+ * เข้ากับก้อนไหน — ปุ่มที่บอกแค่ชื่อโต๊ะทำให้กดผิดโต๊ะแล้วรู้ตัวตอนคิดเงินแล้ว
+ */
+export async function getMoveTargets(branchId: string, currentTableId: string) {
+  const tables = await prisma.restaurantTable.findMany({
+    where: { branchId, isActive: true, kind: "DINE_IN", id: { not: currentTableId } },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    include: {
+      sessions: {
+        where: { status: "OPEN" },
+        orderBy: { openedAt: "desc" },
+        take: 1,
+        select: { id: true },
+      },
+    },
+  });
+
+  const free: { id: string; name: string }[] = [];
+  const occupied: { id: string; name: string; sessionId: string; total: number }[] = [];
+
+  for (const table of tables) {
+    const open = table.sessions[0];
+
+    if (!open) {
+      free.push({ id: table.id, name: table.name });
+      continue;
+    }
+
+    // ยอดจาก getSessionBill() ตัวเดียวกับที่หน้าคิดเงินใช้ ไม่ได้บวกเอาเองที่นี่
+    const bill = await getSessionBill(branchId, open.id);
+
+    occupied.push({
+      id: table.id,
+      name: table.name,
+      sessionId: open.id,
+      total: bill?.bill.grandTotal ?? 0,
+    });
+  }
+
+  return { free, occupied };
+}
 
 /**
  * เปิดบิลซื้อกลับใบใหม่ที่จุดขายที่ไม่ใช่โต๊ะนั่ง

@@ -21,6 +21,7 @@ import {
 } from "@/lib/server/pos";
 import { recordReceiptPrint } from "@/lib/server/receipt";
 import { clearStaffMeal, setStaffMeal } from "@/lib/server/staff-meal";
+import { mergeTableSessions, moveTableSession } from "@/lib/server/table-move";
 import { getCurrentStaff, loginStaff, logoutStaff } from "@/lib/server/staff-session";
 
 /**
@@ -524,6 +525,63 @@ export async function setStaffMealAction(
   refresh();
 
   return { status: "success", message: "ติดธงส่วนลดพนักงานแล้ว" };
+}
+
+/**
+ * ย้ายรอบขายทั้งชุดไปโต๊ะว่างอีกใบ
+ *
+ * ปลายทางของ redirect มาจาก **ผลลัพธ์ของ action** ไม่ใช่ค่าที่ฟอร์มส่งมา —
+ * ค่าที่ฟอร์มส่งมาบอกได้แค่ "ตั้งใจจะไปไหน" ส่วน `toTableId` ที่คืนกลับมาคือ
+ * โต๊ะที่ย้ายไปจริงหลัง commit (ท่าเดียวกับที่ `salePointBase()` ไม่รับ base จากฟอร์ม)
+ *
+ * ทั้งย้ายและรวมเป็นเรื่องของโต๊ะนั่งเท่านั้น (`table-move.ts` ปฏิเสธช่องทางอื่น)
+ * เส้นทางปลายทางจึงเป็น `/pos/table/<id>` เสมอ ไม่ต้องแยกตาม kind
+ */
+export async function moveTableAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requirePosStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const result = await moveTableSession(staff, {
+    sessionId: String(formData.get("sessionId") ?? ""),
+    targetTableId: String(formData.get("targetTableId") ?? ""),
+  });
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  // URL เดิมชี้โต๊ะที่ว่างไปแล้ว ถ้าไม่พาไปโต๊ะใหม่พนักงานจะเห็นจอ "เปิดโต๊ะ" ว่าง ๆ
+  redirect(`/pos/table/${result.toTableId}`);
+}
+
+/** รวมบิลของโต๊ะนี้เข้ากับบิลของโต๊ะอื่นที่มีคนนั่งอยู่ — แยกกลับไม่ได้ */
+export async function mergeTableAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requirePosStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const result = await mergeTableSessions(staff, {
+    sourceSessionId: String(formData.get("sessionId") ?? ""),
+    targetSessionId: String(formData.get("targetSessionId") ?? ""),
+  });
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  // รอบของโต๊ะนี้ถูกกลืนไปแล้ว หน้าเดิมจึงไม่มีบิลให้ดูอีก — พาไปบิลที่รวมแล้ว
+  redirect(`/pos/table/${result.toTableId}`);
 }
 
 /** ปลดธงส่วนลดพนักงานออกจากบิล (บทที่ 13) */

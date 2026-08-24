@@ -4,10 +4,14 @@ import { useActionState } from "react";
 
 import { SubmitButton } from "@/components/submit-button";
 import { IDLE_FORM_STATE, type FormState } from "@/lib/form-state";
+import type { Currency } from "@/lib/generated/prisma/enums";
+import { formatMoney } from "@/lib/money";
 
 import {
   cancelItemAction,
   closeTableAction,
+  mergeTableAction,
+  moveTableAction,
   openSalePointAction,
   openTableAction,
   posPlaceOrderAction,
@@ -199,6 +203,130 @@ export function CustomerNameForm({
         บันทึกชื่อ
       </SubmitButton>
     </form>
+  );
+}
+
+/**
+ * ย้ายโต๊ะ / รวมบิลกับโต๊ะอื่น (งานค้างจากบทที่ 9)
+ *
+ * ── ทำไมสองกลุ่ม ไม่ใช่รายชื่อโต๊ะชุดเดียว ──────────────────────────────
+ * "ย้ายไปโต๊ะว่าง" กับ "รวมกับโต๊ะที่มีคน" เป็นคนละการกระทำที่กู้คืนต่างกันคนละแบบ:
+ * ย้ายผิดโต๊ะแก้ได้ด้วยการย้ายกลับ แต่รวมผิดโต๊ะ **แยกกลับไม่ได้** เพราะของอาจถูก
+ * เสิร์ฟ/ยกเลิกไปแล้ว รายชื่อชุดเดียวที่ตัดสินให้เองว่าจะทำอันไหนคือปุ่มที่ทำ
+ * สิ่งที่กู้ไม่ได้เมื่อคนกดเผลอเลือกผิดหนึ่งบรรทัด
+ *
+ * ปุ่มรวมจึงมีขั้นยืนยันที่ **บอกยอดของทั้งสองบิล** ก่อนเสมอ — คนกดต้องเห็นว่า
+ * กำลังจะรวมเงินก้อนไหนเข้ากับก้อนไหน ไม่ใช่เห็นแค่ชื่อโต๊ะ
+ *
+ * อยู่ในแท็บ "บิลที่ส่งแล้ว" ซึ่งเป็นโซนที่เลื่อนได้ ไม่ใช่โซน `flex-none`
+ * (กฎเดียวกับ `CustomerNameForm`)
+ */
+export function MoveTableForm({
+  sessionId,
+  currentTotal,
+  currency,
+  free,
+  occupied,
+}: {
+  sessionId: string;
+  /** ยอดของบิลใบนี้ตอนนี้ — ใช้บอกยอดหลังรวมบนขั้นยืนยัน */
+  currentTotal: number;
+  currency: Currency;
+  free: { id: string; name: string }[];
+  occupied: { id: string; name: string; sessionId: string; total: number }[];
+}) {
+  const [moveState, moveAction] = useActionState<FormState, FormData>(
+    moveTableAction,
+    IDLE_FORM_STATE,
+  );
+  const [mergeState, mergeAction] = useActionState<FormState, FormData>(
+    mergeTableAction,
+    IDLE_FORM_STATE,
+  );
+
+  return (
+    <details className="panel p-4">
+      <summary className="kicker cursor-pointer">ย้ายโต๊ะ / รวมบิลกับโต๊ะอื่น</summary>
+
+      <div className="flex flex-col gap-4 pt-4">
+        {moveState.status === "error" ? (
+          <p role="alert" className="alert">
+            {moveState.message}
+          </p>
+        ) : null}
+        {mergeState.status === "error" ? (
+          <p role="alert" className="alert">
+            {mergeState.message}
+          </p>
+        ) : null}
+
+        <div className="flex flex-col gap-2">
+          <p className="kicker">ย้ายทั้งบิลไปโต๊ะว่าง</p>
+
+          {free.length === 0 ? (
+            <p className="text-[14px] text-[var(--color-neutral-700)]">
+              ตอนนี้ไม่มีโต๊ะว่างในสาขา
+            </p>
+          ) : (
+            <div className="flex flex-wrap gap-2">
+              {free.map((target) => (
+                <form key={target.id} action={moveAction}>
+                  <input type="hidden" name="sessionId" value={sessionId} />
+                  <input type="hidden" name="targetTableId" value={target.id} />
+
+                  <SubmitButton pendingLabel="กำลังย้าย..." className="btn btn-secondary h-11 px-4">
+                    ย้ายไป {target.name}
+                  </SubmitButton>
+                </form>
+              ))}
+            </div>
+          )}
+        </div>
+
+        <div className="rule" />
+
+        <div className="flex flex-col gap-2">
+          <p className="kicker">รวมบิลนี้เข้ากับโต๊ะที่มีคนนั่งอยู่</p>
+
+          {occupied.length === 0 ? (
+            <p className="text-[14px] text-[var(--color-neutral-700)]">
+              ตอนนี้ไม่มีโต๊ะอื่นที่เปิดบิลอยู่
+            </p>
+          ) : (
+            occupied.map((target) => (
+              <details key={target.id} className="border-2 border-[var(--color-text)] p-3">
+                <summary className="cursor-pointer text-[15px]">
+                  รวมกับ {target.name} · {formatMoney(target.total, currency)}
+                </summary>
+
+                <form action={mergeAction} className="flex flex-col gap-3 pt-3">
+                  <input type="hidden" name="sessionId" value={sessionId} />
+                  <input type="hidden" name="targetSessionId" value={target.sessionId} />
+
+                  <p className="text-[14px] leading-relaxed">
+                    บิลนี้ {formatMoney(currentTotal, currency)} จะถูกย้ายไปรวมกับโต๊ะ{" "}
+                    {target.name} {formatMoney(target.total, currency)} —{" "}
+                    {/* ยอดจริงคิดใหม่ครั้งเดียวบนยอดรวมตอนคิดเงิน ตัวเลขนี้จึงเป็นค่าประมาณ */}
+                    ยอดหลังรวมประมาณ{" "}
+                    <strong>{formatMoney(currentTotal + target.total, currency)}</strong>{" "}
+                    <br />
+                    หลังรวมแล้ว <strong>แยกกลับเป็นสองบิลไม่ได้</strong> และคนที่นั่งโต๊ะนี้จะจ่าย
+                    รวมกับโต๊ะ {target.name}
+                  </p>
+
+                  <SubmitButton
+                    pendingLabel="กำลังรวมบิล..."
+                    className="btn btn-primary h-12 self-start px-5"
+                  >
+                    ยืนยันรวมกับ {target.name}
+                  </SubmitButton>
+                </form>
+              </details>
+            ))
+          )}
+        </div>
+      </div>
+    </details>
   );
 }
 
