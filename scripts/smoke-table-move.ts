@@ -6,6 +6,7 @@ import { prisma } from "@/lib/server/db";
 import { takePayment } from "@/lib/server/payment";
 import { openSalePointSession, openTableByStaff } from "@/lib/server/pos";
 import type { CurrentStaff } from "@/lib/server/staff-session";
+import { resolveSessionByToken } from "@/lib/server/table-session";
 import { mergeTableSessions, moveTableSession } from "@/lib/server/table-move";
 
 /**
@@ -616,6 +617,93 @@ async function main() {
     mergedAgain.ok === false,
     mergedAgain.ok ? "" : mergedAgain.error,
   );
+
+  console.log("\n── มือถือลูกค้าเดินตามโซ่ ───────────────────────────────────────\n");
+
+  /**
+   * cookie ของลูกค้าเก็บ token ของรอบที่เขาเปิดไว้ ไม่ใช่เลขโต๊ะ — พอรอบถูกกลืน
+   * ต้องพาไปโผล่ที่รอบปลายทาง ไม่ใช่กลายเป็น "ไม่มีรอบ" เพราะถ้าเป็นอย่างหลัง
+   * ลูกค้าจะกดเปิดโต๊ะใหม่เอง = บิลใบที่สองที่พนักงานไม่รู้ตัว
+   */
+  const hopA = reopened.session;
+  const openedB = await openTableByStaff(manager, dst.id, 2);
+
+  if (!openedB.ok) {
+    throw new Error(`เปิดโต๊ะปลายทางไม่สำเร็จ: ${openedB.error}`);
+  }
+
+  const hopB = openedB.session;
+  const mergeAtoB = await mergeTableSessions(manager, {
+    sourceSessionId: hopA.id,
+    targetSessionId: hopB.id,
+  });
+  check("รวมรอบเปล่าสองรอบได้", mergeAtoB.ok === true, mergeAtoB.ok ? "" : mergeAtoB.error);
+
+  const followedOneHop = await resolveSessionByToken(branchId, hopA.token);
+  check(
+    "cookie ของรอบที่ถูกกลืนเดินตามโซ่ไปรอบปลายทาง",
+    followedOneHop?.id === hopB.id,
+    `${followedOneHop?.id ?? "null"} vs ${hopB.id}`,
+  );
+  check(
+    "หน้าจอลูกค้าได้ชื่อโต๊ะปลายทางไปแสดง",
+    followedOneHop?.table.name === DST_NAME,
+    followedOneHop?.table.name ?? "null",
+  );
+
+  const openedC = await openTableByStaff(manager, src.id, 1);
+
+  if (!openedC.ok) {
+    throw new Error(`เปิดโต๊ะชั้นที่สามไม่สำเร็จ: ${openedC.error}`);
+  }
+
+  const hopC = openedC.session;
+  const mergeBtoC = await mergeTableSessions(manager, {
+    sourceSessionId: hopB.id,
+    targetSessionId: hopC.id,
+  });
+  check("รวมต่ออีกชั้นได้", mergeBtoC.ok === true, mergeBtoC.ok ? "" : mergeBtoC.error);
+
+  const followedTwoHops = await resolveSessionByToken(branchId, hopA.token);
+  check(
+    "โซ่ลึกสองชั้นก็ยังเดินถึงปลายทาง",
+    followedTwoHops?.id === hopC.id,
+    `${followedTwoHops?.id ?? "null"} vs ${hopC.id}`,
+  );
+
+  check(
+    "รอบที่ยังเปิดอยู่หาเจอตามปกติ",
+    (await resolveSessionByToken(branchId, hopC.token))?.id === hopC.id,
+  );
+
+  // รอบที่จ่ายเงินไปแล้วต้องเป็น "ไม่มีรอบ" ไม่ใช่พาลูกค้าไปบิลที่ปิดไปแล้ว
+  check("รอบที่จ่ายเงินแล้ว = ไม่มีรอบ", (await resolveSessionByToken(branchId, dstBefore.token)) === null);
+
+  if (otherBranch) {
+    check(
+      "token ของสาขาอื่นหาไม่เจอ (โซ่ไม่ข้ามสาขา)",
+      (await resolveSessionByToken(otherBranch.id, hopC.token)) === null,
+    );
+  }
+
+  await prisma.tableSession.update({
+    where: { id: hopC.id },
+    data: { expiresAt: new Date(Date.now() - 1000) },
+  });
+  check(
+    "รอบที่หมดอายุแล้ว = ไม่มีรอบ (ชั้นกันถ่ายรูป QR ไปสั่งวันรุ่งขึ้น)",
+    (await resolveSessionByToken(branchId, hopA.token)) === null,
+  );
+
+  /**
+   * โซ่ที่วนกลับมาที่เดิม (ข้อมูลเพี้ยน) ต้องคืน null ไม่ใช่วนจนค้างทั้ง request
+   * — เขียนสถานะเองตรง ๆ เพราะเส้นทางปกติสร้างโซ่แบบนี้ไม่ได้
+   */
+  await prisma.tableSession.update({
+    where: { id: hopC.id },
+    data: { status: "MERGED", mergedIntoSessionId: hopA.id },
+  });
+  check("โซ่ที่วนกลับมาที่เดิมคืน null ไม่ค้าง", (await resolveSessionByToken(branchId, hopA.token)) === null);
 
   console.log("\n── ล้างข้อมูลที่สร้างระหว่างทดสอบ ───────────────────────────────\n");
 

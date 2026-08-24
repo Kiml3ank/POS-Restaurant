@@ -92,6 +92,18 @@ export default async function CustomerMenuPage({
         */}
         <LiveRefresh src={`/api/realtime?table=${tableCode}`} className="sr-only" />
 
+        {/*
+          พนักงานย้าย/รวมโต๊ะให้แล้ว — ต้องบอกตรง ๆ ว่าของที่สั่งต่อจากนี้เข้าบิลไหน
+          ห้ามสลับชื่อโต๊ะบนจอเงียบ ๆ เพราะคนที่นั่งอยู่จะไม่เข้าใจว่าทำไม
+          มือถือขึ้นเป็นอีกโต๊ะ แล้วจะเรียกพนักงานมาถามทุกครั้ง
+        */}
+        {context.mergedFromTableName ? (
+          <p className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            รอบของโต๊ะ <strong>{context.mergedFromTableName}</strong> ถูกย้ายไปที่โต๊ะ{" "}
+            <strong>{session.table.name}</strong> แล้ว รายการที่สั่งต่อจากนี้จะเข้าบิลเดียวกัน
+          </p>
+        ) : null}
+
         <nav className="flex gap-2 overflow-x-auto pb-1">
           {menu.map((category) => (
             <a

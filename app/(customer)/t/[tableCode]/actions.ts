@@ -58,7 +58,13 @@ export async function addToCartAction(
   const result = await addToCart({
     tableSessionId: context.session.id,
     branchId: context.branch.id,
-    tableId: context.table.id,
+    /**
+     * โต๊ะของ **รอบขาย** ไม่ใช่โต๊ะที่สแกน QR มา
+     *
+     * ต่างกันจริงหลังพนักงานย้าย/รวมโต๊ะ — ถ้าใช้โต๊ะที่สแกน ออร์เดอร์จะชี้โต๊ะเดิม
+     * ทั้งที่รอบอยู่โต๊ะใหม่ แล้วตั๋วครัวกับใบเสร็จจะเรียกชื่อโต๊ะผิด
+     */
+    tableId: context.session.tableId,
     timezone: context.branch.timezone,
     menuItemId: String(formData.get("menuItemId") ?? ""),
     quantity: Number.parseInt(String(formData.get("quantity") ?? "1"), 10),

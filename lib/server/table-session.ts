@@ -75,19 +75,73 @@ export async function resolveCustomerContext(tableCode: string) {
   }
 
   const token = await readTableSessionToken();
-  const session = token
-    ? await prisma.tableSession.findFirst({
-        where: {
-          token,
-          tableId: table.id,
-          status: "OPEN",
-          expiresAt: { gt: new Date() },
-        },
-      })
-    : null;
+  const session = token ? await resolveSessionByToken(table.branchId, token) : null;
 
-  return { table, branch: table.branch, session };
+  return {
+    table,
+    branch: table.branch,
+    session,
+    /**
+     * ชื่อโต๊ะที่ลูกค้าสแกนมา เมื่อรอบขายไปอยู่โต๊ะอื่นแล้ว (ย้าย/รวมโต๊ะ)
+     *
+     * null = ยังอยู่โต๊ะเดิม · ไม่ใช่ null = หน้าจอ **ต้องบอกลูกค้าตรง ๆ** ว่า
+     * ของที่สั่งต่อจากนี้เข้าบิลของโต๊ะไหน ห้ามเปลี่ยนชื่อโต๊ะบนจอเงียบ ๆ
+     */
+    mergedFromTableName: session && session.tableId !== table.id ? table.name : null,
+  };
 }
+
+/** ลึกสุดที่ยอมเดินตามโซ่ — กันโซ่ที่วนกลับมาที่เดิม (A→B→A) ไม่ให้ค้างทั้ง request */
+const MAX_MERGE_HOPS = 5;
+
+/**
+ * หารอบขายจาก token ของลูกค้า **แล้วเดินตามโซ่ merge ไปจนถึงรอบที่ยังเปิดอยู่**
+ *
+ * ── ทำไมเลิกผูก `tableId` ─────────────────────────────────────────────
+ * เดิมเงื่อนไขมี `tableId` ติดอยู่ ซึ่งถูกต้องตอนที่รอบขายย้ายโต๊ะไม่ได้
+ * พอย้าย/รวมโต๊ะได้แล้ว การผูก tableId แปลว่าลูกค้าที่ถือ cookie ใบเดิมจะได้
+ * "ไม่มีรอบ" ทันทีที่พนักงานย้ายโต๊ะให้ แล้วถ้าเขากดเปิดโต๊ะใหม่จะเกิด
+ * **บิลใบที่สองที่พนักงานไม่รู้ตัว** — ของที่สั่งไปจะไปโผล่คนละบิลกับที่คิดเงิน
+ *
+ * ราคาที่จ่ายแทน: cookie ใบหนึ่งใช้ได้กับหน้าโต๊ะไหนก็ได้ **ในสาขาเดียวกัน**
+ * (ข้ามสาขาไม่ได้ — `branchId` ยังผูกอยู่) คนที่ถือ cookie ของโต๊ะตัวเองแล้วไป
+ * เปิดหน้าของโต๊ะอื่น จะยังสั่งเข้าบิลของตัวเองเหมือนเดิม ไม่ใช่เข้าบิลคนอื่น
+ * และหน้าจอจะขึ้นบอกว่าของเข้าบิลไหน (`mergedFromTableName`)
+ *
+ * แยกจาก `resolveCustomerContext()` เพราะตัวนั้นเรียก `cookies()` ของ next/headers
+ * ซึ่งเรียกนอก request ของ Next ไม่ได้ — smoke test จึงเรียกตัวนี้ตรง ๆ แทน
+ * (ท่าเดียวกับที่บทที่ 13b แยก `staff-session-store.ts` ออกมา)
+ */
+export async function resolveSessionByToken(branchId: string, token: string) {
+  let current = await prisma.tableSession.findFirst({
+    where: { token, branchId },
+    include: SESSION_TABLE_INCLUDE,
+  });
+
+  for (let hop = 0; current && hop < MAX_MERGE_HOPS; hop += 1) {
+    if (current.status === "OPEN") {
+      // หมดอายุแล้วถือว่าไม่มีรอบ — ชั้นที่กัน "ถ่ายรูป QR ไปสั่งจากบ้านวันรุ่งขึ้น"
+      return current.expiresAt > new Date() ? current : null;
+    }
+
+    // ปิดไปแล้วด้วยเหตุอื่น (จ่ายเงิน/ยกเลิก) = จบ ไม่ใช่พาไปบิลที่ปิดไปแล้ว
+    if (current.status !== "MERGED" || !current.mergedIntoSessionId) {
+      return null;
+    }
+
+    current = await prisma.tableSession.findUnique({
+      where: { id: current.mergedIntoSessionId },
+      include: SESSION_TABLE_INCLUDE,
+    });
+  }
+
+  return null;
+}
+
+/** หน้าจอลูกค้าต้องบอกชื่อโต๊ะปลายทางได้เมื่อรอบถูกย้าย/รวม */
+const SESSION_TABLE_INCLUDE = {
+  table: { select: { id: true, name: true } },
+} satisfies Prisma.TableSessionInclude;
 
 /**
  * เปิดรอบโต๊ะ (หรือเข้าร่วมรอบที่เปิดค้างอยู่)
