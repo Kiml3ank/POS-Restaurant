@@ -69,7 +69,7 @@
 - Produces: `TableSessionStatus.MERGED` · `TableSession.mergedIntoSessionId: string | null`
   · relation `mergedInto` / `mergedFrom`
 
-- [ ] **Step 1: เพิ่มค่า enum**
+- [x] **Step 1: เพิ่มค่า enum**
 
 ใน `prisma/schema.prisma` ที่ `enum TableSessionStatus`:
 
@@ -84,7 +84,7 @@ enum TableSessionStatus {
 }
 ```
 
-- [ ] **Step 2: เพิ่มคอลัมน์และ self-relation**
+- [x] **Step 2: เพิ่มคอลัมน์และ self-relation**
 
 ใน `model TableSession` วางต่อจากบล็อก `customerName`:
 
@@ -112,7 +112,7 @@ enum TableSessionStatus {
   @@index([mergedIntoSessionId])
 ```
 
-- [ ] **Step 3: สร้างและ apply migration**
+- [x] **Step 3: สร้างและ apply migration**
 
 ```bash
 npx prisma migrate dev --name table_session_merge
@@ -122,7 +122,7 @@ Expected: `Your database is now in sync with your schema.` และมีโฟ
 `prisma/migrations/<timestamp>_table_session_merge/`
 **ถ้า `npm run dev` เปิดค้างอยู่ ให้รีสตาร์ททันทีหลังคำสั่งนี้**
 
-- [ ] **Step 4: ไล่ตรวจทุก query ที่ถามสถานะรอบ**
+- [x] **Step 4: ไล่ตรวจทุก query ที่ถามสถานะรอบ**
 
 การเพิ่มค่า enum ตัวที่สี่เปลี่ยนความหมายของเงื่อนไขที่เขียนแบบ "ไม่ใช่ X" ทันที
 และ **tsc ไม่ฟ้องเลย** เพราะยังเป็นค่าที่ถูกชนิด:
@@ -143,7 +143,7 @@ grep -rn "TableSessionStatus\|status: \"OPEN\"\|status: \"CLOSED\"\|status: \"AB
 เขียนสิ่งที่ตรวจเจอเป็นคอมเมนต์สั้น ๆ ตรงบรรทัดที่ต้องแก้ ถ้าไม่มีอะไรต้องแก้เลย
 ให้บันทึกไว้ใน commit message ว่าไล่ตรวจแล้วกี่จุด
 
-- [ ] **Step 5: ยืนยันว่าของเดิมไม่พัง**
+- [x] **Step 5: ยืนยันว่าของเดิมไม่พัง**
 
 ```bash
 npx tsc --noEmit
@@ -154,7 +154,7 @@ done
 
 Expected: tsc เงียบ และไม่มีบรรทัด `FAILED:` เลย (13 ชุดเดิมยังผ่านครบ)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add prisma/schema.prisma prisma/migrations
@@ -176,7 +176,7 @@ git commit -m "feat(schema): TableSessionStatus.MERGED + mergedIntoSessionId ส
   - `canMoveTableSession(role: StaffRole): boolean`
   - `moveTableSession(staff: CurrentStaff, input: { sessionId: string; targetTableId: string }): Promise<{ ok: true; movedOrders: number } | { ok: false; error: string }>`
 
-- [ ] **Step 1: เพิ่มสิทธิ์และป้าย audit ก่อน (ของที่เทสต์ต้องใช้)**
+- [x] **Step 1: เพิ่มสิทธิ์และป้าย audit ก่อน (ของที่เทสต์ต้องใช้)**
 
 ใน `lib/rbac.ts` ต่อท้ายไฟล์:
 
@@ -203,7 +203,7 @@ export function canMoveTableSession(role: StaffRole): boolean {
   "table_session.merge": "รวมโต๊ะ",
 ```
 
-- [ ] **Step 2: เขียน smoke suite ที่ยังไม่ผ่าน**
+- [x] **Step 2: เขียน smoke suite ที่ยังไม่ผ่าน**
 
 สร้าง `scripts/smoke-table-move.ts` — โครงตามชุดอื่น (`check()` + สรุปท้าย + cleanup)
 ชุดนี้ **สร้างโต๊ะของตัวเองสองตัวแล้วลบทิ้ง** เพื่อไม่ชนกับ smoke ชุดอื่น:
@@ -294,7 +294,7 @@ async function cleanup(branchId: string) {
   check("เขียน AuditLog พร้อมยอดเงินที่ย้าย", meta.movedAmount === before!.bill.grandTotal);
 ```
 
-- [ ] **Step 3: เพิ่มตัวช่วยสร้างข้อมูลใน smoke (ยังอยู่ในไฟล์เดียวกัน)**
+- [x] **Step 3: เพิ่มตัวช่วยสร้างข้อมูลใน smoke (ยังอยู่ในไฟล์เดียวกัน)**
 
 ```ts
 /** สร้างโต๊ะทดสอบสองตัว + รอบขายที่มีของจริงในนั้น */
@@ -323,7 +323,7 @@ async function seedScenario() {
 `Order` ด้วย `prisma.order.create()` ตรง ๆ** เพราะจะได้ข้อมูลที่ไม่เหมือนของจริง
 แล้วเทสต์จะเขียวทั้งที่เส้นทางจริงพัง
 
-- [ ] **Step 4: รันเทสต์ให้เห็นว่าพัง**
+- [x] **Step 4: รันเทสต์ให้เห็นว่าพัง**
 
 เพิ่มใน `package.json`:
 
@@ -334,7 +334,7 @@ async function seedScenario() {
 Run: `npm run smoke:table-move`
 Expected: **FAIL** ด้วย `Cannot find module '@/lib/server/table-move'`
 
-- [ ] **Step 5: เขียน `lib/server/table-move.ts` ให้ผ่าน**
+- [x] **Step 5: เขียน `lib/server/table-move.ts` ให้ผ่าน**
 
 ```ts
 import "server-only";
@@ -475,12 +475,12 @@ async function announce(branchId: string, tableId: string) {
 — ถ้าเทสต์ Step 2 เทียบกับ `bill.grandTotal` แล้วไม่ตรง ให้แก้ **เทสต์** ให้เทียบ
 `bill.subtotal` ไม่ใช่แก้โค้ดให้คิดยอดเอง (การคิดยอดมีที่เดียวคือ `calculateBill()`)
 
-- [ ] **Step 6: รันเทสต์ให้ผ่าน**
+- [x] **Step 6: รันเทสต์ให้ผ่าน**
 
 Run: `npm run smoke:table-move`
 Expected: PASS ทุกเคส · FAIL 0
 
-- [ ] **Step 7: Commit**
+- [x] **Step 7: Commit**
 
 ```bash
 git add lib/server/table-move.ts lib/rbac.ts lib/audit-log.ts scripts/smoke-table-move.ts package.json
@@ -498,7 +498,7 @@ git commit -m "feat(pos): ย้ายโต๊ะทั้งรอบใน tr
 - Consumes: `canMoveTableSession()` · `MOVABLE_ORDER_STATUSES` จาก Task 2
 - Produces: `mergeTableSessions(staff: CurrentStaff, input: { sourceSessionId: string; targetSessionId: string }): Promise<{ ok: true; movedOrders: number } | { ok: false; error: string }>`
 
-- [ ] **Step 1: เขียนเคสที่ยังไม่ผ่าน**
+- [x] **Step 1: เขียนเคสที่ยังไม่ผ่าน**
 
 ต่อใน `scripts/smoke-table-move.ts`:
 
@@ -573,12 +573,12 @@ git commit -m "feat(pos): ย้ายโต๊ะทั้งรอบใน tr
 > ลายเซ็นจริงของ `takePayment()` อยู่ใน `lib/server/payment.ts` — เปิดอ่านแล้วส่ง
 > อาร์กิวเมนต์ให้ตรง อย่าเดา
 
-- [ ] **Step 2: รันให้เห็นว่าพัง**
+- [x] **Step 2: รันให้เห็นว่าพัง**
 
 Run: `npm run smoke:table-move`
 Expected: FAIL — `mergeTableSessions is not exported`
 
-- [ ] **Step 3: เขียน `mergeTableSessions()`**
+- [x] **Step 3: เขียน `mergeTableSessions()`**
 
 โครงเดียวกับ `moveTableSession()` ต่างที่:
 
@@ -633,12 +633,12 @@ export async function mergeTableSessions(
 `loadOpenSessionForMove()` รวมด่านทั้งหมดไว้ที่เดียว: อยู่สาขาเดียวกัน · `status OPEN`
 · ไม่มี `Payment` · `staffCustomerId` เป็น null · `table.kind === "DINE_IN"`
 
-- [ ] **Step 4: รันเทสต์ให้ผ่าน**
+- [x] **Step 4: รันเทสต์ให้ผ่าน**
 
 Run: `npm run smoke:table-move`
 Expected: PASS ทุกเคส · FAIL 0
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add lib/server/table-move.ts scripts/smoke-table-move.ts
@@ -660,7 +660,7 @@ git commit -m "feat(pos): รวมสองโต๊ะเป็นบิลเ
   โดย `mergedFromTableName` เป็น `string | null` — ชื่อโต๊ะเดิมที่ลูกค้ากำลังนั่งอยู่
   เมื่อรอบถูกย้าย/รวมไปโต๊ะอื่นแล้ว
 
-- [ ] **Step 1: เขียนเคสที่ยังไม่ผ่าน**
+- [x] **Step 1: เขียนเคสที่ยังไม่ผ่าน**
 
 ```ts
   // cookie ของรอบที่ถูกกลืน ต้องพาไปโผล่ที่รอบปลายทาง ไม่ใช่กลายเป็น "ไม่มีรอบ"
@@ -677,12 +677,12 @@ git commit -m "feat(pos): รวมสองโต๊ะเป็นบิลเ
 > ซึ่งเรียกนอก request ของ Next ไม่ได้ — ท่าเดียวกับที่บทที่ 13b แยก
 > `staff-session-store.ts` ออกจาก `staff-session.ts` เพื่อให้ smoke เรียกได้ตรง ๆ
 
-- [ ] **Step 2: รันให้เห็นว่าพัง**
+- [x] **Step 2: รันให้เห็นว่าพัง**
 
 Run: `npm run smoke:table-move`
 Expected: FAIL — `resolveSessionByToken is not a function`
 
-- [ ] **Step 3: เขียนตัวเดินโซ่**
+- [x] **Step 3: เขียนตัวเดินโซ่**
 
 ใน `lib/server/table-session.ts`:
 
@@ -719,7 +719,7 @@ export async function resolveSessionByToken(branchId: string, token: string) {
 แล้วให้ `resolveCustomerContext()` เรียกตัวนี้แทน query เดิม และคืน
 `mergedFromTableName` = ชื่อโต๊ะของ `table` ตัวปัจจุบัน เมื่อ `session.tableId !== table.id`
 
-- [ ] **Step 4: บอกลูกค้าบนหน้าจอ**
+- [x] **Step 4: บอกลูกค้าบนหน้าจอ**
 
 ใน `app/(customer)/t/[tableCode]/page.tsx` เหนือรายการเมนู เมื่อ `mergedFromTableName`
 ไม่เป็น null:
@@ -734,14 +734,14 @@ export async function resolveSessionByToken(branchId: string, token: string) {
 **ห้ามเปลี่ยนชื่อโต๊ะเงียบ ๆ** — คนที่นั่งอยู่ต้องเข้าใจว่าทำไมมือถือขึ้นอีกโต๊ะ
 (หน้าลูกค้าไม่มี `pos-skin` ใช้ utility ล้วนตามลุคเดิมของหน้านี้)
 
-- [ ] **Step 5: รันเทสต์ + ชุดลูกค้าเดิม**
+- [x] **Step 5: รันเทสต์ + ชุดลูกค้าเดิม**
 
 ```bash
 npm run smoke:table-move && npm run smoke:order
 ```
 Expected: ทั้งสองชุด FAIL 0
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/server/table-session.ts "app/(customer)/t/[tableCode]/page.tsx" scripts/smoke-table-move.ts
@@ -765,13 +765,13 @@ git commit -m "feat(customer): มือถือเดินตามโซ่�
   - `moveTableAction(prev: FormState, formData: FormData): Promise<FormState>`
   - `mergeTableAction(prev: FormState, formData: FormData): Promise<FormState>`
 
-- [ ] **Step 1: `getMoveTargets()` ใน `lib/server/pos.ts`**
+- [x] **Step 1: `getMoveTargets()` ใน `lib/server/pos.ts`**
 
 คืนโต๊ะนั่งที่ `isActive` ในสาขาเดียวกัน ยกเว้นโต๊ะปัจจุบัน แบ่งสองกลุ่มตามว่ามีรอบ
 `status: "OPEN"` อยู่ไหม · กลุ่มที่มีคนต้องแนบ **ยอดปัจจุบัน** ที่ได้จาก `getSessionBill()`
 เพราะคนกดต้องเห็นว่ากำลังจะรวมเงินก้อนไหนเข้ากับก้อนไหน
 
-- [ ] **Step 2: สอง action ใน `app/(pos)/pos/actions.ts`**
+- [x] **Step 2: สอง action ใน `app/(pos)/pos/actions.ts`**
 
 รูปแบบเดียวกับ `setStaffMealAction` เป๊ะ ๆ:
 
@@ -798,20 +798,20 @@ export async function moveTableAction(
 `mergeTableAction` ทำแบบเดียวกันแต่ redirect ไปโต๊ะปลายทางของรอบที่รวมแล้ว
 **ห้ามรับ `base` จากฟอร์ม** — คำนวณเส้นทางจาก `kind` เหมือนที่ `salePointBasePath()` ทำ
 
-- [ ] **Step 3: ฟอร์มใน `table-actions.tsx`**
+- [x] **Step 3: ฟอร์มใน `table-actions.tsx`**
 
 `<form>` จริงตามแบบไฟล์นี้ (`useActionState` + ปุ่มที่ disable ตัวเองด้วย `useFormStatus`)
 · กลุ่ม "โต๊ะว่าง" ปุ่มเขียนว่า **ย้ายมาที่นี่** · กลุ่ม "โต๊ะที่มีคน" ปุ่มเขียนว่า
 **รวมบิลเข้าด้วยกัน** พร้อมยอดของโต๊ะนั้นด้วย `formatMoney(total, currency)`
 · ปุ่มรวมต้องมีขั้นยืนยันที่บอกยอดรวมใหม่ ไม่ใช่กดทีเดียวจบ
 
-- [ ] **Step 4: วางในจอ**
+- [x] **Step 4: วางในจอ**
 
 ใน `sale-point-screen.tsx` วางแผงนี้ **ในโซนที่เลื่อนได้** (ใต้รายการบิลที่ส่งแล้ว
 ที่เดียวกับที่ `CustomerNameForm` อยู่) **ห้ามวางในโซน `flex-none`**
 · แสดงเฉพาะจุดขายที่ `kind === "DINE_IN"` และเฉพาะเมื่อ `canMoveTableSession(role)`
 
-- [ ] **Step 5: ตรวจด้วยเซิร์ฟเวอร์จริง**
+- [x] **Step 5: ตรวจด้วยเซิร์ฟเวอร์จริง**
 
 ```bash
 npm run build && npm run start -- -p 3002
@@ -821,7 +821,7 @@ npm run build && npm run start -- -p 3002
 **อ่าน HTML ที่เซิร์ฟเวอร์ส่งออกมาจริง ไม่ใช่เชื่อว่าโค้ดถูก** (บทเรียนจากก้อน KDS
 ที่จอหลุดสามจุดทั้งที่เทสต์เขียว)
 
-- [ ] **Step 6: Commit**
+- [x] **Step 6: Commit**
 
 ```bash
 git add lib/server/pos.ts "app/(pos)/pos/actions.ts" "app/(pos)/pos/_components/table-actions.tsx" "app/(pos)/pos/_components/sale-point-screen.tsx"
@@ -836,7 +836,7 @@ git commit -m "feat(pos): ปุ่มย้าย/รวมโต๊ะบน�
 - Modify: `CLAUDE.md`
 - Create: `report/2026-08-25-table-move-merge.md`
 
-- [ ] **Step 1: ตรวจครบ**
+- [x] **Step 1: ตรวจครบ**
 
 ```bash
 npx tsc --noEmit && npx eslint && npm run build
@@ -847,7 +847,7 @@ done
 ```
 Expected: 14 ชุด · FAIL 0 ทุกชุด (ของเดิม 705 เคส + ชุดใหม่)
 
-- [ ] **Step 2: วัดจอ**
+- [x] **Step 2: วัดจอ**
 
 ```bash
 npm run audit:screens
@@ -855,18 +855,18 @@ npm run audit:screens
 ต้องครอบหน้า `/pos/table/[tableId]` **ตอนที่กางฟอร์มเลือกโต๊ะแล้ว** ไม่ใช่ตอนพับอยู่
 · ต้องมีข้อมูลจริงบนโต๊ะก่อนวัด ไม่งั้นจะได้ FAIL ที่ไม่ใช่บั๊กจอ
 
-- [ ] **Step 3: เขียนรายงาน**
+- [x] **Step 3: เขียนรายงาน**
 
 `report/2026-08-25-table-move-merge.md` — รูปแบบเดียวกับรายงานก้อนก่อน: อะไรเปลี่ยน ·
 กับดักที่เจอจริง · ตัวเลขที่ยืนยันด้วยของจริง (ยอดก่อน/หลังรวม) · สิ่งที่ยังไม่ได้ทำ
 
-- [ ] **Step 4: อัปเดต `CLAUDE.md`**
+- [x] **Step 4: อัปเดต `CLAUDE.md`**
 
 เพิ่มหัวข้อสถานะของก้อนนี้ · ตัด "ย้าย/รวมโต๊ะ + แยกบิล ยังไม่ได้ทำ" ออกจากรายการงานค้าง
 แล้วเหลือเฉพาะ **แยกบิล** · บันทึกกฎใหม่: *ค่า `MERGED` มีอยู่แล้ว query ที่ถามสถานะรอบ
 ต้องคิดถึงมันเสมอ* และ *`lib/server/table-move.ts` เป็น leaf module ห้าม import กลับ*
 
-- [ ] **Step 5: Commit**
+- [x] **Step 5: Commit**
 
 ```bash
 git add CLAUDE.md report/2026-08-25-table-move-merge.md
