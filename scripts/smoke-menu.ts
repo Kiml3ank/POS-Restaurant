@@ -86,7 +86,15 @@ async function cleanup(branchId: string) {
       .filter((id): id is string => id !== null);
 
     await prisma.order.deleteMany({ where: { id: { in: orderIds } } });
-    await prisma.payment.deleteMany({ where: { tableSessionId: { in: sessionIds } } });
+    // ใบเสร็จต้องถูกลบก่อนการรับเงิน — Receipt.paymentId เป็น Restrict (บทที่ 12)
+    const paymentIds = (
+      await prisma.payment.findMany({
+        where: { tableSessionId: { in: sessionIds } },
+        select: { id: true },
+      })
+    ).map((payment) => payment.id);
+    await prisma.receipt.deleteMany({ where: { paymentId: { in: paymentIds } } });
+  await prisma.payment.deleteMany({ where: { tableSessionId: { in: sessionIds } } });
     await prisma.tableSession.deleteMany({ where: { id: { in: sessionIds } } });
   }
 

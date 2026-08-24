@@ -5,15 +5,21 @@ import { redirect } from "next/navigation";
 
 import type { FormState } from "@/lib/form-state";
 import { canAccessScreen } from "@/lib/rbac";
+import { showsInTableMap } from "@/lib/sale-point";
+import type { SalePointKind } from "@/lib/generated/prisma/enums";
 import { addToCart, placeOrder, setCartLineQuantity } from "@/lib/server/cart";
 import { serveOrderItem } from "@/lib/server/kds";
 import { takePayment } from "@/lib/server/payment";
 import {
   cancelOrderItemByStaff,
   closeTableSession,
+  getPosSession,
   getPosTable,
+  openSalePointSession,
   openTableByStaff,
 } from "@/lib/server/pos";
+import { recordReceiptPrint } from "@/lib/server/receipt";
+import { clearStaffMeal, setStaffMeal } from "@/lib/server/staff-meal";
 import { getCurrentStaff, loginStaff, logoutStaff } from "@/lib/server/staff-session";
 
 /**
@@ -33,10 +39,60 @@ async function requirePosStaff() {
   return staff && canAccessScreen(staff.role, "pos") ? staff : null;
 }
 
-/** หา "รอบโต๊ะที่เปิดอยู่" ของโต๊ะนั้นในสาขาของพนักงานคนนี้ */
-async function resolveOpenSession(branchId: string, tableId: string) {
-  const detail = await getPosTable(branchId, tableId);
-  return detail?.session ?? null;
+/**
+ * `sessionId` ที่ฟอร์มแนบมา — ว่างเปล่าแปลว่า "ไม่ได้ระบุ" ไม่ใช่ "ระบุเป็นค่าว่าง"
+ * (ฟอร์มของโต๊ะนั่งไม่มีช่องนี้เลย จึงต้องได้ undefined ไม่ใช่สตริงว่าง)
+ */
+function sessionIdOf(formData: FormData): string | undefined {
+  const value = String(formData.get("sessionId") ?? "").trim();
+  return value.length > 0 ? value : undefined;
+}
+
+/**
+ * หารอบขายที่เปิดอยู่ ซึ่งเป็นเป้าหมายของ action นี้
+ *
+ * ── ทำไมมีสองทาง ────────────────────────────────────────────────────────
+ * โต๊ะนั่งมีรอบเปิดได้ทีละรอบ ฟอร์มจึงส่งมาแค่ `tableId` ได้ตามเดิม
+ * (หน้าจอของบทที่ 9 ไม่ต้องแก้อะไรเลย)
+ *
+ * แต่เคาน์เตอร์ซื้อกลับมีบิลเปิดพร้อมกันได้หลายใบ **ทุก action ที่แก้ของในบิล
+ * จึงต้องรู้ว่าใบไหน** ไม่ใช่แค่ตอนรับเงิน — ถ้าเดาเอา พนักงานจะกดเพิ่มของ
+ * ให้คิว 12 แล้วของไปโผล่ในบิลของคิว 14 ซึ่งอ่านจากหน้าจอไม่ออกเลยว่าเกิดอะไรขึ้น
+ *
+ * `sessionId` ที่ส่งมาจากฟอร์ม **เชื่อไม่ได้ทันที** — ต้องตรวจว่าเป็นรอบที่เปิดอยู่
+ * ในสาขาของพนักงานคนนี้จริง (`getPosSession` กรอง branchId ให้แล้ว)
+ */
+async function resolveOpenTarget(branchId: string, tableId: string, sessionId?: string) {
+  const detail = sessionId
+    ? await getPosSession(branchId, sessionId)
+    : await getPosTable(branchId, tableId);
+
+  if (!detail?.session) {
+    return null;
+  }
+
+  /**
+   * จุดขายที่มีบิลเปิดหลายใบแต่ฟอร์มไม่ได้บอกว่าใบไหน = ไม่เดา
+   * (กติกาเดียวกับ `takePayment()` — ห้ามมีสองมาตรฐานในเรื่องเดียวกัน)
+   */
+  if (!sessionId && !showsInTableMap(detail.table.kind) && detail.openSessionCount > 1) {
+    return null;
+  }
+
+  return { session: detail.session, table: detail.table };
+}
+
+/**
+ * เส้นทางของจอที่ต้องกลับไปหลัง action เสร็จ
+ *
+ * คำนวณจาก `kind` ของจุดขาย **ไม่ใช่รับ base มาจากฟอร์ม** เพราะ base ที่ฟอร์ม
+ * ส่งมาผิดได้ (คัดลอกฟอร์มไปวางแล้วลืมแก้) แล้วพนักงานจะถูกพากลับไปผิดบิล
+ * ซึ่งเป็นบั๊กที่ดูเหมือน "จอค้าง" มากกว่าดูเหมือนบั๊กของลิงก์
+ */
+function salePointBase(target: { session: { id: string }; table: { id: string; kind: SalePointKind } }) {
+  return showsInTableMap(target.table.kind)
+    ? `/pos/table/${target.table.id}`
+    : `/pos/counter/${target.session.id}`;
 }
 
 export async function loginAction(_prevState: FormState, formData: FormData): Promise<FormState> {
@@ -173,8 +229,24 @@ export async function takePaymentAction(
     return { status: "error", message: "กรุณาเลือกวิธีชำระเงิน" };
   }
 
+  const sessionId = sessionIdOf(formData);
+
+  /**
+   * ต้องหา base **ก่อน** รับเงิน เพราะพอปิดบิลแล้วรอบขายถูกปิดไปด้วย
+   * `getPosSession()` (ซึ่งกรองเฉพาะรอบที่เปิดอยู่) จะหาไม่เจออีก
+   * — ถ้าไปหาทีหลังจะได้ null แล้ว redirect ไปผิดหน้า
+   *
+   * หาไม่เจอตั้งแต่แรก = อาจเป็นการกดซ้ำของบิลที่ปิดไปแล้ว ซึ่ง takePayment()
+   * จัดการเองได้ (พากลับไปใบเดิม) จึงไม่ error ตรงนี้ แค่ตกกลับไปทางโต๊ะ
+   */
+  const target = await resolveOpenTarget(staff.branchId, tableId, sessionId);
+  const base = target ? salePointBase(target) : `/pos/table/${tableId}`;
+
   const result = await takePayment(staff, tableId, {
     method,
+    // เคาน์เตอร์ที่มีหลายบิลเปิดอยู่ต้องบอกว่าใบไหน ไม่งั้น takePayment() ปฏิเสธ
+    // (ดูเหตุผลใน lib/server/payment.ts — เลือก "ไม่เดา" แทน "หยิบล่าสุด")
+    sessionId,
     receivedAmount: parseMinorAmount(formData.get("receivedAmount")),
     expectedTotal: parseMinorAmount(formData.get("expectedTotal")),
   });
@@ -183,7 +255,7 @@ export async function takePaymentAction(
     return { status: "error", message: result.error };
   }
 
-  redirect(`/pos/table/${tableId}/bill?paid=${result.paymentId}`);
+  redirect(`${base}/bill?paid=${result.paymentId}`);
 }
 
 /**
@@ -244,16 +316,16 @@ export async function posAddToCartAction(
   }
 
   const tableId = String(formData.get("tableId") ?? "");
-  const session = await resolveOpenSession(staff.branchId, tableId);
+  const target = await resolveOpenTarget(staff.branchId, tableId, sessionIdOf(formData));
 
-  if (!session) {
-    return { status: "error", message: "โต๊ะนี้ยังไม่ได้เปิด กรุณากดเปิดโต๊ะก่อน" };
+  if (!target) {
+    return { status: "error", message: "ไม่พบบิลที่เปิดอยู่ กรุณากดเปิดบิลก่อน" };
   }
 
   const result = await addToCart({
-    tableSessionId: session.id,
+    tableSessionId: target.session.id,
     branchId: staff.branchId,
-    tableId,
+    tableId: target.table.id,
     timezone: staff.branch.timezone,
     menuItemId: String(formData.get("menuItemId") ?? ""),
     quantity: Number.parseInt(String(formData.get("quantity") ?? "1"), 10),
@@ -268,7 +340,7 @@ export async function posAddToCartAction(
 
   // กลับไปจอสั่งอาหารของโต๊ะต่อ เพราะพนักงานมักรับออร์เดอร์รวดเดียวหลายอย่าง
   // — จอนั้นมีทั้งเมนูและตะกร้าอยู่แล้ว จึงเห็นของที่เพิ่งใส่โผล่ทางขวาทันที
-  redirect(`/pos/table/${tableId}`);
+  redirect(salePointBase(target));
 }
 
 export async function posSetLineQuantityAction(
@@ -281,14 +353,18 @@ export async function posSetLineQuantityAction(
     return NOT_SIGNED_IN;
   }
 
-  const session = await resolveOpenSession(staff.branchId, String(formData.get("tableId") ?? ""));
+  const target = await resolveOpenTarget(
+    staff.branchId,
+    String(formData.get("tableId") ?? ""),
+    sessionIdOf(formData),
+  );
 
-  if (!session) {
-    return { status: "error", message: "โต๊ะนี้ยังไม่ได้เปิด" };
+  if (!target) {
+    return { status: "error", message: "ไม่พบบิลที่เปิดอยู่" };
   }
 
   const result = await setCartLineQuantity(
-    session.id,
+    target.session.id,
     String(formData.get("orderItemId") ?? ""),
     Number.parseInt(String(formData.get("quantity") ?? "0"), 10),
   );
@@ -313,18 +389,132 @@ export async function posPlaceOrderAction(
     return NOT_SIGNED_IN;
   }
 
-  const tableId = String(formData.get("tableId") ?? "");
-  const session = await resolveOpenSession(staff.branchId, tableId);
+  const target = await resolveOpenTarget(
+    staff.branchId,
+    String(formData.get("tableId") ?? ""),
+    sessionIdOf(formData),
+  );
 
-  if (!session) {
-    return { status: "error", message: "โต๊ะนี้ยังไม่ได้เปิด" };
+  if (!target) {
+    return { status: "error", message: "ไม่พบบิลที่เปิดอยู่" };
   }
 
-  const result = await placeOrder(session.id, { placedByStaffId: staff.id });
+  const result = await placeOrder(target.session.id, { placedByStaffId: staff.id });
 
   if (!result.ok) {
     return { status: "error", message: result.error };
   }
 
-  redirect(`/pos/table/${tableId}`);
+  redirect(salePointBase(target));
+}
+
+/** เปิดบิลซื้อกลับใบใหม่แล้วพาไปที่จอสั่งอาหารของบิลนั้นทันที */
+export async function openSalePointAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requirePosStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const result = await openSalePointSession(staff, String(formData.get("tableId") ?? ""));
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  redirect(`/pos/counter/${result.session.id}`);
+}
+
+/**
+ * บันทึกการพิมพ์ใบเสร็จจากจอ POS (บทที่ 12)
+ *
+ * มีคู่แฝดอยู่ที่ app/(admin)/admin/actions.ts ที่ทำเรื่องเดียวกันเป๊ะ **และนั่นถูกแล้ว**
+ * — ต่างกันที่ cookie ที่อ่าน (`pos` กับ `admin`) ซึ่งเป็นคนละ session คนละคนกด
+ * และ AuditLog ต้องแยกออกจากกันให้ได้ว่ากดจากจอไหน การรวมเป็น action เดียว
+ * แปลว่าต้องมี action ที่ยอมรับ cookie ใบไหนก็ได้ ซึ่งเป็นรูปแบบ auth แบบที่สี่
+ * ที่ระบบนี้ตั้งใจไม่มี (ดู report/2026-08-23-plan-chapter-12-receipt.md §2.4)
+ *
+ * ตรรกะจริงทั้งหมดอยู่ที่ recordReceiptPrint() ที่เดียว ตรงนี้เป็นแค่ด่าน session
+ */
+export async function posPrintReceiptAction(
+  receiptId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const staff = await requirePosStaff();
+
+  if (!staff) {
+    return { ok: false, error: "เซสชันหมดอายุ กรุณาใส่ PIN ใหม่" };
+  }
+
+  const result = await recordReceiptPrint(staff, receiptId);
+
+  if (!result.ok) {
+    return { ok: false, error: result.error };
+  }
+
+  // ป้าย "สำเนา" กับตัวเลข "พิมพ์ครั้งที่ N" บนใบต้องอัปเดตก่อนกล่องพิมพ์เปิด
+  refresh();
+
+  return { ok: true };
+}
+
+/**
+ * ติดธง "บิลนี้พนักงานกิน" เพื่อรับส่วนลดพนักงาน (บทที่ 13)
+ *
+ * ส่งมาแค่ **โต๊ะกับ id ของคนกิน** — อัตราส่วนลดไม่ได้มาจากหน้าจอเลย
+ * มันอยู่ที่ `Branch.staffMealDiscountBp` และถูกอ่านสดตอนคิดบิลทุกครั้ง
+ * (ถ้าปล่อยให้หน้าจอส่งเปอร์เซ็นต์มา นั่นคือช่องให้ยิง POST ตรงพร้อมเลข 100)
+ */
+export async function setStaffMealAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requirePosStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const result = await setStaffMeal(
+    staff,
+    String(formData.get("tableId") ?? ""),
+    String(formData.get("staffCustomerId") ?? ""),
+    sessionIdOf(formData),
+  );
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  refresh();
+
+  return { status: "success", message: "ติดธงส่วนลดพนักงานแล้ว" };
+}
+
+/** ปลดธงส่วนลดพนักงานออกจากบิล (บทที่ 13) */
+export async function clearStaffMealAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requirePosStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const result = await clearStaffMeal(
+    staff,
+    String(formData.get("tableId") ?? ""),
+    sessionIdOf(formData),
+  );
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  refresh();
+
+  return { status: "success", message: "ปลดธงส่วนลดพนักงานแล้ว" };
 }

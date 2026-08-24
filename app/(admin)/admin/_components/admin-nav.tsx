@@ -7,8 +7,14 @@ import { usePathname } from "next/navigation";
  * เมนูข้างของหลังร้าน
  *
  * เป็น client component เพราะต้องรู้ว่าอยู่หน้าไหนเพื่อไฮไลต์ (usePathname)
- * — ไม่รับ prop อะไรเลย เพราะทุกตำแหน่งที่เข้าจอนี้ได้เห็นรายการเดียวกันหมด
- * (สิทธิ์ที่ต่างกันคือ "กดปุ่มในหน้าได้ไหม" ไม่ใช่ "เห็นหน้าไหม")
+ * — รายการเมนูของหลังร้าน (LINKS) เหมือนกันหมดทุกตำแหน่ง เพราะทุกคนที่เข้าจอนี้ได้
+ * เห็นหน้าเดียวกัน (สิทธิ์ที่ต่างกันคือ "กดปุ่มในหน้าได้ไหม" ไม่ใช่ "เห็นหน้าไหม")
+ *
+ * ⚠ ข้อยกเว้นเดียวคือ **ทางกลับไป /pos** ซึ่งไม่ใช่เมนูของจอนี้ แต่เป็นทางออกไป
+ * อีกจอหนึ่งที่มีด่านสิทธิ์ของตัวเอง — SCREEN_ROLES.pos ไม่มี KITCHEN ทั้งที่
+ * SCREEN_ROLES.admin มี แปลว่าพ่อครัวที่เข้ามากด "ของหมด" จะเห็นปุ่มที่กดแล้ว
+ * เด้งไป /pos/login แล้วใส่ PIN ถูกก็ยังเข้าไม่ได้ จึงต้องรับ canGoToPos
+ * มาจาก layout (ฝั่ง server เป็นคนตัดสิน ที่นี่แค่ไม่วาด)
  *
  * ⚠ ห้ามใส่คลาส design system (`ink-row`/`panel`) คู่กับ `lg:hidden`/`hidden lg:flex`
  * เพราะ `.pos-skin .xxx` มี specificity 0-2-0 ซึ่งชนะ utility คลาสเดียวของ Tailwind
@@ -18,9 +24,11 @@ import { usePathname } from "next/navigation";
 const LINKS = [
   { href: "/admin/menu", label: "เมนูและสินค้า", hint: "หมวด · เมนู · ของหมด" },
   { href: "/admin/modifiers", label: "กลุ่มตัวเลือก", hint: "ขนาด · ความเผ็ด · ท็อปปิ้ง" },
+  { href: "/admin/receipts", label: "ใบเสร็จ", hint: "ค้นย้อนหลัง · พิมพ์ซ้ำ" },
+  { href: "/admin/audit-logs", label: "บันทึกการใช้งาน", hint: "ใครทำอะไร · เมื่อไหร่" },
 ];
 
-export function AdminNav() {
+export function AdminNav({ canGoToPos }: { canGoToPos: boolean }) {
   const pathname = usePathname();
 
   const isCurrent = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
@@ -28,7 +36,10 @@ export function AdminNav() {
   return (
     <>
       {/* จอกว้าง: แถบซ้าย */}
-      <nav className="hidden w-[248px] flex-none flex-col border-r-2 border-[var(--color-text)] bg-[var(--color-neutral-100)] lg:flex">
+      <nav
+        data-print-hide
+        className="hidden w-[248px] flex-none flex-col border-r-2 border-[var(--color-text)] bg-[var(--color-neutral-100)] lg:flex"
+      >
         {LINKS.map((link) => (
           <Link
             key={link.href}
@@ -64,30 +75,44 @@ export function AdminNav() {
           ทางกลับไปหน้าร้าน — ต้องมี เพราะคนเข้ามาที่นี่จากแถบโมดูลของ POS
           ถ้าไม่มีปุ่มนี้ ทางกลับมีทางเดียวคือกดปุ่ม back ของเบราว์เซอร์
           ซึ่งบนแท็บเล็ตที่รันแบบเต็มจอ (kiosk) อาจไม่มีให้กดเลย
-        */}
-        <Link
-          href="/pos"
-          className="mt-auto flex items-center gap-2 border-t-2 border-[var(--color-text)] px-4 py-3.5 transition-colors hover:bg-[var(--color-accent-100)]"
-        >
-          <span aria-hidden>‹</span>
-          <span className="display text-[15px]">กลับไปหน้าร้าน (POS)</span>
-        </Link>
 
-        <div className="flex flex-col gap-1 border-t-2 border-[var(--color-text)] p-4">
+          ...แต่ต้องไม่โชว์ให้คนที่เข้า /pos ไม่ได้ (ดูหัวไฟล์) — ปุ่มที่กดแล้วพา
+          ไปหน้าที่ล็อกอินไม่ผ่าน แย่กว่าไม่มีปุ่ม เพราะคนกดจะสรุปว่าระบบเสีย
+        */}
+        {canGoToPos && (
+          <Link
+            href="/pos"
+            className="mt-auto flex items-center gap-2 border-t-2 border-[var(--color-text)] px-4 py-3.5 transition-colors hover:bg-[var(--color-accent-100)]"
+          >
+            <span aria-hidden>‹</span>
+            <span className="display text-[15px]">กลับไปหน้าร้าน (POS)</span>
+          </Link>
+        )}
+
+        {/*
+          กล่องท้ายแถบ: `mt-auto` ย้ายมาอยู่ที่นี่ตอนไม่มีปุ่มกลับ ไม่งั้นกล่องนี้
+          จะลอยขึ้นไปติดเมนูแทนที่จะอยู่ก้นแถบ
+        */}
+        <div className={`flex flex-col gap-1 border-t-2 border-[var(--color-text)] p-4 ${canGoToPos ? "" : "mt-auto"}`}>
           <span className="kicker">ยังไม่ได้ทำ</span>
           <span className="kicker">สต็อก (บทที่ 14) · รายงาน (บทที่ 15)</span>
         </div>
       </nav>
 
       {/* จอแคบ: แถบล่าง (นิ้วโป้งเอื้อมถึง — เหตุผลเดียวกับแถบของ POS) */}
-      <nav className="flex flex-none gap-[2px] border-t-2 border-[var(--color-text)] bg-[var(--color-text)] lg:hidden">
-        <Link
-          href="/pos"
-          aria-label="กลับไปหน้าร้าน (POS)"
-          className="flex min-h-[56px] w-14 flex-none items-center justify-center bg-[var(--color-neutral-100)] text-xl leading-none"
-        >
-          ‹
-        </Link>
+      <nav
+        data-print-hide
+        className="flex flex-none gap-[2px] border-t-2 border-[var(--color-text)] bg-[var(--color-text)] lg:hidden"
+      >
+        {canGoToPos && (
+          <Link
+            href="/pos"
+            aria-label="กลับไปหน้าร้าน (POS)"
+            className="flex min-h-[56px] w-14 flex-none items-center justify-center bg-[var(--color-neutral-100)] text-xl leading-none"
+          >
+            ‹
+          </Link>
+        )}
 
         {LINKS.map((link) => (
           <Link

@@ -59,11 +59,11 @@ export default async function AdminModifiersPage() {
           <div className="flex flex-col gap-4">
             {groups.map((group) => (
               <section key={group.id} className="panel">
-                <header className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--color-text)] px-4 py-3">
+                <header className="panel-head flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                   <div className="flex min-w-0 flex-wrap items-baseline gap-2">
                     <span className="display text-[17px]">{group.name}</span>
                     {group.required ? <span className="tag tag-accent">บังคับเลือก</span> : null}
-                    <span className="kicker">
+                    <span className="kicker kicker-accent">
                       เลือก {group.minSelect}–{group.maxSelect} · ใช้อยู่ {group._count.menuItems}{" "}
                       เมนู
                     </span>

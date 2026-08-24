@@ -3,10 +3,13 @@ import "server-only";
 import { calculateBill, distributeByWeight, type Bill } from "@/lib/bill";
 import type { PaymentMethod } from "@/lib/generated/prisma/enums";
 import { canTakePayment } from "@/lib/rbac";
+import { billRatesForSalePoint } from "@/lib/sale-point";
 import { REALTIME_EVENT_VERSION } from "@/lib/realtime-events";
 import { BILLABLE_ORDER_STATUSES } from "@/lib/server/billing";
 import { prisma } from "@/lib/server/db";
 import { publishRealtimeEvent } from "@/lib/server/realtime";
+import { issueReceipt } from "@/lib/server/receipt-issue";
+import { staffMealDiscountAmount } from "@/lib/server/staff-meal";
 import type { CurrentStaff } from "@/lib/server/staff-session";
 
 /**
@@ -42,6 +45,13 @@ export type TakePaymentInput = {
    * สิ่งที่ห้ามเกิดที่สุดในหน้านี้ จึงเลือกให้ "ไม่ยอมปิด แล้วให้อ่านยอดใหม่" แทน
    */
   expectedTotal?: number | null;
+  /**
+   * รอบขายที่จะรับเงิน — จำเป็นเฉพาะจุดขายที่มีบิลเปิดพร้อมกันได้หลายใบ
+   * (เคาน์เตอร์ซื้อกลับ) โต๊ะนั่งไม่ต้องส่ง เพราะมีรอบเปิดได้ทีละรอบอยู่แล้ว
+   *
+   * ไม่ใช่ค่าที่เชื่อได้ทันที — ตรวจว่าเป็นรอบที่เปิดอยู่ของโต๊ะนี้จริงก่อนใช้เสมอ
+   */
+  sessionId?: string | null;
 };
 
 export type TakePaymentResult =
@@ -75,18 +85,49 @@ export async function takePayment(
 
   const table = await prisma.restaurantTable.findFirst({
     where: { id: tableId, branchId: staff.branchId, isActive: true },
-    include: { branch: true },
+    /**
+     * ดึง tenant มาด้วยเพราะใบเสร็จ (บทที่ 12) ต้อง snapshot ชื่อร้านกับเลขประจำตัว
+     * ผู้เสียภาษี **ณ วินาทีที่ออกใบ** ลงในแถวของตัวเอง — อ่านตรงนี้ครั้งเดียว
+     * แล้วส่งต่อเข้า transaction ไม่ใช่ให้ issueReceipt() ไป join เอง
+     */
+    include: { branch: { include: { tenant: { select: { name: true, taxId: true } } } } },
   });
 
   if (!table) {
     return { ok: false, error: "ไม่พบโต๊ะนี้ในสาขาของคุณ" };
   }
 
-  const session = await prisma.tableSession.findFirst({
+  /**
+   * รอบขายที่จะรับเงิน
+   *
+   * ── ทำไมต้องระบุ sessionId ได้ และทำไมบางกรณีต้องบังคับ ──────────────────
+   * โต๊ะนั่งมีรอบเปิดได้ทีละรอบ "รับเงินของโต๊ะ A3" จึงไม่กำกวมและหน้าจอเดิม
+   * (บทที่ 11) ส่งมาแค่ tableId ได้ตามเดิม
+   *
+   * แต่เคาน์เตอร์ซื้อกลับมีบิลเปิดพร้อมกันได้หลายใบ ถ้าปล่อยให้หยิบ "รอบล่าสุด"
+   * มาปิด แคชเชียร์ที่กดรับเงินจากคิว 12 จะไปปิดบิลของคิว 14 แทน — **ลูกค้า
+   * คนหนึ่งจ่ายเงินแล้วบิลของอีกคนถูกปิด** ซึ่งเป็นความเสียหายที่ย้อนคืนยากมาก
+   * เพราะรอบที่ปิดไปแล้วออกใบเสร็จและเดินเลขเอกสารไปเรียบร้อย
+   *
+   * จึงเลือกให้ **ไม่เดา**: มีรอบเปิดมากกว่าหนึ่งแล้วไม่ระบุมา = ปฏิเสธ
+   */
+  const openSessions = await prisma.tableSession.findMany({
     where: { tableId: table.id, status: "OPEN" },
     orderBy: { openedAt: "desc" },
-    select: { id: true },
+    // queueNumber ติดมาด้วยเพื่อเขียนลง AuditLog ให้อ่านออกโดยไม่ต้อง query ซ้ำ
+    select: { id: true, queueNumber: true },
   });
+
+  if (!input.sessionId && openSessions.length > 1) {
+    return {
+      ok: false,
+      error: "จุดขายนี้มีบิลที่เปิดอยู่หลายใบ กรุณาเลือกบิลที่จะรับเงินให้ชัดเจน",
+    };
+  }
+
+  const session = input.sessionId
+    ? (openSessions.find((candidate) => candidate.id === input.sessionId) ?? null)
+    : (openSessions[0] ?? null);
 
   if (!session) {
     /**
@@ -118,11 +159,21 @@ export async function takePayment(
   }
 
   const branch = table.branch;
-  const rates = {
+  /**
+   * อัตราของบิลใบนี้ตามช่องทางที่ขาย — **ต้องเป็นฟังก์ชันเดียวกับที่ getTableBill()
+   * เรียก** ไม่ใช่หยิบ `branch.serviceChargeBp` มาเองซ้ำ
+   *
+   * ยอดที่ snapshot ลง `Payment.serviceChargeBp` / `Order.serviceChargeBp` มาจาก
+   * `bill` ที่คิดด้วยอัตราชุดนี้ ใบเสร็จซื้อกลับจึงพิมพ์ค่าบริการเป็น 0 ตลอดไป
+   * แม้ร้านจะขึ้นเซอร์วิสชาร์จของสาขาทีหลัง (บทที่ 11-12)
+   */
+  const rates = billRatesForSalePoint(table.kind, {
     serviceChargeBp: branch.serviceChargeBp,
     vatRateBp: branch.vatRateBp,
     pricesIncludeVat: branch.pricesIncludeVat,
-  };
+  });
+
+  const sessionQueueNumber = session.queueNumber;
 
   const paidAt = new Date();
 
@@ -138,6 +189,18 @@ export async function takePayment(
      * ท่าเดียวกับ conditional update ใน placeOrder() — ต้องเป็นคำสั่งเดียวที่
      * ทั้งตรวจและเขียน ไม่ใช่ "อ่านก่อนแล้วค่อยเขียน" ซึ่งมีช่องว่างระหว่างสองคำสั่ง
      */
+    /**
+     * อ่านธง "พนักงานกิน" **ใน transaction** ก่อนปิดรอบโต๊ะ (บทที่ 13)
+     *
+     * เหตุผลเดียวกับที่คิดยอดใหม่ทุกครั้งแทนที่จะเชื่อยอดจากหน้าจอ: ธงถูกติด/ปลด
+     * จากอีกเครื่องได้ตลอดเวลาจนถึงวินาทีสุดท้าย ถ้าอ่านไว้ก่อนเข้า transaction
+     * จะมีช่องที่ปิดบิลด้วยส่วนลดที่เพิ่งถูกปลดไป (หรือไม่ลดทั้งที่เพิ่งติด)
+     */
+    const flagged = await tx.tableSession.findUnique({
+      where: { id: session.id },
+      select: { staffCustomerId: true },
+    });
+
     const claimed = await tx.tableSession.updateMany({
       where: { id: session.id, status: "OPEN" },
       data: { status: "CLOSED", closedAt: paidAt },
@@ -198,7 +261,16 @@ export async function takePayment(
       throw new PaymentAbort("บิลนี้ไม่มีรายการให้คิดเงิน (รายการถูกยกเลิกทั้งหมด)");
     }
 
-    const bill = calculateBill({ subtotal, rates });
+    /**
+     * ส่วนลดพนักงาน — อัตรามาจาก Branch (ค่าปัจจุบัน) แล้วถูก snapshot ลง Payment
+     * ด้านล่างพร้อมจำนวนเงิน · ที่นี่คิดใหม่จาก subtotal จริงใน DB เสมอ
+     */
+    const discountBp = flagged?.staffCustomerId ? branch.staffMealDiscountBp : 0;
+    const bill = calculateBill({
+      subtotal,
+      discountAmount: staffMealDiscountAmount(subtotal, discountBp),
+      rates,
+    });
 
     if (
       typeof input.expectedTotal === "number" &&
@@ -237,10 +309,39 @@ export async function takePayment(
         serviceChargeBp: bill.serviceChargeBp,
         vatRateBp: bill.vatRateBp,
         pricesIncludeVat: bill.pricesIncludeVat,
+        // snapshot ส่วนลดพนักงาน: ต้องเก็บ **ทั้งอัตราและคนกิน** ไม่ใช่แค่จำนวนเงิน
+        // — อัตราไว้พิมพ์ "10%" บนใบเสร็จย้อนหลัง · คนกินไว้ทำรายงานบทที่ 15
+        //   และเป็นหลักฐานถาวรหลังรอบโต๊ะถูกปิดไปแล้ว
+        discountBp,
+        staffCustomerId: flagged?.staffCustomerId ?? null,
         paidByStaffId: staff.id,
         paidAt,
       },
       select: { id: true },
+    });
+
+    /**
+     * ออกเอกสารให้ลูกค้าใน transaction เดียวกับการรับเงิน (บทที่ 12)
+     *
+     * อยู่ตรงนี้ ไม่ใช่ตอนกดปุ่มพิมพ์ เพราะสองเหตุผล:
+     *   1. ถ้า "กดพิมพ์ = ออกเลข" แคชเชียร์เลี่ยงการออกใบได้ และเลขที่จะขาดเป็นรู
+     *      ซึ่งเป็นสิ่งเดียวที่ตรวจสอบย้อนหลังไม่ผ่านแน่ ๆ
+     *   2. อยู่ใน transaction เดียวกันแปลว่า ไม่มีทางเกิดบิลที่จ่ายเงินแล้วแต่ไม่มีเอกสาร
+     *      และการรับเงินที่ถูก rollback จะคืนเลขที่กลับไปด้วย
+     */
+    await issueReceipt(tx, {
+      branchId: staff.branchId,
+      paymentId: payment.id,
+      currency: branch.currency,
+      seller: {
+        branchCode: branch.code,
+        branchName: branch.name,
+        tenantName: branch.tenant.name,
+        taxId: branch.tenant.taxId,
+        addressLine: branch.addressLine,
+        phone: branch.phone,
+      },
+      issuedAt: paidAt,
     });
 
     const shares = splitBillAcrossOrders(bill, orderSubtotals);
@@ -294,11 +395,24 @@ export async function takePayment(
           serviceChargeAmount: bill.serviceChargeAmount,
           vatAmount: bill.vatAmount,
           grandTotal: bill.grandTotal,
+          discountAmount: bill.discountAmount,
+          discountBp,
+          staffCustomerId: flagged?.staffCustomerId ?? null,
           receivedAmount: received,
           changeAmount: change,
           orderCount: orders.length,
           tableId: table.id,
           tableSessionId: session.id,
+          /**
+           * ชื่อจุดขาย ณ เวลาที่รับเงิน — เก็บคู่กับ id เสมอ
+           *
+           * id อย่างเดียวอ่านไม่ออก (`seed-counter-1` ไม่บอกอะไรกับคนที่กำลัง
+           * สืบสวนบิลย้อนหลัง) และการ join ชื่อสดตอนแสดงผลก็ใช้ไม่ได้ เพราะ
+           * ร้านเปลี่ยนชื่อโต๊ะได้ แล้ว log จะเล่าเรื่องผิดไปจากที่เกิดจริง
+           * — เหตุผลเดียวกับ snapshot ทุกตัวในระบบนี้
+           */
+          tableName: table.name,
+          queueNumber: sessionQueueNumber,
           /** โหมดสาธิต: ไม่มีการยืนยันยอดจากธนาคาร — ต้องอ่านออกจาก log ย้อนหลังได้ */
           demoMode: true,
         },
@@ -404,13 +518,29 @@ export async function getPayment(branchId: string, paymentId: string) {
     where: { id: paymentId, branchId },
     include: {
       paidByStaff: { select: { name: true } },
+      /** ชื่อพนักงานที่เป็นลูกค้าของบิลนี้ — ต้องขึ้นบนใบเสร็จ ไม่ใช่แค่อยู่ในฐาน (บทที่ 13) */
+      staffCustomer: { select: { name: true, code: true } },
       /**
        * เอา timezone มาด้วยเพื่อแสดง "เวลาที่รับเงิน" ตามเวลาของสาขา ไม่ใช่ของ server
        * — นี่เป็นข้อมูลการแสดงผล ไม่ใช่ตัวเลขเงิน จึงอ่านจาก Branch ได้
        * (ตัวเลขเงินทุกตัวยังอ่านจาก snapshot ในแถวนี้เท่านั้น)
        */
       branch: { select: { timezone: true } },
-      tableSession: { select: { pax: true, table: { select: { id: true, name: true } } } },
+      /**
+       * เอกสารที่ออกให้การรับเงินครั้งนี้ (บทที่ 12) — เอามาแค่ id กับเลขที่
+       * เพื่อให้หน้าสรุปการรับเงินมีปุ่มไปหน้าใบเสร็จได้ **ไม่ใช่เพื่อเอาไปแสดงยอด**
+       * ยอดทุกตัวยังอ่านจากคอลัมน์ของ Payment แถวนี้เหมือนเดิม
+       */
+      receipt: { select: { id: true, number: true } },
+      tableSession: {
+        select: {
+          pax: true,
+          queueNumber: true,
+          // ต้องมี kind เพื่อให้หน้าสรุปเขียนหัวเรื่องได้ถูกช่องทาง
+          // ("โต๊ะ A1" กับ "ซื้อกลับ คิว 12" คนละคำ ไม่ใช่แค่คนละชื่อ)
+          table: { select: { id: true, name: true, kind: true } },
+        },
+      },
       orders: {
         orderBy: { placedAt: "asc" },
         include: {

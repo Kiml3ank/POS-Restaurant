@@ -29,7 +29,10 @@ export default async function AdminLayout({
 
   return (
     <div className="pos-skin flex h-dvh flex-col overflow-hidden">
-      <header className="flex h-[58px] flex-none items-stretch border-b-2 border-[var(--color-text)] lg:h-[66px]">
+      <header
+        data-print-hide
+        className="flex h-[58px] flex-none items-stretch border-b-2 border-[var(--color-text)] lg:h-[66px]"
+      >
         <Link
           href="/admin"
           className="flex flex-none items-center gap-2 border-r-2 border-[var(--color-text)] px-4 transition-colors hover:bg-[var(--color-accent-100)] lg:gap-3 lg:px-6"
@@ -73,7 +76,7 @@ export default async function AdminLayout({
            รอบแรกผมลืมข้อนี้ไป หน้า /admin/menu เลยเลื่อนทั้งหน้าได้
       */}
       <div className="flex min-h-0 flex-1 flex-col-reverse lg:flex-row">
-        <AdminNav />
+        <AdminNav canGoToPos={canAccessScreen(staff.role, "pos")} />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
       </div>
     </div>

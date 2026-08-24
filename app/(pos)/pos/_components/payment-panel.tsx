@@ -24,11 +24,14 @@ import { takePaymentAction } from "../actions";
  */
 export function PaymentPanel({
   tableId,
+  sessionId,
   currency,
   grandTotal,
   canTake,
 }: {
   tableId: string;
+  /** บิลใบไหน — จำเป็นเฉพาะจุดขายที่มีหลายบิลเปิดพร้อมกัน (เคาน์เตอร์ซื้อกลับ) */
+  sessionId?: string;
   currency: Currency;
   grandTotal: number;
   /** false = ตำแหน่งนี้กดรับเงินไม่ได้ (ตัวกันจริงอยู่ฝั่ง server อีกชั้น) */
@@ -57,6 +60,7 @@ export function PaymentPanel({
   return (
     <form action={formAction} className="flex flex-col gap-3">
       <input type="hidden" name="tableId" value={tableId} />
+            <input type="hidden" name="sessionId" value={sessionId ?? ""} />
       <input type="hidden" name="method" value={method} />
       <input type="hidden" name="expectedTotal" value={grandTotal} />
       {/*

@@ -34,7 +34,12 @@ export default async function PosLayout({
 
   return (
     <div className="pos-skin flex h-dvh flex-col overflow-hidden">
-      <header className="flex h-[58px] flex-none items-stretch border-b-2 border-[var(--color-text)] lg:h-[66px]">
+      {/* data-print-hide: แถบนี้เป็นของ "หน้าจอ" ไม่ใช่ของ "เอกสาร" — ใบเสร็จบทที่ 12
+          พิมพ์จากในเชลล์นี้ ถ้าไม่แปะ แถบจะติดไปบนกระดาษความร้อนด้วย (globals.css @media print) */}
+      <header
+        data-print-hide
+        className="flex h-[58px] flex-none items-stretch border-b-2 border-[var(--color-text)] lg:h-[66px]"
+      >
         <Link
           href="/pos"
           className="flex flex-none items-center gap-2 border-r-2 border-[var(--color-text)] px-4 lg:w-[268px] lg:gap-3 lg:px-6"

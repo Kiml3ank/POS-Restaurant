@@ -1,9 +1,11 @@
 import "server-only";
 
+import { branchDayKey } from "@/lib/branch-day";
 import { lineTotalOf } from "@/lib/money";
 import { Prisma } from "@/lib/generated/prisma/client";
 import type { OrderChannel } from "@/lib/generated/prisma/enums";
 import { REALTIME_EVENT_VERSION, type RealtimeEventType } from "@/lib/realtime-events";
+import { ORDER_TYPE_FOR_SALE_POINT } from "@/lib/sale-point";
 import { prisma } from "@/lib/server/db";
 import { syncOrderStatusFromItems } from "@/lib/server/order-progress";
 import { publishRealtimeEvent } from "@/lib/server/realtime";
@@ -70,8 +72,9 @@ async function nextOrderNumber(
   branchId: string,
   timezone: string,
 ): Promise<string> {
-  const today = new Intl.DateTimeFormat("en-CA", { timeZone: timezone }).format(new Date());
-  const prefix = `${today.replaceAll("-", "")}-`;
+  // ต้องเป็น "วันของสาขา" ชุดเดียวกับที่เลขคิวใช้ จึงเรียกฟังก์ชันร่วมกัน
+  // (ถ้าสองที่คำนวณวันคนละแบบ จะเกิดออร์เดอร์ที่เลขวันกับเลขคิวคนละวัน)
+  const prefix = `${branchDayKey(timezone)}-`;
 
   const last = await tx.order.findFirst({
     where: { branchId, orderNumber: { startsWith: prefix } },
@@ -421,6 +424,18 @@ async function getOrCreateDraftOrder(
     return existing;
   }
 
+  /**
+   * `Order.type` มาจากชนิดของ **จุดขาย** เสมอ ไม่ใช่ค่าที่หน้าจอส่งมา
+   *
+   * (เดิมฮาร์ดโค้ดเป็น "DINE_IN" ทุกใบ ทำให้ enum ตายอยู่ตั้งแต่บทที่ 7)
+   * ค่านี้เป็นตัวชี้ว่าบิลนี้คิดเซอร์วิสชาร์จหรือไม่ ถ้ารับจากหน้าจอได้เมื่อไหร่
+   * ใครก็ยิง POST เปลี่ยนบิลโต๊ะให้เป็น TAKEAWAY เพื่อตัดค่าบริการทิ้งได้
+   */
+  const salePoint = await tx.restaurantTable.findUniqueOrThrow({
+    where: { id: input.tableId },
+    select: { kind: true },
+  });
+
   return tx.order.create({
     data: {
       branchId: input.branchId,
@@ -429,7 +444,7 @@ async function getOrCreateDraftOrder(
       orderNumber: await nextOrderNumber(tx, input.branchId, input.timezone),
       status: "DRAFT",
       channel: input.channel ?? "CUSTOMER_QR",
-      type: "DINE_IN",
+      type: ORDER_TYPE_FOR_SALE_POINT[salePoint.kind],
     },
     include: CART_INCLUDE,
   });

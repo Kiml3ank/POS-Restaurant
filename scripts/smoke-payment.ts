@@ -61,6 +61,7 @@ async function resetTable(tableId: string) {
 
   await prisma.auditLog.deleteMany({ where: { entityId: { in: [...sessionIds, ...paymentIds] } } });
   await prisma.order.deleteMany({ where: { tableSessionId: { in: sessionIds } } });
+  await prisma.receipt.deleteMany({ where: { paymentId: { in: paymentIds } } });
   await prisma.payment.deleteMany({ where: { tableSessionId: { in: sessionIds } } });
   await prisma.tableSession.deleteMany({ where: { id: { in: sessionIds } } });
   await prisma.restaurantTable.update({ where: { id: tableId }, data: { status: "AVAILABLE" } });

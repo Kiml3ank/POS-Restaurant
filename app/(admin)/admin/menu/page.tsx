@@ -77,10 +77,10 @@ export default async function AdminMenuPage() {
           <div className="flex flex-col gap-6">
             {categories.map((category) => (
               <section key={category.id} className="panel">
-                <header className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--color-text)] px-4 py-3">
+                <header className="panel-head flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                   <div className="flex min-w-0 items-baseline gap-3">
                     <span className="display text-[17px]">{category.name}</span>
-                    <span className="kicker">{category.items.length} รายการ</span>
+                    <span className="kicker kicker-accent">{category.items.length} รายการ</span>
                     {category.isAvailable ? null : (
                       <span className="tag tag-neutral">ปิดทั้งหมวด</span>
                     )}

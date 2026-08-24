@@ -48,7 +48,16 @@ export type PosOrder = PosTableDetail["orders"][number];
  */
 export async function getPosTables(branchId: string) {
   const tables = await prisma.restaurantTable.findMany({
-    where: { branchId, isActive: true },
+    /**
+     * ผังโต๊ะแสดงเฉพาะ "โต๊ะนั่ง"
+     *
+     * เคาน์เตอร์ซื้อกลับกับช่องไรเดอร์เป็นแถวในตารางเดียวกัน แต่ตอบคำถามของ
+     * หน้านี้ ("โต๊ะไหนว่าง") ไม่ได้ เพราะมีบิลเปิดพร้อมกันได้หลายใบ —
+     * บิลซื้อกลับที่ยังไม่ปิดจะโผล่เป็นแถบคิวแยก ไม่ใช่ช่องในผัง
+     *
+     * เงื่อนไขนี้ต้องตรงกับ showsInTableMap() ใน lib/sale-point.ts เสมอ
+     */
+    where: { branchId, isActive: true, kind: "DINE_IN" },
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     include: {
       sessions: {
@@ -95,7 +104,13 @@ export async function getPosTables(branchId: string) {
   });
 }
 
-/** โต๊ะหนึ่งโต๊ะพร้อมรอบที่เปิดอยู่และบิลทั้งหมดของรอบนั้น */
+/**
+ * โต๊ะหนึ่งโต๊ะพร้อมรอบที่เปิดอยู่และบิลทั้งหมดของรอบนั้น
+ *
+ * ⚠ ใช้ได้เฉพาะจุดขายที่มีรอบเปิดได้ทีละรอบ (โต๊ะนั่ง) — เคาน์เตอร์ซื้อกลับ
+ * มีหลายรอบพร้อมกัน แล้วตัวนี้จะคืน "รอบล่าสุด" เสมอ ซึ่งเป็นคนละใบกับที่
+ * พนักงานกำลังกดอยู่ ใช้ `getPosSession()` แทน
+ */
 export async function getPosTable(branchId: string, tableId: string) {
   const table = await prisma.restaurantTable.findFirst({
     where: { id: tableId, branchId, isActive: true },
@@ -110,6 +125,143 @@ export async function getPosTable(branchId: string, tableId: string) {
     orderBy: { openedAt: "desc" },
   });
 
+  return buildPosDetail(table, session);
+}
+
+/**
+ * รอบขายใบใดใบหนึ่งพร้อมบิลทั้งหมดของรอบนั้น — ทางเข้าของจุดขายที่มีหลายบิลพร้อมกัน
+ *
+ * คืนรูปร่างเดียวกับ `getPosTable()` เป๊ะ ๆ เพื่อให้หน้าจอตัวเดียวกัน
+ * (`SalePointScreen`) render ได้ทั้งสองทางโดยไม่ต้องมี branch ข้างใน
+ *
+ * รับเฉพาะรอบที่ **ยังเปิดอยู่** — รอบที่ปิดแล้วคือบิลที่จ่ายเงินไปแล้ว
+ * ต้องไปดูที่ใบเสร็จ (บทที่ 12) ไม่ใช่กลับมาสั่งของเพิ่มในรอบที่ปิดไปแล้ว
+ */
+export async function getPosSession(branchId: string, sessionId: string) {
+  const session = await prisma.tableSession.findFirst({
+    where: { id: sessionId, branchId, status: "OPEN", expiresAt: { gt: new Date() } },
+  });
+
+  if (!session) {
+    return null;
+  }
+
+  const table = await prisma.restaurantTable.findFirst({
+    where: { id: session.tableId, branchId, isActive: true },
+  });
+
+  if (!table) {
+    return null;
+  }
+
+  return buildPosDetail(table, session);
+}
+
+/**
+ * บิลซื้อกลับ/ไรเดอร์ที่ยังไม่ปิด ทั้งสาขา — "แถบคิว"
+ *
+ * ── ทำไมต้องมีฟังก์ชันนี้ ────────────────────────────────────────────────
+ * จุดขายที่ไม่ใช่โต๊ะนั่งถูกกรองออกจากผังโต๊ะไปแล้ว (`getPosTables()`)
+ * ถ้าไม่มีทางเข้านี้ **บิลซื้อกลับที่เปิดค้างอยู่จะมองไม่เห็นจากหน้าจอไหนเลย**
+ * — ของถูกทำเสร็จแล้ววางรอ แต่ไม่มีใครรู้ว่ามีบิลค้าง
+ *
+ * เรียงตามเลขคิวจากน้อยไปมาก = ลำดับที่ลูกค้ามาถึงจริง (คนที่รอนานที่สุดอยู่บนสุด)
+ * ไม่ใช่เรียงตามเวลาที่เปิดล่าสุดแบบผังโต๊ะ
+ */
+export async function getOpenSalePointSessions(branchId: string) {
+  const sessions = await prisma.tableSession.findMany({
+    where: {
+      branchId,
+      status: "OPEN",
+      expiresAt: { gt: new Date() },
+      table: { kind: { not: "DINE_IN" } },
+    },
+    orderBy: [{ queueDay: "asc" }, { queueNumber: "asc" }],
+    include: {
+      table: { select: { id: true, name: true, kind: true } },
+      orders: {
+        where: { status: { in: [...LIVE_ORDER_STATUSES] } },
+        include: { items: { select: { status: true, quantity: true } } },
+      },
+    },
+  });
+
+  return sessions.map((session) => {
+    const items = session.orders.flatMap((order) => order.items);
+
+    return {
+      id: session.id,
+      queueNumber: session.queueNumber,
+      customerName: session.customerName,
+      openedAt: session.openedAt,
+      table: session.table,
+      runningTotal: session.orders
+        .filter((order) => order.status !== "DRAFT")
+        .reduce((sum, order) => sum + order.subtotal, 0),
+      /** ตะกร้าที่ยังไม่ได้กดส่งเข้าครัว — บิลที่ค้างตรงนี้คือของที่ครัวยังไม่รู้เลยว่ามี */
+      draftCount: session.orders.filter((order) => order.status === "DRAFT").length,
+      readyItems: items
+        .filter((item) => item.status === "READY")
+        .reduce((sum, item) => sum + item.quantity, 0),
+      pendingItems: items
+        .filter((item) => item.status === "PLACED" || item.status === "IN_PROGRESS")
+        .reduce((sum, item) => sum + item.quantity, 0),
+    };
+  });
+}
+
+export type SalePointQueueEntry = Awaited<ReturnType<typeof getOpenSalePointSessions>>[number];
+
+/**
+ * เปิดบิลซื้อกลับใบใหม่ที่จุดขายที่ไม่ใช่โต๊ะนั่ง
+ *
+ * แยกจาก `openTableByStaff()` เพราะความหมายต่างกันจริง ไม่ใช่แค่ชื่อ:
+ * เปิดโต๊ะต้องกรอกจำนวนคนและ "เข้าร่วมรอบเดิมถ้ามี" · เปิดบิลซื้อกลับไม่มี
+ * จำนวนคนให้กรอก (ลูกค้าไม่ได้นั่ง) และ **ต้องได้ใบใหม่เสมอ** ซึ่ง
+ * `openOrJoinTableSession()` จัดการให้แล้วตาม `kind` ของจุดขาย
+ *
+ * ปฏิเสธจุดขายที่เป็นโต๊ะนั่งโดยตั้งใจ — ถ้าปล่อยผ่าน จะเปิดบิลซ้อนบนโต๊ะที่
+ * ลูกค้านั่งอยู่ได้ แล้วบิลของโต๊ะนั้นจะแตกเป็นสองใบโดยไม่มีใครตั้งใจ
+ */
+export async function openSalePointSession(staff: CurrentStaff, tableId: string) {
+  const table = await prisma.restaurantTable.findFirst({
+    where: { id: tableId, branchId: staff.branchId, isActive: true },
+  });
+
+  if (!table) {
+    return { ok: false as const, error: "ไม่พบจุดขายนี้ในสาขาของคุณ" };
+  }
+
+  if (table.kind === "DINE_IN") {
+    return { ok: false as const, error: "จุดขายนี้เป็นโต๊ะนั่ง ให้เปิดโต๊ะจากผังโต๊ะแทน" };
+  }
+
+  const session = await openOrJoinTableSession({
+    tableId: table.id,
+    branchId: staff.branchId,
+    pax: 1,
+    openedByStaffId: staff.id,
+  });
+
+  await announce("table_session.changed", staff.branchId, table.id);
+
+  return { ok: true as const, session };
+}
+
+/** จุดขายที่ไม่ใช่โต๊ะนั่งทั้งหมดของสาขา — ใช้เลือกว่าจะเปิดบิลใหม่ที่ช่องไหน */
+export async function getSalePoints(branchId: string) {
+  return prisma.restaurantTable.findMany({
+    where: { branchId, isActive: true, kind: { not: "DINE_IN" } },
+    orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+    select: { id: true, name: true, kind: true },
+  });
+}
+
+/** แกนกลางที่ทั้งสองทางเข้าด้านบนใช้ร่วมกัน — รูปร่างผลลัพธ์ต้องเหมือนกันเสมอ */
+async function buildPosDetail(
+  table: Prisma.RestaurantTableGetPayload<object>,
+  session: Prisma.TableSessionGetPayload<object> | null,
+) {
   const orders = session
     ? await prisma.order.findMany({
         where: { tableSessionId: session.id },
@@ -117,6 +269,17 @@ export async function getPosTable(branchId: string, tableId: string) {
         include: POS_ORDER_INCLUDE,
       })
     : [];
+
+  /**
+   * จำนวนรอบที่เปิดอยู่ของ "จุดขาย" นี้ (ไม่ใช่ของรอบที่เลือกมา)
+   *
+   * โต๊ะนั่งเป็น 0 หรือ 1 เสมอ · เคาน์เตอร์เป็นเท่าไหร่ก็ได้ — ตัวเลขนี้คือสิ่งที่
+   * ทำให้ผู้เรียกรู้ว่า "การเดาว่าเป็นรอบไหน" ปลอดภัยหรือเปล่า โดยไม่ต้องยิง
+   * query เองอีกรอบ (`resolveOpenSession()` ใน actions.ts ใช้ตัวนี้)
+   */
+  const openSessionCount = await prisma.tableSession.count({
+    where: { tableId: table.id, status: "OPEN", expiresAt: { gt: new Date() } },
+  });
 
   return {
     table,
@@ -126,6 +289,7 @@ export async function getPosTable(branchId: string, tableId: string) {
     runningTotal: orders
       .filter((order) => order.status !== "CANCELLED")
       .reduce((sum, order) => sum + order.subtotal, 0),
+    openSessionCount,
   };
 }
 

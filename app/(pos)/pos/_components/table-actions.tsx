@@ -8,6 +8,7 @@ import { IDLE_FORM_STATE, type FormState } from "@/lib/form-state";
 import {
   cancelItemAction,
   closeTableAction,
+  openSalePointAction,
   openTableAction,
   posPlaceOrderAction,
   posServeItemAction,
@@ -27,6 +28,39 @@ import {
  * .stepper, .alert) — ห้ามใส่สีดิบลงในไฟล์นี้ ถ้าต้องเพิ่มลุคใหม่ให้ไปเพิ่มคลาส
  * ที่นั่นแทน ไม่งั้นตอนปรับธีมจะต้องไล่แก้ทีละหน้า
  */
+
+/**
+ * เปิดบิลซื้อกลับใบใหม่
+ *
+ * ไม่ถามจำนวนลูกค้าต่างจาก `OpenTableForm` โดยตั้งใจ — ลูกค้าซื้อกลับไม่ได้นั่ง
+ * "จำนวนคนต่อโต๊ะ" จึงไม่มีความหมายและไม่ควรไปปนในยอดขายต่อหัวของบทที่ 15
+ *
+ * เป็นปุ่มเดียวจบ ไม่มีฟอร์มให้กรอก เพราะจังหวะที่กดคือตอนลูกค้ายืนอยู่ตรงหน้า
+ * แล้วกำลังจะเริ่มบอกออร์เดอร์ — อะไรที่ต้องกรอกก่อนถึงจะเริ่มรับออร์เดอร์ได้
+ * จะกลายเป็นของที่พนักงานกรอกมั่ว ๆ ให้ผ่าน ๆ ไป (ชื่อลูกค้าเติมทีหลังได้)
+ */
+export function OpenSalePointForm({ tableId, label }: { tableId: string; label: string }) {
+  const [state, formAction] = useActionState<FormState, FormData>(
+    openSalePointAction,
+    IDLE_FORM_STATE,
+  );
+
+  return (
+    <form action={formAction} className="flex flex-col gap-2">
+      <input type="hidden" name="tableId" value={tableId} />
+
+      {state.status === "error" ? (
+        <p role="alert" className="alert">
+          {state.message}
+        </p>
+      ) : null}
+
+      <SubmitButton className="btn btn-accent h-14 px-6 text-[16px]" pendingLabel="กำลังเปิดบิล…">
+        {label}
+      </SubmitButton>
+    </form>
+  );
+}
 
 /** เปิดโต๊ะ — ถามจำนวนลูกค้าเพื่อเอาไปทำยอดขายต่อหัวในบทที่ 15 */
 export function OpenTableForm({ tableId, seats }: { tableId: string; seats: number }) {
@@ -187,10 +221,13 @@ export function CancelItemForm({ orderItemId }: { orderItemId: string }) {
  */
 export function PosLineControls({
   tableId,
+  sessionId,
   orderItemId,
   quantity,
 }: {
   tableId: string;
+  /** บิลใบไหน — จำเป็นเฉพาะจุดขายที่มีหลายบิลเปิดพร้อมกัน (เคาน์เตอร์ซื้อกลับ) */
+  sessionId?: string;
   orderItemId: string;
   quantity: number;
 }) {
@@ -202,6 +239,7 @@ export function PosLineControls({
   return (
     <div className="stepper h-[38px] shrink-0">
       <form action={formAction}>
+        <input type="hidden" name="sessionId" value={sessionId ?? ""} />
         <input type="hidden" name="tableId" value={tableId} />
         <input type="hidden" name="orderItemId" value={orderItemId} />
         <input type="hidden" name="quantity" value={quantity - 1} />
@@ -216,6 +254,7 @@ export function PosLineControls({
       <span className="stepper-value">{quantity}</span>
 
       <form action={formAction}>
+        <input type="hidden" name="sessionId" value={sessionId ?? ""} />
         <input type="hidden" name="tableId" value={tableId} />
         <input type="hidden" name="orderItemId" value={orderItemId} />
         <input type="hidden" name="quantity" value={quantity + 1} />
@@ -230,10 +269,12 @@ export function PosLineControls({
 /** ส่งตะกร้าของโต๊ะเข้าครัวในนามพนักงานที่ล็อกอินอยู่ */
 export function PosPlaceOrderForm({
   tableId,
+  sessionId,
   itemCount,
   label,
 }: {
   tableId: string;
+  sessionId?: string;
   itemCount: number;
   label: string;
 }) {
@@ -245,6 +286,7 @@ export function PosPlaceOrderForm({
   return (
     <form action={formAction} className="flex flex-col gap-2">
       <input type="hidden" name="tableId" value={tableId} />
+      <input type="hidden" name="sessionId" value={sessionId ?? ""} />
 
       {state.status === "error" ? (
         <p role="alert" className="alert">

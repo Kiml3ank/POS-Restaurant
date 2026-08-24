@@ -1,3 +1,5 @@
+import Link from "next/link";
+
 import { LiveRefresh } from "@/components/live-refresh";
 import { STAFF_ROLE_LABEL, canAccessScreen } from "@/lib/rbac";
 import { getCurrentStaff } from "@/lib/server/staff-session";
@@ -52,6 +54,21 @@ export default async function KdsLayout({
             {STAFF_ROLE_LABEL[staff.role]}
           </span>
           <span className="display hidden truncate text-[15px] sm:inline">{staff.name}</span>
+
+          {/*
+            ทางกลับไปหน้าร้าน — จอครัวเคยเป็นจอเดียวที่ไม่มีทางออกนอกจากล็อกจอทิ้ง
+            (แถบโมดูลของ POS พาเข้ามาที่นี่ได้ แต่ไม่มีอะไรพากลับ)
+
+            ⚠ ต้องมีเงื่อนไข canAccessScreen เสมอ ห้ามโชว์ให้ทุกตำแหน่ง —
+            SCREEN_ROLES.pos ไม่มี KITCHEN แปลว่าพ่อครัวที่กดปุ่มนี้จะถูก proxy
+            เด้งไป /pos/login แล้วใส่ PIN ถูกก็ยังเข้าไม่ได้ ซึ่งเป็นอาการเดียวกับ
+            ที่คอมเมนต์ใน proxy.ts เตือนไว้เองว่าห้ามให้เกิด
+          */}
+          {canAccessScreen(staff.role, "pos") && (
+            <Link href="/pos" className="btn btn-secondary h-[38px] flex-none whitespace-nowrap">
+              หน้าร้าน
+            </Link>
+          )}
 
           <form action={kdsLogoutAction} className="flex-none">
             <button type="submit" className="btn btn-secondary h-[38px] whitespace-nowrap">

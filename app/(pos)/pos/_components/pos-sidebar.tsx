@@ -48,7 +48,15 @@ const MODULES: Module[] = [
     num: "01",
     label: "ผังโต๊ะ / สั่งอาหาร",
     href: "/pos",
-    isCurrent: (pathname) => pathname === "/pos" || pathname.startsWith("/pos/table"),
+    /**
+     * `/pos/counter` (ซื้อกลับ) นับเป็นโมดูลเดียวกับผังโต๊ะโดยตั้งใจ
+     *
+     * ไม่ได้เพิ่มเป็นโมดูลที่ 07 เพราะ design "Cafe POS" วางไว้เป็นหกโมดูล
+     * และสำหรับพนักงานมันคืองานเดียวกัน ("รับออร์เดอร์") แค่คนละช่องทาง —
+     * ทางเข้าจริงของซื้อกลับคือแถบคิวบนหน้า `/pos` ไม่ใช่รายการในแถบข้าง
+     */
+    isCurrent: (pathname) =>
+      pathname === "/pos" || pathname.startsWith("/pos/table") || pathname.startsWith("/pos/counter"),
   },
   {
     num: "02",
@@ -88,7 +96,10 @@ export function PosSidebar({ role }: { role: StaffRole }) {
   return (
     <>
       {/* ── จอกว้าง: แถบซ้ายเต็มรูป (แผนที่ของระบบ) ───────────────────────── */}
-      <nav className="hidden w-[268px] flex-none flex-col overflow-auto border-r-2 border-[var(--color-text)] bg-[var(--color-neutral-100)] lg:flex">
+      <nav
+        data-print-hide
+        className="hidden w-[268px] flex-none flex-col overflow-auto border-r-2 border-[var(--color-text)] bg-[var(--color-neutral-100)] lg:flex"
+      >
         {MODULES.map((module) => {
           const current = module.isCurrent?.(pathname) ?? false;
           // ทำเสร็จแล้ว (มี href) แต่ตำแหน่งนี้เข้าไม่ได้ → แสดงจางพร้อมบอกเหตุผล
@@ -145,6 +156,7 @@ export function PosSidebar({ role }: { role: StaffRole }) {
         แล้วให้ลูกทับด้วยพื้นของตัวเอง = ได้เส้นคั่น 2px เหมือนกันเป๊ะ
       */}
       <nav
+        data-print-hide
         aria-label="โมดูล"
         className="flex flex-none gap-[2px] border-t-2 border-[var(--color-text)] bg-[var(--color-text)] lg:hidden"
       >

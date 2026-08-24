@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 
 import { ORDER_ITEM_STATUS_LABEL, isKitchenActionable } from "@/lib/order-status";
 import { canAccessScreen, canCookOrderItem, canServeOrderItem } from "@/lib/rbac";
+import { salePointDisplayName } from "@/lib/sale-point";
 import { getKitchenStations, getKitchenTickets, type KitchenTicket } from "@/lib/server/kds";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
@@ -173,8 +174,17 @@ function TicketCard({
         }`}
       >
         <div className="flex min-w-0 flex-col">
+          {/*
+            ครัวต้องอ่านออกจากระยะสองเมตรว่า "ตั๋วนี้ของใคร"
+
+            โต๊ะนั่งตอบด้วยชื่อโต๊ะ · ซื้อกลับตอบด้วย **เลขคิว** — ชื่อจุดขาย
+            ("เคาน์เตอร์ซื้อกลับ") เหมือนกันทุกใบจึงไม่ตอบอะไรเลย และยาวเกินกว่า
+            จะอ่านจบในหนึ่งวินาที (salePointDisplayName คุมกฎนี้ที่เดียวทั้งระบบ)
+          */}
           <span className="display truncate text-[22px]">
-            {ticket.table?.name ?? "กลับบ้าน"}
+            {ticket.table
+              ? salePointDisplayName(ticket.table, ticket.tableSession)
+              : "กลับบ้าน"}
           </span>
           <span className="kicker truncate">#{ticket.orderNumber}</span>
         </div>

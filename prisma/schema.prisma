@@ -59,9 +59,25 @@ enum OrderChannel {
   POS
 }
 
+/// ช่องทางที่ขายของบิลนี้ — เขียนค่าจริงตอนเปิดตะกร้า โดยแปลงมาจาก
+/// `RestaurantTable.kind` ของจุดขาย (ดู ORDER_TYPE_FOR_SALE_POINT ใน lib/sale-point.ts)
+/// **ห้ามให้หน้าจอส่งค่านี้มา** เพราะเป็นตัวชี้ว่าบิลนี้คิดเซอร์วิสชาร์จหรือไม่
 enum OrderType {
   DINE_IN
   TAKEAWAY
+  DELIVERY
+}
+
+/// ชนิดของ "จุดขาย" (แถวใน RestaurantTable) — โต๊ะนั่ง / เคาน์เตอร์ซื้อกลับ / ช่องรับออร์เดอร์แพลตฟอร์ม
+///
+/// เป็นชนิดของ **จุดขาย** ไม่ใช่ของบิล เพราะกติกาสามข้อผูกกับจุดขาย ไม่ได้ผูกกับออร์เดอร์:
+///   1. ขึ้นผังโต๊ะไหม (เฉพาะ DINE_IN)
+///   2. รอบใหม่ "เข้าร่วม" รอบที่เปิดค้างอยู่ไหม (เฉพาะ DINE_IN — ดู openOrJoinTableSession)
+///   3. คิดเซอร์วิสชาร์จไหม (เฉพาะ DINE_IN — ของกลับบ้านไม่มีบริการที่โต๊ะ)
+enum SalePointKind {
+  DINE_IN
+  COUNTER
+  DELIVERY
 }
 
 /// สถานะโต๊ะ ณ ปัจจุบัน — ค่าที่หน้า POS ใช้ระบายสีผังโต๊ะ
@@ -116,6 +132,20 @@ enum PaymentMethod {
   CARD
 }
 
+/// ชนิดของเอกสารที่ออกให้ลูกค้า (บทที่ 12)
+///
+/// **ถูก snapshot ลงแถว Receipt ตอนออกใบ ห้าม derive ตอน render**
+/// เพราะวันที่กฎหมายเปลี่ยน หรือสาขาเปลี่ยนสกุลเงิน ใบที่พิมพ์ไปแล้วต้องไม่เปลี่ยนหัวตาม
+/// (เหตุผลเดียวกับ snapshot อัตรา VAT ทุกตัวในไฟล์นี้)
+enum ReceiptKind {
+  /// ใบเสร็จรับเงิน/ใบกำกับภาษีอย่างย่อ — เอกสารตามประมวลรัษฎากรของไทย
+  /// ใช้กับสาขาสกุล THB เท่านั้น และต้องมีเลขประจำตัวผู้เสียภาษีบนใบ
+  TAX_ABB
+  /// ใบเสร็จรับเงินธรรมดา — สาขา LAK/VND ที่กฎหมายภาษีไทยไม่ครอบ
+  /// **ห้ามมีคำว่า "ใบกำกับภาษี" หรือเลขผู้เสียภาษีไทยบนใบนี้**
+  RECEIPT
+}
+
 /// บทบาทพนักงาน — ฐานของ RBAC ในบทที่ 13
 enum StaffRole {
   OWNER
@@ -154,8 +184,23 @@ model Branch {
   /// true = ราคาเมนูรวม VAT แล้ว (คิดแบบถอด VAT ออกทีหลัง)
   pricesIncludeVat Boolean @default(true)
 
+  /// ส่วนลดพนักงาน (บทที่ 13) หน่วย basis point — 1000 = 10.00%
+  ///
+  /// อยู่ที่ Branch ไม่ใช่ค่าคงที่ในโค้ด ด้วยเหตุผลเดียวกับ serviceChargeBp:
+  /// เป็นตัวเลขที่เจ้าของร้านเปลี่ยนได้ และเป็นตัวเลขที่ต้อง **snapshot ลง Payment**
+  /// ตอนปิดบิลเพื่อให้ใบเสร็จย้อนหลังพิมพ์เปอร์เซ็นต์ที่ถูกต้อง
+  /// **ห้าม snapshot ลง TableSession** — วงจรเดียวกับ VAT/เซอร์วิสชาร์จเป๊ะ ๆ
+  /// (อ่านจาก Branch สดตอนบิลยังเปิด → snapshot ตอนปิดบิล) ไม่สร้างกติกาที่สาม
+  staffMealDiscountBp Int @default(1000)
+
   timezone String @default("Asia/Bangkok")
   currency Currency @default(THB)
+
+  /// ที่อยู่และเบอร์โทรของสถานประกอบการ — ต้องขึ้นบนใบเสร็จ/ใบกำกับภาษีอย่างย่อ (บทที่ 12)
+  /// nullable เพราะสาขาที่เพิ่งสร้างยังไม่ได้กรอก แต่ Receipt จะ snapshot ค่า ณ วันที่ออกใบไว้
+  /// ในแถวของตัวเองเสมอ — แก้ที่นี่ทีหลังไม่กระทบใบที่ออกไปแล้ว
+  addressLine String?
+  phone       String?
 
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -175,6 +220,8 @@ model Branch {
   staff          Staff[]
   auditLogs      AuditLog[]
   payments       Payment[]
+  receipts         Receipt[]
+  documentCounters DocumentCounter[]
 
   @@unique([tenantId, code])
   @@index([tenantId])
@@ -345,6 +392,13 @@ model RestaurantTable {
   seats  Int         @default(4)
   status TableStatus @default(AVAILABLE)
 
+  /// โต๊ะนั่ง / เคาน์เตอร์ซื้อกลับ / ช่องไรเดอร์
+  ///
+  /// จุดขายที่ไม่ใช่ DINE_IN **ไม่ขึ้นผังโต๊ะ** และ `status` ของแถวนั้นไม่มีความหมาย
+  /// (เคาน์เตอร์มีหลายบิลเปิดพร้อมกันได้ คำว่า "ไม่ว่าง" จึงตอบอะไรไม่ได้) —
+  /// โค้ดที่อัปเดต `status` ต้องเช็ค kind ก่อนเสมอ
+  kind SalePointKind @default(DINE_IN)
+
   sortOrder Int      @default(0)
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
@@ -381,17 +435,63 @@ model TableSession {
   /// พนักงานที่เปิดโต๊ะให้ — null = ลูกค้าสแกน QR เปิดเอง
   openedByStaffId String?
 
+  // ── เลขคิว (จุดขายที่ไม่ใช่โต๊ะนั่ง) ────────────────────────────────────
+  //
+  // ซื้อกลับไม่มีชื่อโต๊ะให้เรียกลูกค้า จึงต้องมีเลขคิว และเลขคิว **ไม่ใช่**
+  // เลขที่ใบกำกับภาษี: "ต่อเนื่องห้ามขาด" ไม่ใช่ข้อกำหนดของมัน แต่ต้องรีเซ็ต
+  // ทุกวัน และต้องสั้นพอที่คนจะตะโกนเรียกได้ ("คิว 12") — จึงห้ามเอา
+  // DocumentCounter ของบทที่ 12 มาใช้ซ้ำ เพราะตัวนั้นห้ามรีเซ็ตตลอดกาล
+  //
+  // queueDay เก็บวันแบบ YYYYMMDD ตาม timezone ของสาขา (ท่าเดียวกับ
+  // Order.orderNumber ที่ใช้วันของสาขาไม่ใช่ของเครื่อง server) มีไว้เพื่อให้
+  // unique constraint ด้านล่างบังคับได้จริงว่า "หนึ่งวัน หนึ่งสาขา ห้ามมีคิวซ้ำ"
+  // ทั้งคู่เป็น null สำหรับโต๊ะนั่ง และค่า NULL ไม่ชนกันเองใน Postgres
+
+  /// วันของเลขคิว "YYYYMMDD" ตาม timezone สาขา — null = โต๊ะนั่ง (ไม่มีคิว)
+  queueDay    String?
+  /// เลขคิวของวันนั้น เริ่มที่ 1 ทุกวัน — null = โต๊ะนั่ง (ไม่มีคิว)
+  queueNumber Int?
+
+  /// ชื่อที่ใช้เรียกลูกค้าตอนของเสร็จ เช่น "คุณเอ" — ไม่บังคับกรอก
+  /// เก็บที่รอบขาย ไม่ใช่ที่ Order เพราะหนึ่งรอบขาย = หนึ่งบิล = หนึ่งลูกค้า
+  customerName String?
+
+  // ── ส่วนลดพนักงาน (บทที่ 13) ──────────────────────────────────────────
+  //
+  // ส่วนลดพนักงานเป็นช่องโกงคลาสสิก: ติดธง "พนักงานกิน" ทุกบิลแล้วเก็บส่วนต่าง
+  // ระบบจึงต้องตอบให้ได้ว่า **ใครกิน** ไม่ใช่แค่ "บิลนี้มีส่วนลด" — และต้องแยก
+  // "คนกิน" ออกจาก "คนกด" เพราะแคชเชียร์คิดเงินให้พ่อครัวได้เป็นเรื่องปกติ
+  //
+  // เก็บที่ TableSession เพราะ **หนึ่งรอบโต๊ะ = หนึ่งบิล** (กฎตั้งแต่บทที่ 10)
+  // ส่วนลดเป็นของบิล จึงต้องอยู่ระดับเดียวกันเป๊ะ ไม่ใช่กระจายลงแต่ละ Order
+  // (กระจายแล้วปัดเศษหลายรอบ ยอดไม่ตรงกับที่ลูกค้าจ่าย — บทเรียนจากบทที่ 11)
+
+  /// พนักงานที่เป็น "ลูกค้า" ของบิลนี้ — null = บิลลูกค้าปกติ ไม่มีส่วนลด
+  staffCustomerId  String?
+  /// พนักงานที่กดติดธง — คนละคนกับ staffCustomerId ได้
+  staffMealSetById String?
+  staffMealSetAt   DateTime?
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   branch        Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
   table         RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
   openedByStaff Staff?          @relation(fields: [openedByStaffId], references: [id], onDelete: SetNull)
+  /// SetNull: ลบบัญชีพนักงานแล้วบิลเก่าต้องไม่หายตาม — ชื่อคนกินที่ตรวจสอบย้อนหลังได้จริง
+  /// อยู่ใน Payment.staffCustomerId (บิลที่ปิดแล้ว) และใน AuditLog
+  staffCustomer  Staff? @relation("StaffMealCustomer", fields: [staffCustomerId], references: [id], onDelete: SetNull)
+  staffMealSetBy Staff? @relation("StaffMealSetBy", fields: [staffMealSetById], references: [id], onDelete: SetNull)
   orders        Order[]
   payments      Payment[]
 
+  /// หนึ่งวัน หนึ่งสาขา ห้ามมีเลขคิวซ้ำ — สองคนที่ได้ "คิว 12" พร้อมกัน
+  /// คือเคสที่พนักงานเรียกแล้วมีคนมารับผิดคน จึงกันด้วย constraint ไม่ใช่ด้วยความหวัง
+  @@unique([branchId, queueDay, queueNumber])
   @@index([branchId, status])
   @@index([tableId, status])
+  /// ใช้บังคับกติกา "หนึ่งคน หนึ่งบิลที่เปิดอยู่" — กันเอาชื่อคนเดียวไปแปะหลายโต๊ะพร้อมกัน
+  @@index([staffCustomerId, status])
   @@map("table_sessions")
 }
 
@@ -573,6 +673,15 @@ model Payment {
   vatRateBp        Int
   pricesIncludeVat Boolean
 
+  /// อัตราส่วนลดที่ใช้ครั้งนี้ (basis point) — 0 = ไม่มีส่วนลด
+  ///
+  /// ต้องมีคู่กับ discountAmount ไม่ใช่มีแค่จำนวนเงิน ไม่งั้นใบเสร็จที่พิมพ์ซ้ำ
+  /// ปีหน้าจะพิมพ์คำว่า "10%" ไม่ได้ ต้องเดาย้อนจากตัวเลข (เหตุผลเดียวกับ vatRateBp)
+  discountBp       Int @default(0)
+  /// พนักงานที่เป็นลูกค้าของบิลนี้ — ตัวที่ทำให้รายงาน "ส่วนลดพนักงานรายคน"
+  /// ในบทที่ 15 เป็นไปได้ และเป็นหลักฐานถาวรหลังรอบโต๊ะถูกปิดไปแล้ว
+  staffCustomerId  String?
+
   paidByStaffId String?
   paidAt        DateTime @default(now())
   createdAt     DateTime @default(now())
@@ -580,11 +689,16 @@ model Payment {
   branch       Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
   /// Restrict: รอบโต๊ะที่จ่ายเงินแล้วห้ามถูกลบจนหลักฐานการรับเงินหายตาม
   tableSession TableSession @relation(fields: [tableSessionId], references: [id], onDelete: Restrict)
-  paidByStaff  Staff?       @relation(fields: [paidByStaffId], references: [id], onDelete: SetNull)
-  orders       Order[]
+  paidByStaff   Staff? @relation(fields: [paidByStaffId], references: [id], onDelete: SetNull)
+  staffCustomer Staff? @relation("StaffMealPaidFor", fields: [staffCustomerId], references: [id], onDelete: SetNull)
+  orders        Order[]
+  /// เอกสารที่ออกให้ลูกค้าสำหรับการรับเงินครั้งนี้ — หนึ่งต่อหนึ่งในก้อนนี้
+  /// (Restrict ฝั่ง Receipt: ลบการรับเงินทิ้งแล้วเอกสารหายตามไม่ได้)
+  receipt      Receipt?
 
   @@index([branchId, paidAt])
   @@index([tableSessionId])
+  @@index([staffCustomerId])
   @@map("payments")
 }
 
@@ -615,6 +729,10 @@ model Staff {
   placedOrders   Order[]
   auditLogs      AuditLog[]
   payments       Payment[]
+  /// บิลที่พนักงานคนนี้เป็น "ลูกค้า" (ส่วนลดพนักงาน — บทที่ 13)
+  staffMealSessions TableSession[] @relation("StaffMealCustomer")
+  staffMealSetBy    TableSession[] @relation("StaffMealSetBy")
+  staffMealPayments Payment[]      @relation("StaffMealPaidFor")
 
   @@unique([branchId, code])
   @@index([branchId, isActive])
@@ -648,4 +766,104 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([staffId])
   @@map("audit_logs")
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// เอกสารที่ออกให้ลูกค้า (บทที่ 12) — ใบเสร็จ / ใบกำกับภาษีอย่างย่อ
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// ตัวเดินเลขที่เอกสาร — หนึ่งแถวต่อ (สาขา, ชุดเอกสาร)
+///
+/// ── ทำไมต้องเป็นตาราง ไม่ใช่ count() หรือ max(seq)+1 ────────────────────────
+/// `SELECT max(seq)+1` มีช่องว่างระหว่างอ่านกับเขียน สองเครื่องที่กดพร้อมกันจะได้
+/// เลขเดียวกันทั้งคู่ แล้วเครื่องที่สองจะชน unique constraint แล้วการรับเงินล้มเหลว
+/// ทั้งที่ลูกค้าจ่ายเงินไปแล้ว — การ `update ... increment` บนแถวเดียวทำให้ Postgres
+/// ล็อกแถวนั้นให้เอง เครื่องที่สองรอแล้วได้เลขถัดไป ไม่มีทางได้เลขซ้ำ
+///
+/// ── ทำไมต้องอยู่ใน transaction เดียวกับการรับเงิน ───────────────────────────
+/// เพื่อให้ได้สองสมบัติพร้อมกัน: (1) การรับเงินที่ล้มเหลวจะ rollback การ increment
+/// ไปด้วย **เลขจึงไม่ขาดเป็นรู** ซึ่งเป็นสิ่งเดียวที่ตรวจสอบย้อนหลังไม่ผ่านแน่ ๆ
+/// และ (2) ไม่มีทางเกิดบิลที่จ่ายเงินแล้วแต่ไม่มีเอกสาร
+///
+/// ราคาที่จ่าย: การรับเงินของสาขาเดียวกันเข้าคิวกันที่แถวนี้ — เป็นต้นทุนที่
+/// หลีกเลี่ยงไม่ได้ของคำว่า "เลขต่อเนื่อง" ไม่ใช่ข้อบกพร่องของ design
+model DocumentCounter {
+  id       String @id @default(cuid())
+  branchId String
+
+  /// ชุดเอกสาร เช่น "ABB" — แยกชุดไว้เผื่อใบลดหนี้/ใบกำกับเต็มรูปในอนาคต
+  /// ซึ่งต้องเดินเลขคนละสายกับใบเสร็จ ไม่ใช่ปนกันในสายเดียว
+  series  String
+  /// เลขล่าสุดที่ออกไปแล้ว — ใบถัดไปคือ lastSeq + 1 (เริ่มที่ 0 แปลว่ายังไม่เคยออกใบ)
+  lastSeq Int    @default(0)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, series])
+  @@map("document_counters")
+}
+
+/// เอกสารหนึ่งใบที่ออกให้ลูกค้า
+///
+/// ── ทำไมแยกจาก Payment ────────────────────────────────────────────────────
+/// `Payment` = **เงินที่ได้รับ** · `Receipt` = **เอกสารที่ออกให้** คนละเรื่องกัน
+/// แยกแล้วได้สามอย่างที่รวมกันแล้วทำไม่ได้:
+///
+///   1. snapshot ตัวตนผู้ขาย ณ วันที่ออกใบ — ร้านเปลี่ยนชื่อ ย้ายที่อยู่ หรือเพิ่งได้
+///      เลขผู้เสียภาษีมาทีหลังได้ แต่ใบที่พิมพ์ซ้ำปีหน้า **ต้องเหมือนใบที่ลูกค้าถืออยู่**
+///      (กฎเดียวกับที่ห้ามอ่านอัตรา VAT จาก Branch ตอนพิมพ์ใบเก่า)
+///   2. นับและสืบการพิมพ์ซ้ำได้ ซึ่งไม่ใช่ข้อมูลการเงินและไม่ควรอยู่ในตารางเงิน
+///   3. ใบลดหนี้ตอนทำ Refund ในอนาคตจะเป็น Receipt **อีกแถวที่อ้างถึงใบเดิม**
+///      ไม่ใช่การแก้ใบเก่า — โครงนี้รองรับตั้งแต่ต้นโดยไม่ต้อง migrate ซ้ำ
+model Receipt {
+  id        String @id @default(cuid())
+  branchId  String
+  paymentId String @unique
+
+  series String
+  seq    Int
+  /// เลขที่ที่พิมพ์ลงใบจริง เช่น "HQ-00000123" — ประกอบไว้แล้วเพื่อให้ค้นด้วยสิ่งที่
+  /// ลูกค้าอ่านจากใบในมือได้ตรง ๆ โดยไม่ต้องแยกส่วนก่อน
+  ///
+  /// unique **ต่อสาขา ไม่ใช่ทั้งระบบ** — Branch.code ไม่ซ้ำแค่ภายใน tenant เดียวกัน
+  /// (@@unique([tenantId, code])) สอง tenant จึงมีสาขาชื่อ "HQ" ได้ทั้งคู่ แล้วเลขที่
+  /// จะชนกันข้ามร้านทั้งที่ไม่เกี่ยวอะไรกันเลย ถ้าตั้ง unique ทั้งระบบ
+  number String
+  kind   ReceiptKind
+
+  // ── snapshot ตัวตนผู้ขาย ณ วันที่ออกใบ — ห้าม join Tenant/Branch สดตอนพิมพ์ซ้ำ ──
+  sellerName       String
+  /// เลขประจำตัวผู้เสียภาษี 13 หลัก — null ได้เมื่อ kind = RECEIPT (สาขานอกไทย)
+  sellerTaxId      String?
+  sellerBranchName String
+  sellerAddress    String?
+  sellerPhone      String?
+
+  issuedAt DateTime @default(now())
+
+  /// จำนวนครั้งที่กดปุ่มพิมพ์ — 0 = ออกใบแล้วแต่ยังไม่เคยพิมพ์
+  /// ครั้งที่ 2 ขึ้นไปต้องขึ้นคำว่า "สำเนา" บนหัวใบ (ต้นฉบับมีใบเดียวเสมอ)
+  ///
+  /// นับจาก **ปุ่ม** ไม่ใช่ `onafterprint` ของเบราว์เซอร์ เพราะ event นั้นยิงตอน
+  /// ผู้ใช้กด Ctrl+P เองด้วย และแต่ละเบราว์เซอร์ยิงไม่เหมือนกัน — แค่ "เปิดหน้าดู"
+  /// ไม่ควรถูกนับว่าออกสำเนาให้ลูกค้า
+  printCount     Int       @default(0)
+  firstPrintedAt DateTime?
+  lastPrintedAt  DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  /// Restrict: ลบการรับเงินทิ้งแล้วเอกสารที่ออกให้ลูกค้าหายตามไม่ได้
+  /// (ทุกที่ที่ล้างโต๊ะจึงต้องลบตามลำดับ ใบเสร็จ → การรับเงิน → รอบโต๊ะ)
+  payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
+
+  @@unique([branchId, series, seq])
+  @@unique([branchId, number])
+  @@index([branchId, issuedAt])
+  @@map("receipts")
 }

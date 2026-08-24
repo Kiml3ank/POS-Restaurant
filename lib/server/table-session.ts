@@ -5,8 +5,11 @@ import { randomBytes } from "node:crypto";
 
 import { REALTIME_EVENT_VERSION } from "@/lib/realtime-events";
 import { TABLE_SESSION_COOKIE } from "@/lib/table-session-cookie";
+import { branchDayKey } from "@/lib/branch-day";
+import { joinsExistingSession, needsQueueNumber, showsInTableMap } from "@/lib/sale-point";
 import { prisma } from "@/lib/server/db";
 import { publishRealtimeEvent } from "@/lib/server/realtime";
+import type { Prisma } from "@/lib/generated/prisma/client";
 
 /**
  * โต๊ะ + รอบการใช้โต๊ะ (บทที่ 5) — ชั้นที่กันเคสในเล่ม
@@ -57,6 +60,20 @@ export async function resolveCustomerContext(tableCode: string) {
     return null;
   }
 
+  /**
+   * หน้าจอลูกค้าใช้ได้เฉพาะโต๊ะนั่ง
+   *
+   * จุดขายที่ไม่ใช่โต๊ะมี `tableCode` ติดมาด้วยเพราะคอลัมน์บังคับ ไม่ใช่เพราะ
+   * ตั้งใจให้สแกน — ถ้าปล่อยผ่าน ใครที่ถ่ายรูป QR ของเคาน์เตอร์ไปจะเปิดบิล
+   * ซื้อกลับเองได้จากที่บ้าน แล้วครัวจะได้ออร์เดอร์ที่ไม่มีใครมารับ
+   *
+   * คืน null (= "ไม่มีจุดขายนี้") ตั้งใจไม่บอกว่า "มีอยู่แต่เข้าไม่ได้" เพราะ
+   * การบอกแปลว่ายืนยันว่า code นี้มีจริง ซึ่งช่วยคนที่กำลังเดาโค้ดอยู่
+   */
+  if (!showsInTableMap(table.kind)) {
+    return null;
+  }
+
   const token = await readTableSessionToken();
   const session = token
     ? await prisma.tableSession.findFirst({
@@ -89,6 +106,12 @@ export async function openTableSession(tableCode: string, pax: number) {
   });
 
   if (!table || !table.isActive || !table.branch.isActive) {
+    return null;
+  }
+
+  // ด่านเดียวกับใน resolveCustomerContext() — ต้องมีทั้งสองที่ เพราะ Server Action
+  // ที่เรียกฟังก์ชันนี้ถูกยิงตรงด้วย POST ได้โดยไม่ผ่านหน้าจอที่ resolve มาก่อน
+  if (!showsInTableMap(table.kind)) {
     return null;
   }
 
@@ -131,19 +154,35 @@ export async function openOrJoinTableSession(input: {
   const now = new Date();
 
   return prisma.$transaction(async (tx) => {
-    const existing = await tx.tableSession.findFirst({
-      where: { tableId: input.tableId, status: "OPEN", expiresAt: { gt: now } },
-      orderBy: { openedAt: "desc" },
+    /**
+     * ต้องรู้ชนิดของจุดขายก่อนตัดสินใจอะไรทั้งสิ้น — โต๊ะนั่งเข้าร่วมบิลเดิม
+     * ส่วนเคาน์เตอร์/ช่องไรเดอร์เปิดบิลใหม่ทุกครั้ง (ดู lib/sale-point.ts)
+     * อ่านใน transaction เดียวกันเพื่อไม่ให้ค่าที่ใช้ตัดสินใจเก่ากว่าที่เขียนจริง
+     */
+    const salePoint = await tx.restaurantTable.findUniqueOrThrow({
+      where: { id: input.tableId },
+      select: { kind: true, branch: { select: { timezone: true } } },
     });
 
-    if (existing) {
-      // เข้าร่วมรอบเดิม — อัปเดตจำนวนลูกค้าเฉพาะตอนที่กรอกมามากกว่าเดิม
-      // (คนที่สองที่สแกนเข้ามาไม่ควรลดจำนวนที่คนแรกกรอกไว้)
-      if (input.pax > existing.pax) {
-        return tx.tableSession.update({ where: { id: existing.id }, data: { pax: input.pax } });
+    if (joinsExistingSession(salePoint.kind)) {
+      const existing = await tx.tableSession.findFirst({
+        where: { tableId: input.tableId, status: "OPEN", expiresAt: { gt: now } },
+        orderBy: { openedAt: "desc" },
+      });
+
+      if (existing) {
+        // เข้าร่วมรอบเดิม — อัปเดตจำนวนลูกค้าเฉพาะตอนที่กรอกมามากกว่าเดิม
+        // (คนที่สองที่สแกนเข้ามาไม่ควรลดจำนวนที่คนแรกกรอกไว้)
+        if (input.pax > existing.pax) {
+          return tx.tableSession.update({ where: { id: existing.id }, data: { pax: input.pax } });
+        }
+        return existing;
       }
-      return existing;
     }
+
+    const queue = needsQueueNumber(salePoint.kind)
+      ? await nextQueueNumber(tx, input.branchId, salePoint.branch.timezone)
+      : null;
 
     const created = await tx.tableSession.create({
       data: {
@@ -153,16 +192,59 @@ export async function openOrJoinTableSession(input: {
         pax: input.pax,
         openedByStaffId: input.openedByStaffId,
         expiresAt: new Date(now.getTime() + TABLE_SESSION_TTL_HOURS * 60 * 60 * 1000),
+        queueDay: queue?.day ?? null,
+        queueNumber: queue?.number ?? null,
       },
     });
 
-    await tx.restaurantTable.update({
-      where: { id: input.tableId },
-      data: { status: "OCCUPIED" },
-    });
+    /**
+     * `status` ของแถวจุดขายมีความหมายเฉพาะโต๊ะนั่ง
+     *
+     * เคาน์เตอร์มีบิลเปิดพร้อมกันได้หลายใบ ถ้าไปตั้ง OCCUPIED ให้ด้วย
+     * จะไม่มีใครรู้ว่าเมื่อไหร่ควรตั้งกลับเป็น AVAILABLE (ปิดบิลใบไหนถึงจะว่าง?)
+     * แล้วมันจะค้างเป็น "ไม่ว่าง" ตลอดกาล — ปล่อยไว้เฉย ๆ ถูกกว่า
+     */
+    if (showsInTableMap(salePoint.kind)) {
+      await tx.restaurantTable.update({
+        where: { id: input.tableId },
+        data: { status: "OCCUPIED" },
+      });
+    }
 
     return created;
   });
+}
+
+/**
+ * เลขคิวถัดไปของสาขาในวันนี้ — เริ่มที่ 1 ใหม่ทุกวัน
+ *
+ * ── ทำไมใช้ max+1 ได้ ทั้งที่บทที่ 12 บอกว่าห้าม ────────────────────────
+ * เลขที่ใบกำกับภาษีห้ามใช้ `max+1` เพราะสองเครื่องที่กดพร้อมกันจะได้เลขเดียวกัน
+ * แล้วเครื่องที่สองชน unique constraint → **การรับเงินล้มเหลวทั้งที่ลูกค้าจ่ายแล้ว**
+ * ซึ่งรับไม่ได้ จึงต้องมี `DocumentCounter` ที่ล็อกแถว
+ *
+ * แต่เลขคิวคนละสถานการณ์: ถ้าชนกัน สิ่งที่ล้มเหลวคือ "การเปิดบิลใหม่" ซึ่งยัง
+ * ไม่มีเงินเกี่ยวข้องเลย พนักงานกดใหม่อีกทีก็จบ และ `@@unique([branchId,
+ * queueDay, queueNumber])` เป็นตัวกันไม่ให้ลูกค้าสองคนได้ "คิว 12" พร้อมกัน
+ * — ซึ่งเป็นความเสียหายจริงข้อเดียวของเรื่องนี้ (เรียกแล้วมีคนมารับผิดคน)
+ *
+ * ราคาที่ยอมจ่าย: ไม่ต้องมีตารางตัวนับเพิ่ม และไม่ต้องให้การเปิดบิลของทั้งสาขา
+ * เข้าคิวกันที่แถวเดียว ซึ่งเป็นต้นทุนที่เลขคิวไม่คุ้มจะจ่าย
+ */
+async function nextQueueNumber(
+  tx: Prisma.TransactionClient,
+  branchId: string,
+  timezone: string,
+): Promise<{ day: string; number: number }> {
+  const day = branchDayKey(timezone);
+
+  const last = await tx.tableSession.findFirst({
+    where: { branchId, queueDay: day },
+    orderBy: { queueNumber: "desc" },
+    select: { queueNumber: true },
+  });
+
+  return { day, number: (last?.queueNumber ?? 0) + 1 };
 }
 
 /**

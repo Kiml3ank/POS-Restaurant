@@ -5,7 +5,11 @@ import { LiveRefresh } from "@/components/live-refresh";
 import type { Currency } from "@/lib/generated/prisma/enums";
 import { formatMoney } from "@/lib/money";
 import { canAccessScreen } from "@/lib/rbac";
-import { getPosTables, type PosTableSummary } from "@/lib/server/pos";
+import {
+  getOpenSalePointSessions,
+  getPosTables,
+  type PosTableSummary,
+} from "@/lib/server/pos";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
 /**
@@ -29,7 +33,11 @@ export default async function PosTableMapPage() {
   }
 
   const currency = staff.branch.currency;
-  const tables = await getPosTables(staff.branchId);
+  const [tables, takeawayQueue] = await Promise.all([
+    getPosTables(staff.branchId),
+    getOpenSalePointSessions(staff.branchId),
+  ]);
+  const takeawayReady = takeawayQueue.filter((entry) => entry.readyItems > 0).length;
   const openTables = tables.filter((table) => table.session !== null);
   const totalOnFloor = openTables.reduce((sum, table) => sum + table.runningTotal, 0);
   const needAttention = tables.filter((table) => table.readyItems > 0).length;
@@ -65,6 +73,43 @@ export default async function PosTableMapPage() {
           </div>
         </div>
       </div>
+
+      {/*
+        แถบซื้อกลับ — ทางเข้าเดียวของบิลที่ไม่ได้อยู่บนโต๊ะ
+
+        จุดขายที่ไม่ใช่โต๊ะนั่งถูกกรองออกจากผังด้านล่างโดยตั้งใจ (ผังตอบคำถาม
+        "โต๊ะไหนว่าง" ซึ่งเคาน์เตอร์ตอบไม่ได้ เพราะมีบิลเปิดพร้อมกันได้หลายใบ)
+        ถ้าไม่มีแถบนี้ **บิลซื้อกลับที่เปิดค้างอยู่จะมองไม่เห็นจากหน้าจอไหนเลย**
+
+        วางไว้เหนือผังโต๊ะเพราะลูกค้าซื้อกลับยืนรออยู่หน้าร้านจริง ๆ ต่างจาก
+        โต๊ะที่นั่งรอได้ — ของที่ต้องรีบกว่าต้องอยู่สูงกว่าบนจอ
+      */}
+      <Link
+        href="/pos/counter"
+        className={`flex items-center justify-between gap-4 border-2 border-[var(--color-text)] px-5 py-4 transition-colors ${
+          takeawayReady > 0
+            ? "bg-[var(--color-accent)] text-white hover:bg-[var(--color-accent-600)]"
+            : "hover:bg-[var(--color-accent-100)]"
+        }`}
+      >
+        <span className="flex min-w-0 flex-col gap-1">
+          <span className={`kicker ${takeawayReady > 0 ? "text-white/80" : "kicker-accent"}`}>
+            ซื้อกลับ
+          </span>
+          <span className="display text-[19px]">
+            {takeawayQueue.length === 0
+              ? "เปิดบิลซื้อกลับใบใหม่"
+              : `${takeawayQueue.length} บิลที่เปิดอยู่`}
+          </span>
+        </span>
+
+        <span className="flex items-baseline gap-4 whitespace-nowrap lg:gap-6">
+          {takeawayReady > 0 ? (
+            <span className="display text-[17px]">พร้อมให้รับ {takeawayReady} คิว</span>
+          ) : null}
+          <span className="display text-[22px]">›</span>
+        </span>
+      </Link>
 
       <div className="rule" />
 

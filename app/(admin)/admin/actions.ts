@@ -15,6 +15,7 @@ import {
   upsertModifierGroup,
   type MenuEntity,
 } from "@/lib/server/menu-admin";
+import { recordReceiptPrint } from "@/lib/server/receipt";
 import { getCurrentStaff, loginStaff, logoutStaff } from "@/lib/server/staff-session";
 
 /**
@@ -269,4 +270,30 @@ export async function deleteEntityAction(
 function optionalText(value: FormDataEntryValue | null | undefined): string | null {
   const text = value === null || value === undefined ? "" : String(value).trim();
   return text === "" ? null : text;
+}
+
+/**
+ * บันทึกการพิมพ์ใบเสร็จจากจอหลังร้าน (บทที่ 12)
+ *
+ * คู่แฝดของ posPrintReceiptAction() ใน app/(pos)/pos/actions.ts —
+ * ต่างกันที่ cookie ที่อ่านเท่านั้น ดูเหตุผลที่ไม่รวมเป็นตัวเดียวในไฟล์นั้น
+ */
+export async function adminPrintReceiptAction(
+  receiptId: string,
+): Promise<{ ok: boolean; error?: string }> {
+  const staff = await requireAdminStaff();
+
+  if (!staff) {
+    return { ok: false, error: "เซสชันหมดอายุ กรุณาใส่ PIN ใหม่" };
+  }
+
+  const result = await recordReceiptPrint(staff, receiptId);
+
+  if (!result.ok) {
+    return { ok: false, error: result.error };
+  }
+
+  refresh();
+
+  return { ok: true };
 }

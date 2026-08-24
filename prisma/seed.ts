@@ -145,12 +145,31 @@ const MENU_ITEMS = [
   },
 ];
 
+/**
+ * จุดขายของสาขา — โต๊ะนั่งกินและ "เคาน์เตอร์ซื้อกลับ"
+ *
+ * เคาน์เตอร์เป็นแถวใน RestaurantTable เหมือนโต๊ะ แต่ `kind = COUNTER` ซึ่ง
+ * เปลี่ยนพฤติกรรมสามอย่าง: ไม่ขึ้นผังโต๊ะ · เปิดบิลใหม่ทุกครั้งไม่เข้าร่วมบิลเดิม ·
+ * ไม่คิดเซอร์วิสชาร์จ (ดู lib/sale-point.ts)
+ *
+ * มี `tableCode` เหมือนกันเพราะคอลัมน์บังคับ แต่ **สแกนเข้าหน้าลูกค้าไม่ได้** —
+ * resolveCustomerContext() ปฏิเสธจุดขายที่ไม่ใช่โต๊ะนั่ง (ไม่งั้นลูกค้าที่ถ่ายรูป
+ * QR ของเคาน์เตอร์ไปจะเปิดบิลซื้อกลับเองได้จากที่บ้าน)
+ */
 const TABLES = [
-  { id: "seed-table-a1", name: "A1", tableCode: "a1x7qk", seats: 2, sortOrder: 1 },
-  { id: "seed-table-a2", name: "A2", tableCode: "a2m4vd", seats: 4, sortOrder: 2 },
-  { id: "seed-table-a3", name: "A3", tableCode: "a3p9hz", seats: 4, sortOrder: 3 },
-  { id: "seed-table-b1", name: "B1", tableCode: "b1t6nw", seats: 6, sortOrder: 4 },
-  { id: "seed-table-b2", name: "B2", tableCode: "b2r3cy", seats: 6, sortOrder: 5 },
+  { id: "seed-table-a1", name: "A1", tableCode: "a1x7qk", seats: 2, sortOrder: 1, kind: "DINE_IN" as const },
+  { id: "seed-table-a2", name: "A2", tableCode: "a2m4vd", seats: 4, sortOrder: 2, kind: "DINE_IN" as const },
+  { id: "seed-table-a3", name: "A3", tableCode: "a3p9hz", seats: 4, sortOrder: 3, kind: "DINE_IN" as const },
+  { id: "seed-table-b1", name: "B1", tableCode: "b1t6nw", seats: 6, sortOrder: 4, kind: "DINE_IN" as const },
+  { id: "seed-table-b2", name: "B2", tableCode: "b2r3cy", seats: 6, sortOrder: 5, kind: "DINE_IN" as const },
+  {
+    id: "seed-counter-1",
+    name: "เคาน์เตอร์ซื้อกลับ",
+    tableCode: "counter1",
+    seats: 0,
+    sortOrder: 90,
+    kind: "COUNTER" as const,
+  },
 ];
 
 const STAFF = [
@@ -160,20 +179,47 @@ const STAFF = [
   { id: "seed-staff-kitchen", code: "004", name: "ครัว", role: "KITCHEN" as const, pin: "4567" },
 ];
 
+/**
+ * ข้อมูลผู้ขายที่ต้องขึ้นบนใบเสร็จ/ใบกำกับภาษีอย่างย่อ (บทที่ 12)
+ *
+ * เป็นข้อมูลสมมติสำหรับ dev — ก่อนใช้งานจริงต้องแก้เป็นของร้านจริง
+ * และ **ต้องให้ผู้สอบบัญชี/สรรพากรตรวจรูปแบบใบก่อน** เนื้อหาภาษีในบทนี้
+ * ไม่ใช่คำแนะนำทางกฎหมาย
+ *
+ * หมายเหตุ: Receipt snapshot ค่าพวกนี้ไว้ในแถวของตัวเองตอนออกใบ
+ * แก้ที่นี่แล้วใบที่ออกไปก่อนหน้าไม่เปลี่ยนตาม ซึ่งเป็นพฤติกรรมที่ต้องการ
+ */
+const SELLER = {
+  taxId: "0105561000000",
+  addressLine: "99/9 ถนนสุขุมวิท แขวงคลองเตย เขตคลองเตย กรุงเทพฯ 10110",
+  phone: "02-000-0000",
+};
+
+/** ชุดเอกสารที่ต้องมีตัวเดินเลขพร้อมใช้ตั้งแต่วินาทีแรกของสาขา */
+const DOCUMENT_SERIES = ["ABB"] as const;
+
 async function main() {
   const tenant = await prisma.tenant.upsert({
     where: { id: "seed-tenant" },
-    update: {},
+    /**
+     * update ไม่ว่างเปล่าเหมือนตอนแรกแล้ว — เลขผู้เสียภาษีต้องเติมให้ฐานเดิมที่
+     * seed ไปก่อนบทที่ 12 ด้วย ไม่ใช่เฉพาะฐานที่สร้างใหม่ ไม่งั้นใบกำกับภาษี
+     * อย่างย่อจะออกมาโดยไม่มีเลขผู้เสียภาษี ซึ่งใช้ไม่ได้ตามกฎหมาย
+     */
+    update: { taxId: SELLER.taxId },
     create: {
       id: "seed-tenant",
       name: "ร้านอาหารตัวอย่าง",
+      taxId: SELLER.taxId,
     },
   });
 
   const branch = await prisma.branch.upsert({
     where: { tenantId_code: { tenantId: tenant.id, code: "HQ" } },
-    update: {},
+    update: { addressLine: SELLER.addressLine, phone: SELLER.phone },
     create: {
+      addressLine: SELLER.addressLine,
+      phone: SELLER.phone,
       tenantId: tenant.id,
       code: "HQ",
       name: "สาขาสำนักงานใหญ่",
@@ -253,7 +299,12 @@ async function main() {
   for (const table of TABLES) {
     await prisma.restaurantTable.upsert({
       where: { id: table.id },
-      update: { name: table.name, seats: table.seats, sortOrder: table.sortOrder },
+      update: {
+        name: table.name,
+        seats: table.seats,
+        sortOrder: table.sortOrder,
+        kind: table.kind,
+      },
       create: { ...table, branchId: branch.id },
     });
   }
@@ -266,6 +317,23 @@ async function main() {
       // ไม่แตะ pinHash ตอน update เพื่อไม่ให้สั่ง seed ซ้ำแล้ว PIN เปลี่ยนทุกรอบ
       update: { name: staffData.name, role: staffData.role },
       create: { ...staffData, branchId: branch.id, pinHash: hashPin(pin) },
+    });
+  }
+
+  /**
+   * ตัวเดินเลขเอกสารต้องมีอยู่ก่อนการรับเงินครั้งแรกเสมอ
+   *
+   * ไม่ปล่อยให้ issueReceipt() upsert เอาเองตอนใช้งาน เพราะการ upsert ครั้งแรก
+   * ของสาขาใหม่จะแข่งกันเองถ้าสองเครื่องรับเงินพร้อมกันในนาทีนั้น แล้วเครื่องหนึ่ง
+   * จะชน unique violation ทั้งที่ลูกค้าจ่ายเงินไปแล้ว — ราคาถูกกว่ามากที่จะให้แถวนี้
+   * เกิดพร้อมสาขา (migration ทำให้สาขาเดิม · seed ทำให้สาขาที่สร้างจาก seed)
+   */
+  for (const series of DOCUMENT_SERIES) {
+    await prisma.documentCounter.upsert({
+      where: { branchId_series: { branchId: branch.id, series } },
+      // ห้ามแตะ lastSeq ตอน update เด็ดขาด — สั่ง seed ซ้ำแล้วเลขต้องไม่ถอยกลับ
+      update: {},
+      create: { branchId: branch.id, series },
     });
   }
 

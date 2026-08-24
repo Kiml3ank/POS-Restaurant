@@ -45,6 +45,14 @@ async function resetTable(tableId: string) {
   await prisma.order.deleteMany({ where: { tableSessionId: { in: sessionIds } } });
   // ต้องลบหลัง Order (Order → Payment เป็น Restrict) และก่อน TableSession
   // (Payment → TableSession เป็น Restrict) — บทที่ 11
+  // ใบเสร็จต้องถูกลบก่อนการรับเงิน — Receipt.paymentId เป็น Restrict (บทที่ 12)
+  const paymentIds = (
+    await prisma.payment.findMany({
+      where: { tableSessionId: { in: sessionIds } },
+      select: { id: true },
+    })
+  ).map((payment) => payment.id);
+  await prisma.receipt.deleteMany({ where: { paymentId: { in: paymentIds } } });
   await prisma.payment.deleteMany({ where: { tableSessionId: { in: sessionIds } } });
   await prisma.tableSession.deleteMany({ where: { id: { in: sessionIds } } });
   await prisma.restaurantTable.update({

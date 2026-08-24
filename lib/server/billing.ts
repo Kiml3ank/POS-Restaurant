@@ -1,7 +1,10 @@
 import "server-only";
 
 import { calculateBill, type Bill } from "@/lib/bill";
+import type { Prisma } from "@/lib/generated/prisma/client";
+import { billRatesForSalePoint } from "@/lib/sale-point";
 import { prisma } from "@/lib/server/db";
+import { staffMealDiscountAmount } from "@/lib/server/staff-meal";
 
 /**
  * รวบบิลของโต๊ะเพื่อคิดเงิน (บทที่ 10)
@@ -65,7 +68,62 @@ export async function getTableBill(branchId: string, tableId: string) {
   const session = await prisma.tableSession.findFirst({
     where: { tableId: table.id, status: "OPEN", expiresAt: { gt: new Date() } },
     orderBy: { openedAt: "desc" },
+    /**
+     * ดึงชื่อคนกินมาด้วย เพื่อให้หน้าคิดเงินและใบเสร็จเขียนได้ว่า
+     * "ส่วนลดพนักงาน · <ชื่อ>" ไม่ใช่แค่ "ส่วนลด" ลอย ๆ (บทที่ 13)
+     */
+    include: { staffCustomer: { select: { id: true, name: true, code: true } } },
   });
+
+  return buildBill(table, session);
+}
+
+/**
+ * บิลของ **รอบขายใบใดใบหนึ่ง** — ทางเข้าที่จุดขายซึ่งมีหลายบิลเปิดพร้อมกันต้องใช้
+ *
+ * ── ทำไมต้องมีทางเข้าที่สอง ──────────────────────────────────────────────
+ * `getTableBill()` ถามว่า "บิลของโต๊ะนี้" แล้วหยิบรอบที่เปิดล่าสุดมาใบเดียว
+ * ซึ่งถูกต้องเสมอสำหรับโต๊ะนั่ง เพราะโต๊ะหนึ่งโต๊ะมีรอบเปิดได้ทีละรอบเท่านั้น
+ *
+ * แต่เคาน์เตอร์ซื้อกลับมีบิลเปิดพร้อมกันได้หลายใบ (ลูกค้าต่อคิวกันสามคน)
+ * คำว่า "บิลของเคาน์เตอร์" จึงไม่มีความหมาย — ต้องระบุว่าใบไหน ไม่งั้นจะได้
+ * บิลของคนที่มาทีหลังเสมอ แล้วคนแรกที่ยืนรอจ่ายเงินจะเห็นบิลว่างเปล่า
+ */
+export async function getSessionBill(branchId: string, sessionId: string) {
+  const session = await prisma.tableSession.findFirst({
+    where: { id: sessionId, branchId },
+    include: { staffCustomer: { select: { id: true, name: true, code: true } } },
+  });
+
+  if (!session) {
+    return null;
+  }
+
+  const table = await prisma.restaurantTable.findFirst({
+    where: { id: session.tableId, branchId, isActive: true },
+    include: { branch: true },
+  });
+
+  if (!table) {
+    return null;
+  }
+
+  return buildBill(table, session);
+}
+
+/**
+ * แกนกลางของการคิดบิล — ทั้งสองทางเข้าด้านบนต้องลงมาจบที่นี่
+ *
+ * แยกออกมาเพื่อให้ "บิลของโต๊ะ" กับ "บิลของรอบขาย" ใช้สูตรและด่านกรองชุดเดียวกันเป๊ะ
+ * ถ้าปล่อยให้เป็นสองฟังก์ชันที่คิดเองคนละที่ วันหนึ่งจะมีที่หนึ่งที่ลืมกรอง
+ * รายการที่ถูกยกเลิก แล้วลูกค้าจะโดนคิดเงินค่าของที่ไม่ได้กิน
+ */
+async function buildBill(
+  table: Prisma.RestaurantTableGetPayload<{ include: { branch: true } }>,
+  session: Prisma.TableSessionGetPayload<{
+    include: { staffCustomer: { select: { id: true; name: true; code: true } } };
+  }> | null,
+) {
 
   const orders = session
     ? await prisma.order.findMany({
@@ -111,13 +169,36 @@ export async function getTableBill(branchId: string, tableId: string) {
 
   const subtotal = lines.reduce((sum, line) => sum + line.lineTotal, 0);
 
+  /**
+   * ส่วนลดพนักงาน (บทที่ 13) — **อ่านอัตราจาก Branch สด ไม่ได้ snapshot ไว้ที่รอบโต๊ะ**
+   *
+   * วงจรเดียวกับเซอร์วิสชาร์จและ VAT เป๊ะ ๆ: บิลที่ยังเปิดใช้อัตราปัจจุบัน
+   * แล้ว takePayment() จะ snapshot ลง Payment ตอนปิดบิล
+   *
+   * ผลที่ตามมาและตั้งใจให้เป็น: ลูกค้าสั่งเพิ่ม → ส่วนลดขยับตามเอง
+   * (ถ้าเก็บเป็นจำนวนเงินที่คิดไว้ตอนติดธง มันจะค้างอยู่ที่ยอดเก่าโดยไม่มีใครสังเกต)
+   */
+  const discountBp = session?.staffCustomerId ? table.branch.staffMealDiscountBp : 0;
+  const discountAmount = staffMealDiscountAmount(subtotal, discountBp);
+
+  /**
+   * อัตราของ **บิลใบนี้** ไม่ใช่อัตราของสาขาดิบ ๆ
+   *
+   * บิลที่เปิดบนเคาน์เตอร์ซื้อกลับได้ `serviceChargeBp = 0` เพราะไม่มีบริการที่โต๊ะ
+   * (ดู lib/sale-point.ts) — `takePayment()` เรียกฟังก์ชันเดียวกันนี้ตอนตัดเงินจริง
+   * ถ้าสองที่คิดคนละอัตรา ยอดที่แคชเชียร์อ่านให้ลูกค้าฟังจะไม่ตรงกับยอดที่ตัด
+   * แล้วด่าน `expectedTotal` จะไม่ยอมปิดบิลเลยทั้งวัน
+   */
+  const rates = billRatesForSalePoint(table.kind, {
+    serviceChargeBp: table.branch.serviceChargeBp,
+    vatRateBp: table.branch.vatRateBp,
+    pricesIncludeVat: table.branch.pricesIncludeVat,
+  });
+
   const bill: Bill = calculateBill({
     subtotal,
-    rates: {
-      serviceChargeBp: table.branch.serviceChargeBp,
-      vatRateBp: table.branch.vatRateBp,
-      pricesIncludeVat: table.branch.pricesIncludeVat,
-    },
+    discountAmount,
+    rates,
   });
 
   /**
@@ -138,6 +219,8 @@ export async function getTableBill(branchId: string, tableId: string) {
     orders,
     lines,
     bill,
+    /** อัตราส่วนลดที่ใช้กับบิลนี้ (0 = ไม่ใช่บิลพนักงาน) — หน้าจอใช้แสดง "10%" */
+    discountBp,
     unservedCount,
     /** true = ไม่มีอะไรให้คิดเงิน (เปิดโต๊ะแล้วแต่ยังไม่ได้สั่ง หรือยกเลิกหมด) */
     isEmpty: lines.length === 0,

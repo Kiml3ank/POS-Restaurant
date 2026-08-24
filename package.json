@@ -25,7 +25,10 @@
     "db:generate": "prisma generate",
     "db:seed": "prisma db seed",
     "db:studio": "prisma studio",
-    "postinstall": "prisma generate"
+    "postinstall": "prisma generate",
+    "smoke:receipt": "tsx --conditions=react-server scripts/smoke-receipt.ts",
+    "smoke:staff-meal": "tsx --conditions=react-server scripts/smoke-staff-meal.ts",
+    "smoke:takeaway": "tsx --conditions=react-server scripts/smoke-takeaway.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",

@@ -114,7 +114,12 @@ export async function getKitchenTickets(
       note: true,
       placedAt: true,
       createdAt: true,
-      table: { select: { id: true, name: true } },
+      table: { select: { id: true, name: true, kind: true } },
+      /**
+       * เลขคิวของบิลซื้อกลับ — ครัวต้องเห็น "ซื้อกลับ คิว 12" ไม่ใช่ชื่อช่อง
+       * ("เคาน์เตอร์ซื้อกลับ" เหมือนกันทุกใบ อ่านแล้วไม่รู้ว่าของใคร)
+       */
+      tableSession: { select: { queueNumber: true } },
       items: {
         where: itemFilter,
         orderBy: { createdAt: "asc" },
