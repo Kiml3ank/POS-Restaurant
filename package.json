@@ -28,7 +28,12 @@
     "postinstall": "prisma generate",
     "smoke:receipt": "tsx --conditions=react-server scripts/smoke-receipt.ts",
     "smoke:staff-meal": "tsx --conditions=react-server scripts/smoke-staff-meal.ts",
-    "smoke:takeaway": "tsx --conditions=react-server scripts/smoke-takeaway.ts"
+    "smoke:takeaway": "tsx --conditions=react-server scripts/smoke-takeaway.ts",
+    "audit:screens": "node scripts/audit-screens.mjs",
+    "smoke:staff-session": "tsx --conditions=react-server scripts/smoke-staff-session.ts",
+    "smoke:staff-admin": "tsx --conditions=react-server scripts/smoke-staff-admin.ts",
+    "smoke:settings": "tsx --conditions=react-server scripts/smoke-settings.ts",
+    "smoke:dashboard": "tsx --conditions=react-server scripts/smoke-dashboard.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",

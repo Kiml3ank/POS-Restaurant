@@ -75,6 +75,23 @@ export function salePointDisplayName(
 }
 
 /**
+ * เส้นทางฐานของจุดขายบนจอ POS — **ที่เดียวที่ตัดสินว่าบิลนี้อยู่ URL ตระกูลไหน**
+ *
+ * โต๊ะนั่งชี้ด้วย tableId (โต๊ะหนึ่งมีบิลเปิดได้ใบเดียว) ส่วนช่องทางที่เปิดพร้อมกัน
+ * ได้หลายบิลต้องชี้ด้วย sessionId ไม่งั้นลิงก์เดียวกันพาไปคนละบิลตามเวลาที่กด
+ *
+ * เดิมกฎนี้เป็นฟังก์ชันส่วนตัวใน `app/(pos)/pos/actions.ts` ซึ่งไฟล์ "use server"
+ * export ค่าที่ไม่ใช่ async function ออกมาไม่ได้ หน้าอื่น (เช่นหน้าใบเสร็จ)
+ * จึงเขียน `/pos/table/<id>` เองแล้วพาพนักงานไป URL ตระกูลผิดของบิลซื้อกลับ
+ */
+export function salePointBasePath(
+  table: { id: string; kind: SalePointKind },
+  session: { id: string },
+): string {
+  return showsInTableMap(table.kind) ? `/pos/table/${table.id}` : `/pos/counter/${session.id}`;
+}
+
+/**
  * ป้ายของ "ช่องข้อมูล" ที่บอกว่าบิลนี้มาจากไหน — ใช้บนใบเสร็จและตารางที่มีหัวคอลัมน์
  *
  * แยกจาก `salePointDisplayName()` เพราะบางที่ต้องการป้ายกับค่าแยกกัน

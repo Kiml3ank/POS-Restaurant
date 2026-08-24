@@ -1,28 +1,47 @@
 import "dotenv/config";
 
-import { createHmac } from "node:crypto";
-
-import { STAFF_SESSION_COOKIES } from "@/lib/staff-session-cookie";
+import type { StaffScreen } from "@/lib/rbac";
+import { STAFF_SCREEN_KIND, STAFF_SESSION_COOKIES } from "@/lib/staff-session-cookie";
 import { prisma } from "@/lib/server/db";
+import { createStaffToken } from "@/lib/server/staff-session";
+import { createStaffSession } from "@/lib/server/staff-session-store";
 
 /**
- * ออก cookie ของพนักงานไว้ทดสอบหน้า POS ด้วย curl โดยไม่ต้องกดผ่านเบราว์เซอร์
+ * ออก cookie ของพนักงานไว้ทดสอบหน้าจอด้วย curl โดยไม่ต้องกดผ่านเบราว์เซอร์
  * (คู่กับ `npm run dev:session` ที่ทำแบบเดียวกันให้ฝั่งลูกค้า)
  *
- *     npm run dev:staff-cookie 001
- *     curl -H "Cookie: pos_staff_session=<token>" http://localhost:3000/pos
+ *     npm run dev:staff-cookie 001            # ค่าเริ่มต้นคือจอ POS
+ *     npm run dev:staff-cookie 001 kds
+ *     curl -H "Cookie: kds_staff_session=<token>" http://localhost:3000/kds
  *
- * token ใบเดียวใช้ได้ทั้งสองจอ เพราะเนื้อในเหมือนกัน ต่างกันแค่ "ชื่อ cookie"
- * ที่แต่ละจออ่าน (บทที่ 8 แยก cookie ต่อจอ ดู lib/staff-session-cookie.ts)
+ * ── เปลี่ยนไปจากเดิมในบทที่ 13b ──────────────────────────────────────────
+ * token ใบเดียวใช้ได้ **จอเดียว** แล้ว ไม่ใช่ทั้งสามจอเหมือนก่อน เพราะ session
+ * เป็นแถวใน `StaffSession` ที่ผูกกับจอไว้ตั้งแต่ตอนสร้าง — ต้องการทดสอบสองจอ
+ * พร้อมกันก็สั่งสองครั้งด้วยชื่อจอต่างกัน
+ *
+ * สคริปต์นี้จึง **สร้างแถว session จริง** ไม่ใช่ปลอม token ขึ้นมาเฉย ๆ
+ * (ปลอมแล้วจะใช้ไม่ได้ เพราะ getCurrentStaff() ตรวจกับ DB ทุก request)
+ * และประกอบ token ด้วย `createStaffToken()` ตัวเดียวกับที่ระบบใช้จริง
+ * — ห้ามเขียนสูตร token ซ้ำที่นี่อีก ไม่งั้นวันที่รูปแบบเปลี่ยนจะพังแบบเงียบ ๆ
  *
  * ตั้งใจให้เป็นเครื่องมือ dev เท่านั้น — มันข้ามการตรวจ PIN ทั้งหมด
  * จึงเช็ค NODE_ENV ก่อน และตัวลายเซ็นยังต้องตรงกับ AUTH_SECRET ของเครื่องนั้นอยู่ดี
- *
- * ต้องประกอบ token ซ้ำที่นี่แทนการเรียก loginStaff() เพราะฟังก์ชันนั้นเขียน cookie
- * ผ่าน `cookies()` ของ next/headers ซึ่งใช้นอก request context ของ Next.js ไม่ได้
- * ถ้าแก้รูปแบบ token ใน lib/server/staff-session.ts ต้องแก้ที่นี่ตามด้วย
  */
-const SESSION_TTL_HOURS = 8;
+const SCREENS: StaffScreen[] = ["pos", "kds", "admin"];
+
+function parseScreen(value: string | undefined): StaffScreen {
+  if (!value) {
+    return "pos";
+  }
+
+  const screen = SCREENS.find((name) => name === value);
+
+  if (!screen) {
+    throw new Error(`ไม่รู้จักจอ "${value}" — ใช้ได้: ${SCREENS.join(" · ")}`);
+  }
+
+  return screen;
+}
 
 async function main() {
   if (process.env.NODE_ENV === "production") {
@@ -44,13 +63,15 @@ async function main() {
       select: { code: true, name: true, role: true },
     });
 
-    console.error("ใช้: npm run dev:staff-cookie <รหัสพนักงาน>");
+    console.error("ใช้: npm run dev:staff-cookie <รหัสพนักงาน> [pos|kds|admin]");
     console.error("พนักงานที่มีอยู่:");
     for (const row of staff) {
       console.error(`  ${row.code}  ${row.name} (${row.role})`);
     }
     process.exit(1);
   }
+
+  const screen = parseScreen(process.argv[3]);
 
   const staff = await prisma.staff.findFirst({
     where: { code: staffCode, isActive: true },
@@ -61,20 +82,45 @@ async function main() {
     throw new Error(`ไม่พบพนักงานรหัส ${staffCode}`);
   }
 
-  const exp = Date.now() + SESSION_TTL_HOURS * 60 * 60 * 1000;
-  const body = Buffer.from(JSON.stringify({ sid: staff.id, bid: staff.branchId, exp })).toString(
-    "base64url",
-  );
-  const signature = createHmac("sha256", secret).update(body).digest("base64url");
+  /**
+   * ปิดใบเก่าที่สคริปต์นี้เคยออกให้คนเดียวกัน **ก่อน** ออกใบใหม่
+   *
+   * ไม่งั้นทุกครั้งที่รันเพื่อทดสอบจะทิ้ง session ค้างไว้อีกใบ แล้วหน้า
+   * /admin/staff จะขึ้นว่าคนนี้ "ล็อกอินอยู่ 5 เครื่อง" ทั้งที่เป็นเครื่องมือ dev
+   * ล้วน ๆ — ซึ่งทำให้ตัวเลขที่ควรใช้จับเครื่องแปลกปลอมกลายเป็นตัวเลขที่ไม่มีใครเชื่อ
+   *
+   * ปิดเฉพาะใบที่ไม่มี IP (คือใบที่ออกจากสคริปต์นี้เท่านั้น) — ใบที่ล็อกอินจริง
+   * จากเบราว์เซอร์มี IP ติดมาเสมอ จึงไม่ถูกแตะ ไม่งั้นเครื่องมือ dev จะเตะ
+   * คนที่กำลังเปิดจอทดสอบอยู่ออกโดยไม่มีใครสั่ง
+   */
+  const staleDevSessions = await prisma.staffSession.updateMany({
+    where: { staffId: staff.id, screen: STAFF_SCREEN_KIND[screen], revokedAt: null, ipAddress: null },
+    data: { revokedAt: new Date(), revokedReason: "logout" },
+  });
 
-  console.error(`${staff.name} (${staff.role}) · สาขา ${staff.branch.name}`);
-  console.error(`หมดอายุ ${new Date(exp).toISOString()}`);
-  console.error(`curl -H "Cookie: ${STAFF_SESSION_COOKIES.pos}=<token>" http://localhost:3000/pos`);
-  console.error(`curl -H "Cookie: ${STAFF_SESSION_COOKIES.kds}=<token>" http://localhost:3000/kds`);
+  const session = await createStaffSession({
+    staffId: staff.id,
+    branchId: staff.branchId,
+    screen,
+    ipAddress: null,
+  });
+
+  const token = createStaffToken({
+    jti: session.id,
+    sid: staff.id,
+    bid: staff.branchId,
+    exp: session.expiresAt.getTime(),
+  });
+
+  console.error(`${staff.name} (${staff.role}) · สาขา ${staff.branch.name} · จอ ${screen}`);
   console.error(
-    `curl -H "Cookie: ${STAFF_SESSION_COOKIES.admin}=<token>" http://localhost:3000/admin/menu`,
+    `หมดอายุ ${session.expiresAt.toISOString()} · session ${session.id}` +
+      (staleDevSessions.count > 0 ? ` · ปิดใบเก่าของเครื่องมือ dev ${staleDevSessions.count} ใบ` : ""),
   );
-  console.log(`${body}.${signature}`);
+  console.error(
+    `curl -H "Cookie: ${STAFF_SESSION_COOKIES[screen]}=<token>" http://localhost:3000/${screen === "admin" ? "admin/menu" : screen}`,
+  );
+  console.log(token);
 }
 
 main()

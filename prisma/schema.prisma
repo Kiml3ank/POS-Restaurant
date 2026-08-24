@@ -155,6 +155,21 @@ enum StaffRole {
   KITCHEN
 }
 
+/// หน้าจอที่ session ใบหนึ่งใช้ได้ (บทที่ 13b)
+///
+/// ต้องเก็บลง DB เพราะ session ผูกกับ "จอเดียว" มาตั้งแต่บทที่ 8 — ล็อกอินจอครัว
+/// ต้องไม่เตะเครื่อง POS ที่เปิดค้างอยู่ในเบราว์เซอร์เดียวกัน หน้า "อุปกรณ์ที่ล็อกอินอยู่"
+/// จึงต้องบอกได้ว่าใบไหนเป็นของจอไหน
+///
+/// ค่าตัวใหญ่ตามระเบียบ enum ของไฟล์นี้ ส่วนฝั่ง TypeScript เป็นตัวเล็ก
+/// (StaffScreen ใน lib/rbac.ts) — สะพานเชื่อมสองฝั่งอยู่ที่ Record เดียวใน
+/// lib/staff-session-cookie.ts ที่ tsc บังคับให้เติมครบทุกจอ
+enum StaffScreenKind {
+  POS
+  KDS
+  ADMIN
+}
+
 /// ผู้เช่าระบบ = กิจการ/แบรนด์ร้านอาหาร 1 ราย (อาจมีหลายสาขา)
 model Tenant {
   id        String   @id @default(cuid())
@@ -193,7 +208,7 @@ model Branch {
   /// (อ่านจาก Branch สดตอนบิลยังเปิด → snapshot ตอนปิดบิล) ไม่สร้างกติกาที่สาม
   staffMealDiscountBp Int @default(1000)
 
-  timezone String @default("Asia/Bangkok")
+  timezone String   @default("Asia/Bangkok")
   currency Currency @default(THB)
 
   /// ที่อยู่และเบอร์โทรของสถานประกอบการ — ต้องขึ้นบนใบเสร็จ/ใบกำกับภาษีอย่างย่อ (บทที่ 12)
@@ -202,24 +217,35 @@ model Branch {
   addressLine String?
   phone       String?
 
+  /// ข้อความท้ายใบเสร็จที่ร้านตั้งเองได้ เช่น "ขอบคุณที่ใช้บริการ" หรือ Wi-Fi/เบอร์สั่งกลับบ้าน
+  ///
+  /// null = ใช้ข้อความเริ่มต้นของระบบ (ไม่ใช่ "ไม่มีอะไรเลย") เพราะใบเสร็จที่จบห้วน ๆ
+  /// ดูเหมือนพิมพ์ไม่ครบมากกว่าดูเหมือนตั้งใจ — คำเตือนว่าเป็นระบบสาธิตเป็นคนละบรรทัด
+  /// และ **ฮาร์ดโค้ดไว้ตลอด แก้จากหน้าตั้งค่าไม่ได้** เพราะเป็นคำเตือนด้านความถูกต้อง
+  /// ไม่ใช่ข้อความการตลาดของร้าน
+  receiptFooter String?
+
   isActive  Boolean  @default(true)
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
   tenant Tenant @relation(fields: [tenantId], references: [id], onDelete: Cascade)
 
-  stations       Station[]
-  menuCategories MenuCategory[]
-  menuItems      MenuItem[]
-  modifierGroups ModifierGroup[]
-  modifiers      Modifier[]
-  tables         RestaurantTable[]
-  tableSessions  TableSession[]
-  orders         Order[]
-  orderItems     OrderItem[]
-  staff          Staff[]
-  auditLogs      AuditLog[]
-  payments       Payment[]
+  stations         Station[]
+  menuCategories   MenuCategory[]
+  menuItems        MenuItem[]
+  modifierGroups   ModifierGroup[]
+  modifiers        Modifier[]
+  tables           RestaurantTable[]
+  tableSessions    TableSession[]
+  orders           Order[]
+  orderItems       OrderItem[]
+  staff            Staff[]
+  auditLogs        AuditLog[]
+  staffSessions    StaffSession[]
+  shifts           Shift[]
+  loginThrottles   StaffLoginThrottle[]
+  payments         Payment[]
   receipts         Receipt[]
   documentCounters DocumentCounter[]
 
@@ -475,15 +501,15 @@ model TableSession {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  branch        Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  table         RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
-  openedByStaff Staff?          @relation(fields: [openedByStaffId], references: [id], onDelete: SetNull)
+  branch         Branch          @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  table          RestaurantTable @relation(fields: [tableId], references: [id], onDelete: Cascade)
+  openedByStaff  Staff?          @relation(fields: [openedByStaffId], references: [id], onDelete: SetNull)
   /// SetNull: ลบบัญชีพนักงานแล้วบิลเก่าต้องไม่หายตาม — ชื่อคนกินที่ตรวจสอบย้อนหลังได้จริง
   /// อยู่ใน Payment.staffCustomerId (บิลที่ปิดแล้ว) และใน AuditLog
-  staffCustomer  Staff? @relation("StaffMealCustomer", fields: [staffCustomerId], references: [id], onDelete: SetNull)
-  staffMealSetBy Staff? @relation("StaffMealSetBy", fields: [staffMealSetById], references: [id], onDelete: SetNull)
-  orders        Order[]
-  payments      Payment[]
+  staffCustomer  Staff?          @relation("StaffMealCustomer", fields: [staffCustomerId], references: [id], onDelete: SetNull)
+  staffMealSetBy Staff?          @relation("StaffMealSetBy", fields: [staffMealSetById], references: [id], onDelete: SetNull)
+  orders         Order[]
+  payments       Payment[]
 
   /// หนึ่งวัน หนึ่งสาขา ห้ามมีเลขคิวซ้ำ — สองคนที่ได้ "คิว 12" พร้อมกัน
   /// คือเคสที่พนักงานเรียกแล้วมีคนมารับผิดคน จึงกันด้วย constraint ไม่ใช่ด้วยความหวัง
@@ -650,7 +676,7 @@ model Payment {
   branchId       String
   tableSessionId String
 
-  method PaymentMethod
+  method   PaymentMethod
   /// snapshot สกุลเงิน ณ เวลาที่จ่าย — ห้ามอ่านจาก Branch ตอนพิมพ์ใบเสร็จย้อนหลัง
   /// (สาขาย้ายประเทศไม่ได้ก็จริง แต่ข้อมูลที่ตีความยอดเงินต้องติดอยู่กับยอดเสมอ)
   currency Currency
@@ -677,24 +703,32 @@ model Payment {
   ///
   /// ต้องมีคู่กับ discountAmount ไม่ใช่มีแค่จำนวนเงิน ไม่งั้นใบเสร็จที่พิมพ์ซ้ำ
   /// ปีหน้าจะพิมพ์คำว่า "10%" ไม่ได้ ต้องเดาย้อนจากตัวเลข (เหตุผลเดียวกับ vatRateBp)
-  discountBp       Int @default(0)
+  discountBp      Int     @default(0)
   /// พนักงานที่เป็นลูกค้าของบิลนี้ — ตัวที่ทำให้รายงาน "ส่วนลดพนักงานรายคน"
   /// ในบทที่ 15 เป็นไปได้ และเป็นหลักฐานถาวรหลังรอบโต๊ะถูกปิดไปแล้ว
-  staffCustomerId  String?
+  staffCustomerId String?
 
   paidByStaffId String?
+  /// กะที่รับเงินครั้งนี้อยู่ในนั้น (บทที่ 15)
+  ///
+  /// nullable เพราะ (1) บิลที่รับก่อนมีระบบกะ และ (2) ร้านที่ยังไม่เปิดกะก็ต้อง
+  /// ขายได้ตามปกติ — ระบบกะเป็นเครื่องมือนับเงิน ไม่ใช่ด่านที่ขวางการรับเงิน
+  shiftId       String?
   paidAt        DateTime @default(now())
   createdAt     DateTime @default(now())
 
-  branch       Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  branch        Branch       @relation(fields: [branchId], references: [id], onDelete: Cascade)
   /// Restrict: รอบโต๊ะที่จ่ายเงินแล้วห้ามถูกลบจนหลักฐานการรับเงินหายตาม
-  tableSession TableSession @relation(fields: [tableSessionId], references: [id], onDelete: Restrict)
-  paidByStaff   Staff? @relation(fields: [paidByStaffId], references: [id], onDelete: SetNull)
-  staffCustomer Staff? @relation("StaffMealPaidFor", fields: [staffCustomerId], references: [id], onDelete: SetNull)
+  tableSession  TableSession @relation(fields: [tableSessionId], references: [id], onDelete: Restrict)
+  paidByStaff   Staff?       @relation(fields: [paidByStaffId], references: [id], onDelete: SetNull)
+  staffCustomer Staff?       @relation("StaffMealPaidFor", fields: [staffCustomerId], references: [id], onDelete: SetNull)
+  /// SetNull: ลบกะทิ้งไม่ได้อยู่แล้วในทางปฏิบัติ แต่ถ้าเกิดขึ้น หลักฐานการรับเงิน
+  /// ต้องไม่หายตามไปด้วย (หลักการเดียวกับ paidByStaff)
+  shift         Shift?       @relation(fields: [shiftId], references: [id], onDelete: SetNull)
   orders        Order[]
   /// เอกสารที่ออกให้ลูกค้าสำหรับการรับเงินครั้งนี้ — หนึ่งต่อหนึ่งในก้อนนี้
   /// (Restrict ฝั่ง Receipt: ลบการรับเงินทิ้งแล้วเอกสารหายตามไม่ได้)
-  receipt      Receipt?
+  receipt       Receipt?
 
   @@index([branchId, paidAt])
   @@index([tableSessionId])
@@ -724,15 +758,20 @@ model Staff {
   createdAt   DateTime  @default(now())
   updatedAt   DateTime  @updatedAt
 
-  branch         Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
-  openedSessions TableSession[]
-  placedOrders   Order[]
-  auditLogs      AuditLog[]
-  payments       Payment[]
+  branch            Branch         @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  openedSessions    TableSession[]
+  placedOrders      Order[]
+  auditLogs         AuditLog[]
+  payments          Payment[]
   /// บิลที่พนักงานคนนี้เป็น "ลูกค้า" (ส่วนลดพนักงาน — บทที่ 13)
   staffMealSessions TableSession[] @relation("StaffMealCustomer")
   staffMealSetBy    TableSession[] @relation("StaffMealSetBy")
   staffMealPayments Payment[]      @relation("StaffMealPaidFor")
+  sessions          StaffSession[]
+  /// session ที่พนักงานคนนี้เป็นคน "เตะออก" (คนละคนกับเจ้าของ session)
+  revokedSessions   StaffSession[] @relation("StaffSessionRevokedBy")
+  openedShifts      Shift[]        @relation("ShiftOpenedBy")
+  closedShifts      Shift[]        @relation("ShiftClosedBy")
 
   @@unique([branchId, code])
   @@index([branchId, isActive])
@@ -766,6 +805,76 @@ model AuditLog {
   @@index([entityType, entityId])
   @@index([staffId])
   @@map("audit_logs")
+}
+
+/// Session ของพนักงานที่ "ยกเลิกได้ทันที" (บทที่ 13b)
+///
+/// ── ทำไมต้องมีตาราง ทั้งที่ cookie เซ็น HMAC ก็พิสูจน์ตัวตนได้อยู่แล้ว ─────────
+/// เพราะลายเซ็นตอบได้แค่ว่า "cookie ใบนี้เราออกเองจริง" แต่ตอบไม่ได้ว่า
+/// "ตอนนี้ยังใช้ได้อยู่ไหม" — พนักงานที่ถูกไล่ออกตอนบ่ายยังถือ cookie ที่เซ็นไว้
+/// ตอนเช้าและใช้ได้จนหมดอายุ 8 ชั่วโมง ซึ่งเป็นช่องที่ปิดไม่ได้เลยถ้าไม่มีที่เก็บสถานะ
+///
+/// cookie จึงเก็บแค่ id ของแถวนี้ ส่วนคำตอบว่า "ยังใช้ได้ไหม" มาจาก DB ทุก request
+/// (แลกด้วย query ที่รวมกับ query Staff เดิมเป็นครั้งเดียวได้)
+///
+/// แถวนี้ไม่ถูกลบเมื่อล็อกจอ — ตั้ง revokedAt แทน เพื่อให้ยังตอบย้อนหลังได้ว่า
+/// เครื่องไหนล็อกอินตอนไหนและถูกปิดด้วยเหตุอะไร (spec §26 Login history)
+model StaffSession {
+  id       String @id @default(cuid())
+  branchId String
+  staffId  String
+
+  /// จอที่ session ใบนี้ใช้ได้ — ใบของ POS ใช้เปิด /kds ไม่ได้
+  screen StaffScreenKind
+
+  createdAt DateTime @default(now())
+  expiresAt DateTime
+
+  /// null = ยังใช้ได้อยู่ · มีค่า = ถูกปิดไปแล้ว (ล็อกจอเอง หรือถูกเตะออก)
+  revokedAt        DateTime?
+  /// ใครเป็นคนเตะออก — null แปลว่าเจ้าตัวกดล็อกจอเอง
+  revokedByStaffId String?
+  /// เหตุผลสั้น ๆ เช่น "logout" / "revoked_all" / "pin_reset" / "deactivated"
+  revokedReason    String?
+
+  /// IP ตอนล็อกอิน — ต้องมี proxy ที่เชื่อถือได้ข้างหน้าก่อน deploy (lib/server/client-ip.ts)
+  ipAddress String?
+
+  branch    Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  staff     Staff  @relation(fields: [staffId], references: [id], onDelete: Cascade)
+  revokedBy Staff? @relation("StaffSessionRevokedBy", fields: [revokedByStaffId], references: [id], onDelete: SetNull)
+
+  @@index([staffId, revokedAt])
+  @@index([branchId, createdAt])
+  @@index([expiresAt])
+  @@map("staff_sessions")
+}
+
+/// ตัวนับ "กรอก PIN ผิด" ที่ทุก instance เห็นตรงกัน (บทที่ 13b)
+///
+/// เดิมตัวนับอยู่ใน memory ของ process — deploy หลาย instance เมื่อไหร่ คนที่ไล่สุ่ม PIN
+/// จะได้โควตาใหม่ทุกครั้งที่ load balancer สลับเครื่องให้ เท่ากับไม่มี rate limit เลย
+///
+/// ผูกกับ "รหัสพนักงานที่พิมพ์เข้ามา" ไม่ใช่กับ staffId เพราะต้องนับกรณีพิมพ์รหัส
+/// ที่ไม่มีอยู่จริงด้วย ไม่งั้นการไล่สุ่มรหัสพนักงานจะไม่ถูกจำกัดเลย
+model StaffLoginThrottle {
+  id       String @id @default(cuid())
+  branchId String
+
+  /// รหัสพนักงานตามที่พิมพ์เข้ามา (trim แล้ว)
+  staffCode String
+
+  failedCount Int       @default(0)
+  /// ล็อกถึงเมื่อไหร่ — null = ไม่ได้ถูกล็อกอยู่
+  lockedUntil DateTime?
+
+  firstFailedAt DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+
+  @@unique([branchId, staffCode])
+  @@map("staff_login_throttle")
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -841,6 +950,9 @@ model Receipt {
   sellerBranchName String
   sellerAddress    String?
   sellerPhone      String?
+  /// ข้อความท้ายใบ ณ วันที่ออก — ร้านเปลี่ยนข้อความแล้วใบเก่าต้องพิมพ์ออกมาเหมือนเดิม
+  /// (เหตุผลเดียวกับ sellerName/sellerAddress ที่อยู่ในกลุ่มเดียวกันนี้)
+  sellerFooter     String?
 
   issuedAt DateTime @default(now())
 
@@ -857,7 +969,7 @@ model Receipt {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  branch Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  branch  Branch  @relation(fields: [branchId], references: [id], onDelete: Cascade)
   /// Restrict: ลบการรับเงินทิ้งแล้วเอกสารที่ออกให้ลูกค้าหายตามไม่ได้
   /// (ทุกที่ที่ล้างโต๊ะจึงต้องลบตามลำดับ ใบเสร็จ → การรับเงิน → รอบโต๊ะ)
   payment Payment @relation(fields: [paymentId], references: [id], onDelete: Restrict)
@@ -866,4 +978,64 @@ model Receipt {
   @@unique([branchId, number])
   @@index([branchId, issuedAt])
   @@map("receipts")
+}
+
+/// กะการขาย (บทที่ 15) — ช่วงเวลาที่ "ลิ้นชักเงินใบหนึ่งอยู่ในความรับผิดชอบของคนหนึ่ง"
+///
+/// ── ทำไมกะไม่ใช่ "วัน" ──────────────────────────────────────────────────
+/// ร้านที่ปิดตีสองมีบิลคร่อมเที่ยงคืนทุกวัน และร้านที่เปิดสองกะเปลี่ยนคนถือเงิน
+/// กลางวัน — การนับเงินสดต้องเทียบกับ "ช่วงที่คนนั้นรับผิดชอบ" ไม่ใช่ช่วงวันปฏิทิน
+/// จึงอ้างเวลาเปิด/ปิดจริงของแถวนี้ ไม่ใช่คำนวณจากวันที่ (ดู lib/server/branch-time.ts)
+///
+/// ── ตัวเลขถูก snapshot ตอนปิดกะ ห้ามคำนวณสดตอนเปิดดูย้อนหลัง ──────────
+/// รายงานปิดกะคือเอกสารที่ใช้เทียบกับเงินในลิ้นชัก ณ นาทีที่นับ ถ้าคำนวณใหม่ทุกครั้ง
+/// ที่เปิดดู ตัวเลขจะขยับตามบิลที่ถูกแก้/ยกเลิกทีหลัง แล้วส่วนต่างที่เคยเซ็นรับไว้
+/// จะอธิบายไม่ได้ (หลักการเดียวกับ snapshot ใน Payment/Receipt บทที่ 11-12)
+model Shift {
+  id       String @id @default(cuid())
+  branchId String
+
+  status ShiftStatus @default(OPEN)
+
+  openedAt        DateTime @default(now())
+  openedByStaffId String?
+  /// เงินทอนตั้งต้นในลิ้นชักตอนเปิดกะ — หน่วยย่อยที่สุดของสกุลเงินสาขา
+  openingFloat    Int      @default(0)
+
+  closedAt        DateTime?
+  closedByStaffId String?
+
+  // ── ตัวเลขที่ snapshot ตอนปิดกะ (null ตราบใดที่กะยังเปิดอยู่) ──────────────
+  /// เงินสดที่นับได้จริงในลิ้นชัก
+  countedCash    Int?
+  /// เงินสดที่ระบบคาดว่าควรมี = เงินทอนตั้งต้น + ยอดขายเงินสดในกะนี้
+  expectedCash   Int?
+  /// countedCash - expectedCash · บวก = เกิน · ลบ = ขาด
+  cashDifference Int?
+
+  /// ยอดขายรวมทุกช่องทางในกะนี้ (รวม VAT/ค่าบริการแล้ว)
+  salesTotal Int?
+  /// จำนวนบิลที่ปิดในกะนี้
+  billCount  Int?
+  /// สรุปแยกช่องทางรับเงิน/ช่องทางขาย ณ ตอนปิด — เก็บเป็น Json เพราะรูปร่าง
+  /// จะเปลี่ยนไปตามช่องทางที่ร้านเปิดใช้ และเป็นข้อมูลอ่านอย่างเดียว
+  breakdown  Json?
+
+  /// หมายเหตุตอนปิดกะ เช่น "ลูกค้าจ่ายเกินแล้วไม่รับทอน 20 บาท"
+  note String?
+
+  branch        Branch @relation(fields: [branchId], references: [id], onDelete: Cascade)
+  openedByStaff Staff? @relation("ShiftOpenedBy", fields: [openedByStaffId], references: [id], onDelete: SetNull)
+  closedByStaff Staff? @relation("ShiftClosedBy", fields: [closedByStaffId], references: [id], onDelete: SetNull)
+
+  payments Payment[]
+
+  @@index([branchId, openedAt])
+  @@index([branchId, status])
+  @@map("shifts")
+}
+
+enum ShiftStatus {
+  OPEN
+  CLOSED
 }

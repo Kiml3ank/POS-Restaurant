@@ -4,6 +4,7 @@ import type { Prisma } from "@/lib/generated/prisma/client";
 import type { Currency, PaymentMethod } from "@/lib/generated/prisma/enums";
 import { canBrowseReceipts, canReprintReceipt } from "@/lib/rbac";
 import { salePointDisplayName } from "@/lib/sale-point";
+import { branchDayRangeUtc } from "@/lib/server/branch-time";
 import { prisma } from "@/lib/server/db";
 import { getPayment } from "@/lib/server/payment";
 import type { CurrentStaff } from "@/lib/server/staff-session";
@@ -98,7 +99,7 @@ export async function listReceipts(
 
   const where: Prisma.ReceiptWhereInput = { branchId: staff.branchId };
 
-  const range = dayRangeToUtc(filters.from, filters.to, staff.branch.timezone);
+  const range = branchDayRangeUtc(filters.from, filters.to, staff.branch.timezone);
   if (range) {
     where.issuedAt = range;
   }
@@ -109,10 +110,23 @@ export async function listReceipts(
 
   const q = filters.q?.trim();
   if (q) {
-    // ค้นได้สองอย่างที่คนถืออยู่ในมือจริง ๆ: เลขบนใบ กับชื่อโต๊ะ
+    /**
+     * ค้นได้สามอย่างที่คนถืออยู่ในมือจริง ๆ: เลขบนใบ · ชื่อโต๊ะ · **เลขคิว**
+     *
+     * เลขคิวต้องมี เพราะบิลซื้อกลับไม่มีชื่อโต๊ะให้ค้น (ทุกใบอยู่บนจุดขายชื่อเดียวกัน)
+     * ลูกค้าที่เดินกลับมาถามถึงใบเสร็จของตัวเองพูดว่า "คิว 12" ไม่ใช่เลขที่ใบ
+     *
+     * ดึงเฉพาะตัวเลขออกมาจากคำค้น จึงพิมพ์ได้ทั้ง "12" และ "คิว 12" — และเลข
+     * ที่ยาวเกินช่วง Int ต้องตัดทิ้ง ไม่ใช่ส่งให้ Prisma ไปพังที่ชั้นฐานข้อมูล
+     * (คนพิมพ์เลขที่ใบแบบไม่มีขีดจะได้เลขยาว ๆ แบบนั้นพอดี)
+     */
+    const digits = q.match(/\d+/)?.[0];
+    const queueNumber = digits && digits.length <= 9 ? Number(digits) : null;
+
     where.OR = [
       { number: { contains: q, mode: "insensitive" } },
       { payment: { tableSession: { table: { name: { contains: q, mode: "insensitive" } } } } },
+      ...(queueNumber === null ? [] : [{ payment: { tableSession: { queueNumber } } }]),
     ];
   }
 
@@ -240,73 +254,4 @@ export async function recordReceiptPrint(
   }
 
   return { ok: true, printCount: outcome.printCount };
-}
-
-/**
- * แปลงช่วงวันแบบ YYYY-MM-DD ตาม **เวลาของสาขา** ให้เป็นช่วง UTC ที่ Prisma ใช้ได้
- *
- * ทำเองแทนที่จะพึ่ง `new Date("2026-08-23")` เพราะอันนั้นตีความเป็น UTC เที่ยงคืน
- * ซึ่งสำหรับสาขาที่กรุงเทพ (+07:00) แปลว่า **07:00 ของวันนั้น** — บิลตั้งแต่เที่ยงคืน
- * ถึงเจ็ดโมงเช้าจะหายไปจากผลค้นโดยไม่มีอะไรฟ้อง และร้านอาหารที่ปิดตีสองมีบิล
- * ในช่วงนั้นจริง ๆ ทุกวัน
- */
-function dayRangeToUtc(
-  from: string | null | undefined,
-  to: string | null | undefined,
-  timezone: string,
-): { gte?: Date; lt?: Date } | null {
-  const gte = from ? startOfDayUtc(from, timezone) : undefined;
-  // ปลายช่วงเป็น "เที่ยงคืนของวันถัดไป" + lt เพื่อให้ทั้งวันที่เลือกถูกนับครบ
-  const lt = to ? startOfDayUtc(to, timezone, 1) : undefined;
-
-  if (!gte && !lt) {
-    return null;
-  }
-
-  return { ...(gte ? { gte } : {}), ...(lt ? { lt } : {}) };
-}
-
-/** เที่ยงคืนของวัน ymd ตามโซนเวลา timezone แปลงเป็น Date (UTC) — บวก addDays วันได้ */
-function startOfDayUtc(ymd: string, timezone: string, addDays = 0): Date | undefined {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
-  if (!match) {
-    return undefined;
-  }
-
-  const [, y, m, d] = match;
-  const base = Date.UTC(Number(y), Number(m) - 1, Number(d) + addDays);
-
-  /**
-   * หา offset ของโซนนั้น ณ เวลานั้นด้วย Intl แทนที่จะ hardcode +07:00
-   * เพราะโปรเจกต์นี้รองรับสาขาที่ลาว/เวียดนามด้วย และ offset เปลี่ยนตามวันได้
-   * ในบางโซน (DST) — ถึงจะไม่ใช่สามโซนที่ใช้อยู่ตอนนี้ แต่เขียนให้ถูกไว้ก่อน
-   * ถูกกว่าการมาไล่หาทีหลังว่าทำไมรายงานเดือนนั้นเพี้ยนไปหนึ่งชั่วโมง
-   */
-  return new Date(base - timezoneOffsetMs(new Date(base), timezone));
-}
-
-function timezoneOffsetMs(at: Date, timezone: string): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(at);
-
-  const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? "0");
-
-  const asUtc = Date.UTC(
-    get("year"),
-    get("month") - 1,
-    get("day"),
-    get("hour") % 24,
-    get("minute"),
-    get("second"),
-  );
-
-  return asUtc - at.getTime();
 }

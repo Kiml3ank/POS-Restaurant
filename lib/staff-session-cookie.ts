@@ -1,3 +1,4 @@
+import type { StaffScreenKind } from "@/lib/generated/prisma/enums";
 import type { StaffScreen } from "@/lib/rbac";
 
 /**
@@ -37,6 +38,22 @@ export const STAFF_SESSION_COOKIES: Record<StaffScreen, string> = {
    * ไม่ต้องรอไปเจอตอนเปิดจอแล้วอ่าน cookie ผิดใบ
    */
   admin: "admin_staff_session",
+};
+
+/**
+ * สะพานระหว่างชื่อจอฝั่ง TypeScript (ตัวเล็ก) กับ enum ในฐานข้อมูล (ตัวใหญ่)
+ *
+ * อยู่ไฟล์เดียวกับชื่อ cookie เพราะเป็นเรื่องเดียวกัน: "จอนี้เรียกว่าอะไรในแต่ละที่"
+ * และเป็น Record เต็มด้วยเหตุผลเดียวกัน — เพิ่มจอที่สี่เมื่อไหร่ tsc จะพังตรงนี้
+ * ให้เห็นทันที ไม่ใช่ไปเจอตอน insert แถวแล้วค่าไม่ตรง enum ของ Postgres
+ *
+ * ไม่ import ค่าจริงของ enum เข้ามา (ใช้ `import type`) เพื่อให้ไฟล์นี้ยัง
+ * import จาก proxy.ts ได้เหมือนเดิม — proxy ห้ามลาก Prisma client เข้าไป
+ */
+export const STAFF_SCREEN_KIND: Record<StaffScreen, StaffScreenKind> = {
+  pos: "POS",
+  kds: "KDS",
+  admin: "ADMIN",
 };
 
 /** ทุกใบรวมกัน — ใช้ตอนที่ยังไม่รู้ว่าคนเรียกมาจากจอไหน (เช่น /api/realtime) */

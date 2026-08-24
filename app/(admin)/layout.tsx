@@ -1,6 +1,6 @@
 import Link from "next/link";
 
-import { STAFF_ROLE_LABEL, canAccessScreen, canEditMenu } from "@/lib/rbac";
+import { STAFF_ROLE_LABEL, canAccessScreen, canEditMenu, canViewDashboard } from "@/lib/rbac";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
 import { adminLogoutAction } from "./admin/actions";
@@ -76,7 +76,10 @@ export default async function AdminLayout({
            รอบแรกผมลืมข้อนี้ไป หน้า /admin/menu เลยเลื่อนทั้งหน้าได้
       */}
       <div className="flex min-h-0 flex-1 flex-col-reverse lg:flex-row">
-        <AdminNav canGoToPos={canAccessScreen(staff.role, "pos")} />
+        <AdminNav
+          canGoToPos={canAccessScreen(staff.role, "pos")}
+          canViewDashboard={canViewDashboard(staff.role)}
+        />
         <div className="flex min-h-0 min-w-0 flex-1 flex-col">{children}</div>
       </div>
     </div>

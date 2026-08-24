@@ -12,40 +12,57 @@ import {
 } from "@/lib/last-staff-cookie";
 import type { StaffScreen } from "@/lib/rbac";
 import { ALL_STAFF_SESSION_COOKIES, STAFF_SESSION_COOKIES } from "@/lib/staff-session-cookie";
+import { clientIp } from "@/lib/server/client-ip";
 import { prisma } from "@/lib/server/db";
 import { verifyPin } from "@/lib/server/pin";
+import {
+  MAX_FAILED_ATTEMPTS,
+  checkLoginThrottle,
+  clearLoginThrottle,
+  recordFailedLogin,
+} from "@/lib/server/staff-login-throttle";
+import {
+  SESSION_REVOKE_REASONS,
+  SESSION_TTL_HOURS,
+  createStaffSession,
+  loadActiveStaffSession,
+  purgeExpiredStaffSessions,
+  revokeStaffSession,
+} from "@/lib/server/staff-session-store";
 
 /**
- * Session ของพนักงานหน้าร้าน (บทที่ 9 + 13)
+ * Session ของพนักงานหน้าร้าน (บทที่ 9 · แก้ใหญ่ในบทที่ 13b)
  *
- * เก็บเป็น cookie ที่เซ็นด้วย HMAC ไม่ใช่ตารางใน DB — เลือกแบบนี้เพราะ
- * ทุกหน้าของ POS ต้องเช็คสิทธิ์ ถ้าต้อง query DB ทุก request จะเปลืองโดยไม่จำเป็น
+ * ── สิ่งที่เปลี่ยนในบทที่ 13b ─────────────────────────────────────────────
+ * เดิม cookie ที่เซ็น HMAC **เป็นคำตอบสุดท้าย** ว่าใครล็อกอินอยู่ ซึ่งแปลว่า
+ * ยกเลิก session ทันทีไม่ได้ ต้องรอหมดอายุ 8 ชั่วโมง
  *
- * ราคาที่จ่ายคือ "ยกเลิก session ทันทีไม่ได้" (ต้องรอหมดอายุ) —
- * บทที่ 13 ที่ต้องมีปุ่ม "เตะพนักงานคนนี้ออกทุกเครื่อง" ค่อยเพิ่มตาราง StaffSession
- * แล้วเช็ค revoke list ทับอีกชั้น
+ * ตอนนี้ cookie เก็บ `jti` = id ของแถวใน `StaffSession` ลายเซ็นยังทำหน้าที่เดิม
+ * (กันคนปลอม/เดา id ของคนอื่น) แต่ **คำตอบว่า "ยังใช้ได้ไหม" มาจาก DB ทุก request**
+ * → ปุ่ม "เตะออกทุกเครื่อง" · รีเซ็ต PIN แล้วใบเก่าตายทันที · ปิดบัญชีแล้วออกทันที
  *
- * **ทุกฟังก์ชันในไฟล์นี้ผูกกับ "หน้าจอ" เสมอ** เพราะ /pos กับ /kds ถือ cookie
- * คนละใบ (ดูเหตุผลเต็มใน lib/staff-session-cookie.ts — ใบเดียวทำให้สองจอ
- * บนเครื่องเดียวกันเตะกันเองทุกครั้งที่อีกฝั่งขยับ)
+ * ราคาที่จ่าย: query เพิ่มหนึ่งครั้งต่อ request — แต่เดิมก็ query `Staff` ทุก request
+ * อยู่แล้ว (เพื่อดูว่าบัญชียัง active ไหม) ตอนนี้รวมเป็น query เดียวที่ join มาให้เลย
+ *
+ * **cookie เก่าที่ออกก่อนบทที่ 13b ใช้ไม่ได้อีกต่อไป** (ไม่มี `jti`) ทุกคนต้องใส่ PIN
+ * ใหม่หนึ่งครั้ง — ตั้งใจให้เป็นแบบนั้น ไม่ทำ fallback เพราะ fallback แปลว่ายังมี
+ * ทางเข้าที่ยกเลิกไม่ได้ค้างอยู่ ซึ่งเป็นสิ่งเดียวที่ทั้งบทนี้พยายามปิด
+ *
+ * **ทุกฟังก์ชันในไฟล์นี้ผูกกับ "หน้าจอ" เสมอ** เพราะ /pos /kds /admin ถือ cookie
+ * คนละใบ (เหตุผลเต็มใน lib/staff-session-cookie.ts)
  *
  * รูปแบบค่าใน cookie: base64url(payload).base64url(hmac)
  */
-export { STAFF_SESSION_COOKIES };
-
-/** อายุ session — สั้นพอที่เครื่องที่ลืมล็อกจะหมดอายุเองภายในกะเดียว */
-const SESSION_TTL_HOURS = 8;
-
-/** กรอก PIN ผิดเกินจำนวนนี้ในหนึ่งช่วงเวลา = ล็อกรหัสพนักงานคนนั้นไว้ชั่วคราว */
-const MAX_FAILED_ATTEMPTS = 5;
-const LOCKOUT_MINUTES = 5;
+export { STAFF_SESSION_COOKIES, SESSION_TTL_HOURS };
 
 type StaffTokenPayload = {
+  /** id ของแถวใน StaffSession — ตัวที่ทำให้ยกเลิกได้ทันที (บทที่ 13b) */
+  jti: string;
   /** staffId */
   sid: string;
-  /** branchId — ติดมาด้วยเพื่อไม่ต้อง query ซ้ำตอนกรองข้อมูลตามสาขา */
+  /** branchId — ติดมาด้วยเพื่อตรวจว่า cookie กับแถวใน DB พูดตรงกัน */
   bid: string;
-  /** วันหมดอายุ (epoch milliseconds) */
+  /** วันหมดอายุ (epoch milliseconds) — ชั้นแรกที่ตัดทิ้งได้โดยไม่ต้องแตะ DB */
   exp: number;
 };
 
@@ -63,7 +80,12 @@ function authSecret(): string {
 
 const sign = (data: string) => createHmac("sha256", authSecret()).update(data).digest("base64url");
 
-function createToken(payload: StaffTokenPayload): string {
+/**
+ * ประกอบ token — export เพราะ `scripts/dev-staff-cookie.ts` ต้องออก cookie
+ * ให้ curl ใช้ทดสอบ และรูปแบบ token ต้องมีที่เดียวเสมอ ไม่ใช่เขียนซ้ำสองที่
+ * แล้ววันหนึ่งแก้ที่นี่ที่เดียวจนเครื่องมือ dev พังเงียบ ๆ
+ */
+export function createStaffToken(payload: StaffTokenPayload): string {
   const body = Buffer.from(JSON.stringify(payload)).toString("base64url");
   return `${body}.${sign(body)}`;
 }
@@ -85,23 +107,16 @@ function readToken(token: string): StaffTokenPayload | null {
 
   try {
     const payload = JSON.parse(Buffer.from(body, "base64url").toString()) as StaffTokenPayload;
-    return payload.exp > Date.now() ? payload : null;
+
+    // ไม่มี jti = cookie รุ่นก่อนบทที่ 13b — ถือว่าใช้ไม่ได้ ไม่ใช่ยอมให้ผ่าน
+    if (!payload.jti || payload.exp <= Date.now()) {
+      return null;
+    }
+
+    return payload;
   } catch {
     return null;
   }
-}
-
-/**
- * ตัวนับ PIN ผิดแบบเก็บใน memory ของ process
- *
- * ข้อจำกัดที่ต้องรู้: ถ้า deploy หลาย instance ตัวนับจะไม่แชร์กัน คนร้ายที่สลับ
- * instance ไปเรื่อย ๆ จะได้โควตาใหม่ทุกครั้ง — บทที่ 13 ต้องย้ายไปเก็บที่ Redis
- * หรือตารางใน Postgres ตอนนี้ที่มีดีกว่าไม่มี และคู่กับ AuditLog ที่บันทึกทุกครั้งที่ผิด
- */
-const failedAttempts = new Map<string, { count: number; until: number }>();
-
-function attemptKey(branchCode: string, staffCode: string) {
-  return `${branchCode}:${staffCode}`;
 }
 
 /**
@@ -130,17 +145,19 @@ export async function loginStaff(staffCode: string, pin: string, screen: StaffSc
     return invalid;
   }
 
-  const key = attemptKey(staff.branchId, code);
-  const locked = failedAttempts.get(key);
+  const throttle = await checkLoginThrottle(staff.branchId, code);
 
-  if (locked && locked.count >= MAX_FAILED_ATTEMPTS && locked.until > Date.now()) {
-    const minutes = Math.ceil((locked.until - Date.now()) / 60_000);
-    return { ok: false as const, error: `กรอกผิดหลายครั้งเกินไป ลองใหม่ในอีก ${minutes} นาที` };
+  if (throttle.locked) {
+    return {
+      ok: false as const,
+      error: `กรอกผิดหลายครั้งเกินไป ลองใหม่ในอีก ${throttle.minutesLeft} นาที`,
+    };
   }
 
+  const ipAddress = await clientIp();
+
   if (!verifyPin(pin, staff.pinHash)) {
-    const next = { count: (locked?.count ?? 0) + 1, until: Date.now() + LOCKOUT_MINUTES * 60_000 };
-    failedAttempts.set(key, next);
+    const attempt = await recordFailedLogin(staff.branchId, code);
 
     // ตารางนี้เขียนอย่างเดียว ห้าม update/delete — เป็นหลักฐานเวลามีคนไล่สุ่ม PIN
     await prisma.auditLog.create({
@@ -150,29 +167,67 @@ export async function loginStaff(staffCode: string, pin: string, screen: StaffSc
         action: "staff.login_failed",
         entityType: "staff",
         entityId: staff.id,
-        metadata: { staffCode: code, attempt: next.count },
+        ipAddress,
+        metadata: {
+          staffCode: code,
+          screen,
+          attempt,
+          locked: attempt >= MAX_FAILED_ATTEMPTS,
+        },
       },
     });
 
     return invalid;
   }
 
-  failedAttempts.delete(key);
+  await clearLoginThrottle(staff.branchId, code);
+
+  const session = await createStaffSession({
+    staffId: staff.id,
+    branchId: staff.branchId,
+    screen,
+    ipAddress,
+  });
 
   await prisma.staff.update({ where: { id: staff.id }, data: { lastLoginAt: new Date() } });
 
-  const expiresAt = new Date(Date.now() + SESSION_TTL_HOURS * 60 * 60 * 1000);
+  /**
+   * บันทึกการเข้าที่ **สำเร็จ** ด้วย ไม่ใช่เฉพาะที่ผิด (spec §26 Login history)
+   *
+   * ก่อนหน้านี้ log มีแต่ครั้งที่ผิด ซึ่งตอบคำถามสำคัญที่สุดของการสืบสวนไม่ได้เลย:
+   * "ตอนที่บิลนั้นถูกยกเลิก ใครล็อกอินอยู่บ้าง" — ครั้งที่สำเร็จคือครั้งที่ทำอะไรได้จริง
+   */
+  await prisma.auditLog.create({
+    data: {
+      branchId: staff.branchId,
+      staffId: staff.id,
+      action: "staff.login",
+      entityType: "staff_session",
+      entityId: session.id,
+      ipAddress,
+      metadata: { staffCode: code, screen, role: staff.role },
+    },
+  });
+
+  // เก็บกวาดของเก่าแบบเงียบ ๆ — ล้มเหลวก็ไม่ควรทำให้การล็อกอินล้มตาม
+  void purgeExpiredStaffSessions().catch(() => {});
+
   const store = await cookies();
 
   store.set(
     STAFF_SESSION_COOKIES[screen],
-    createToken({ sid: staff.id, bid: staff.branchId, exp: expiresAt.getTime() }),
+    createStaffToken({
+      jti: session.id,
+      sid: staff.id,
+      bid: staff.branchId,
+      exp: session.expiresAt.getTime(),
+    }),
     {
       httpOnly: true,
       sameSite: "lax",
       secure: process.env.NODE_ENV === "production",
       path: "/",
-      expires: expiresAt,
+      expires: session.expiresAt,
     },
   );
 
@@ -195,7 +250,7 @@ export async function loginStaff(staffCode: string, pin: string, screen: StaffSc
     },
   );
 
-  return { ok: true as const, staff };
+  return { ok: true as const, staff, sessionId: session.id };
 }
 
 /**
@@ -216,21 +271,31 @@ export async function readLastStaffOnDevice(
  *
  * กดล็อกจอที่เครื่อง POS แล้วจอครัวที่เปิดอยู่อีกแท็บต้องไม่ถูกเตะออกตาม
  * เพราะอาจเป็นคนละคนกด (และที่หน้าร้านจริงคือคนละเครื่อง)
+ *
+ * ตั้งแต่บทที่ 13b **ต้องปิดแถวใน DB ด้วย ไม่ใช่ลบแต่ cookie** — ไม่งั้นใครที่
+ * ก๊อป cookie ออกไปก่อนกดล็อกจอยังใช้ต่อได้จนหมดอายุ
  */
 export async function logoutStaff(screen: StaffScreen) {
   const store = await cookies();
+  const token = store.get(STAFF_SESSION_COOKIES[screen])?.value;
+  const payload = token ? readToken(token) : null;
+
+  if (payload) {
+    await revokeStaffSession(payload.jti, { reason: SESSION_REVOKE_REASONS.logout });
+  }
+
   store.delete(STAFF_SESSION_COOKIES[screen]);
 }
 
 /**
- * พนักงานที่ล็อกอินอยู่ตอนนี้ — null เมื่อไม่มี cookie / ลายเซ็นไม่ผ่าน / หมดอายุ
+ * พนักงานที่ล็อกอินอยู่ตอนนี้ — null เมื่อ cookie หาย / ลายเซ็นไม่ผ่าน / หมดอายุ /
+ * ถูกยกเลิกไปแล้ว / บัญชีถูกปิด
  *
- * ยัง query Staff ทุกครั้งแม้จะมี id อยู่ใน cookie แล้ว เพราะต้องรู้ว่า
- * บัญชีถูกปิด (isActive = false) หรือเปลี่ยนตำแหน่งไปแล้วหรือยัง —
- * cookie ที่เซ็นไว้เมื่อเช้าไม่ควรมีอำนาจของตำแหน่งที่ถูกถอดไปแล้วเมื่อบ่าย
+ * เงื่อนไข "ยังใช้ได้ไหม" ทั้งหมดอยู่ที่ `loadActiveStaffSession()` ที่เดียว
+ * ที่นี่ทำแค่แกะ cookie แล้วส่งต่อ
  *
  * `screen` บอกว่าจะอ่าน cookie ใบไหน — **ทุกหน้าจอต้องระบุเสมอ**
- * ละไว้ได้เฉพาะที่เดียวคือ /api/realtime ซึ่งเป็นท่อกลางที่ทั้งสองจอต่อเข้ามา
+ * ละไว้ได้เฉพาะที่เดียวคือ /api/realtime ซึ่งเป็นท่อกลางที่ทุกจอต่อเข้ามา
  * และให้สิทธิ์แค่ "ฟัง event ของสาขาตัวเอง" ไม่ใช่สิทธิ์กดอะไร
  */
 export async function getCurrentStaff(screen?: StaffScreen) {
@@ -242,7 +307,7 @@ export async function getCurrentStaff(screen?: StaffScreen) {
 
   // ใบแรกที่ลายเซ็นผ่านและยังไม่หมดอายุชนะ — ตอนไม่ระบุ screen เราสนใจแค่ว่า
   // "คนนี้เป็นพนักงานของสาขาไหน" ไม่ได้สนใจว่ามาจากจอไหน
-  const payload = tokens.reduce<ReturnType<typeof readToken>>(
+  const payload = tokens.reduce<StaffTokenPayload | null>(
     (found, token) => found ?? (token ? readToken(token) : null),
     null,
   );
@@ -251,12 +316,14 @@ export async function getCurrentStaff(screen?: StaffScreen) {
     return null;
   }
 
-  const staff = await prisma.staff.findFirst({
-    where: { id: payload.sid, isActive: true },
-    include: { branch: true },
-  });
+  const session = await loadActiveStaffSession(payload.jti, screen);
 
-  return staff && staff.branchId === payload.bid ? staff : null;
+  // cookie ต้องพูดตรงกับแถวใน DB ทุกช่อง — ไม่ตรงแม้ช่องเดียวคือของปลอม/ของเก่า
+  if (!session || session.staffId !== payload.sid || session.branchId !== payload.bid) {
+    return null;
+  }
+
+  return session.staff;
 }
 
 export type CurrentStaff = NonNullable<Awaited<ReturnType<typeof getCurrentStaff>>>;

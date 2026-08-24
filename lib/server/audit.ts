@@ -2,6 +2,7 @@ import "server-only";
 
 import type { Prisma } from "@/lib/generated/prisma/client";
 import { canReadAuditLog } from "@/lib/rbac";
+import { branchDayRangeUtc } from "@/lib/server/branch-time";
 import { prisma } from "@/lib/server/db";
 import type { CurrentStaff } from "@/lib/server/staff-session";
 
@@ -63,7 +64,7 @@ export async function listAuditLogs(
 
   const where: Prisma.AuditLogWhereInput = { branchId: staff.branchId };
 
-  const range = dayRangeToUtc(filters.from, filters.to, staff.branch.timezone);
+  const range = branchDayRangeUtc(filters.from, filters.to, staff.branch.timezone);
   if (range) where.createdAt = range;
   if (filters.action) where.action = filters.action;
   if (filters.staffId) where.staffId = filters.staffId;
@@ -117,52 +118,4 @@ export async function listAuditLogs(
       staffRole: log.staff?.role ?? null,
     })),
   };
-}
-
-/**
- * แปลงช่วงวัน YYYY-MM-DD ตามเวลาของสาขาให้เป็นช่วง UTC
- *
- * สำเนาตรรกะเดียวกับใน lib/server/receipt.ts โดยตั้งใจ **ยังไม่ยุบรวม** —
- * ถ้ายุบตอนนี้จะได้ helper ที่มีผู้ใช้สองรายซึ่งยังไม่พอจะรู้ว่ารูปร่างที่ถูก
- * คืออะไร (บทที่ 15 จะมีตัวที่สามที่ต้องรับ "ช่วงกะ" ซึ่งไม่ใช่ขอบเขตวัน)
- * ตอนนั้นค่อยยุบทีเดียวโดยรู้ความต้องการจริงทั้งสามแบบ
- */
-function dayRangeToUtc(
-  from: string | null | undefined,
-  to: string | null | undefined,
-  timezone: string,
-): { gte?: Date; lt?: Date } | null {
-  const gte = from ? startOfDayUtc(from, timezone) : undefined;
-  const lt = to ? startOfDayUtc(to, timezone, 1) : undefined;
-  if (!gte && !lt) return null;
-  return { ...(gte ? { gte } : {}), ...(lt ? { lt } : {}) };
-}
-
-function startOfDayUtc(ymd: string, timezone: string, addDays = 0): Date | undefined {
-  const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(ymd);
-  if (!match) return undefined;
-
-  const [, y, m, d] = match;
-  const base = Date.UTC(Number(y), Number(m) - 1, Number(d) + addDays);
-  return new Date(base - timezoneOffsetMs(new Date(base), timezone));
-}
-
-function timezoneOffsetMs(at: Date, timezone: string): number {
-  const parts = new Intl.DateTimeFormat("en-US", {
-    timeZone: timezone,
-    hour12: false,
-    year: "numeric",
-    month: "2-digit",
-    day: "2-digit",
-    hour: "2-digit",
-    minute: "2-digit",
-    second: "2-digit",
-  }).formatToParts(at);
-
-  const get = (type: string) => Number(parts.find((part) => part.type === type)?.value ?? "0");
-
-  return (
-    Date.UTC(get("year"), get("month") - 1, get("day"), get("hour") % 24, get("minute"), get("second")) -
-    at.getTime()
-  );
 }

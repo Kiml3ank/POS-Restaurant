@@ -22,16 +22,38 @@ import { usePathname } from "next/navigation";
  * ที่นี่จึงวาดเส้นด้วย utility ล้วน ๆ
  */
 const LINKS = [
-  { href: "/admin/menu", label: "เมนูและสินค้า", hint: "หมวด · เมนู · ของหมด" },
-  { href: "/admin/modifiers", label: "กลุ่มตัวเลือก", hint: "ขนาด · ความเผ็ด · ท็อปปิ้ง" },
-  { href: "/admin/receipts", label: "ใบเสร็จ", hint: "ค้นย้อนหลัง · พิมพ์ซ้ำ" },
-  { href: "/admin/audit-logs", label: "บันทึกการใช้งาน", hint: "ใครทำอะไร · เมื่อไหร่" },
+  { href: "/admin/menu", label: "เมนูและสินค้า", short: "เมนู", hint: "หมวด · เมนู · ของหมด" },
+  { href: "/admin/modifiers", label: "กลุ่มตัวเลือก", short: "ตัวเลือก", hint: "ขนาด · ความเผ็ด · ท็อปปิ้ง" },
+  { href: "/admin/receipts", label: "ใบเสร็จ", short: "ใบเสร็จ", hint: "ค้นย้อนหลัง · พิมพ์ซ้ำ" },
+  { href: "/admin/audit-logs", label: "บันทึกการใช้งาน", short: "บันทึก", hint: "ใครทำอะไร · เมื่อไหร่" },
+  { href: "/admin/staff", label: "พนักงาน", short: "พนักงาน", hint: "บัญชี · PIN · เครื่องที่ล็อกอิน" },
+  { href: "/admin/settings", label: "ตั้งค่า", short: "ตั้งค่า", hint: "ภาษี · ข้อมูลร้าน · สถานีครัว" },
 ];
 
-export function AdminNav({ canGoToPos }: { canGoToPos: boolean }) {
+export function AdminNav({
+  canGoToPos,
+  canViewDashboard,
+}: {
+  canGoToPos: boolean;
+  /**
+   * ตำแหน่งที่ดูสรุปยอดขายไม่ได้ **ไม่เห็นเมนูนี้เลย** ต่างจากเมนูอื่นที่ทุกคนเห็น
+   * — /admin จะ redirect คนกลุ่มนี้ไป /admin/menu ทันที ปุ่มที่กดแล้วเด้งกลับ
+   * ทำให้คนกดสรุปว่าระบบเสีย (เหตุผลเดียวกับปุ่ม "กลับไปหน้าร้าน" ด้านล่าง)
+   */
+  canViewDashboard: boolean;
+}) {
   const pathname = usePathname();
 
-  const isCurrent = (href: string) => pathname === href || pathname.startsWith(`${href}/`);
+  /**
+   * "สรุปวันนี้" ต้องเทียบแบบตรงตัวเท่านั้น — `startsWith("/admin/")` จะทำให้
+   * ทุกหน้าในจอนี้ไฮไลต์เมนูนี้ค้างไว้ตลอด
+   */
+  const isCurrent = (href: string) =>
+    href === "/admin" ? pathname === "/admin" : pathname === href || pathname.startsWith(`${href}/`);
+
+  const links = canViewDashboard
+    ? [{ href: "/admin", label: "สรุปวันนี้", short: "สรุป", hint: "ยอดขาย · หน้าร้านตอนนี้" }, ...LINKS]
+    : LINKS;
 
   return (
     <>
@@ -40,7 +62,7 @@ export function AdminNav({ canGoToPos }: { canGoToPos: boolean }) {
         data-print-hide
         className="hidden w-[248px] flex-none flex-col border-r-2 border-[var(--color-text)] bg-[var(--color-neutral-100)] lg:flex"
       >
-        {LINKS.map((link) => (
+        {links.map((link) => (
           <Link
             key={link.href}
             href={link.href}
@@ -114,7 +136,7 @@ export function AdminNav({ canGoToPos }: { canGoToPos: boolean }) {
           </Link>
         )}
 
-        {LINKS.map((link) => (
+        {links.map((link) => (
           <Link
             key={link.href}
             href={link.href}
@@ -123,7 +145,13 @@ export function AdminNav({ canGoToPos }: { canGoToPos: boolean }) {
               isCurrent(link.href) ? "is-active" : "bg-[var(--color-neutral-100)]"
             }`}
           >
-            <span className="display text-[13px] leading-tight">{link.label}</span>
+            {/*
+              แถบล่างใช้ป้าย **สั้น** ไม่ใช่ป้ายเต็มของแถบซ้าย — ตอนออกแบบมีสี่โมดูล
+              ช่องละ ~80px พอใส่ "บันทึกการใช้งาน" ได้ ตอนนี้มีหกโมดูล เหลือช่องละ
+              ~55px ที่จอ 390px ป้ายเต็มจะตัดเป็นสามบรรทัดจนอ่านไม่ออก
+              (เพิ่มโมดูลที่เจ็ดเมื่อไหร่ ต้องกลับมาคิดใหม่ว่าแถบล่างยังไหวไหม)
+            */}
+            <span className="display text-[13px] leading-tight">{link.short}</span>
           </Link>
         ))}
       </nav>

@@ -16,6 +16,19 @@ import {
   type MenuEntity,
 } from "@/lib/server/menu-admin";
 import { recordReceiptPrint } from "@/lib/server/receipt";
+import {
+  createStaffMember,
+  resetStaffPin,
+  revokeStaffSessions,
+  updateStaffMember,
+} from "@/lib/server/staff-admin";
+import type { Currency, StaffRole } from "@/lib/generated/prisma/enums";
+import {
+  deleteStation,
+  updateBusinessInfo,
+  updateTaxSettings,
+  upsertStation,
+} from "@/lib/server/settings";
 import { getCurrentStaff, loginStaff, logoutStaff } from "@/lib/server/staff-session";
 
 /**
@@ -296,4 +309,264 @@ export async function adminPrintReceiptAction(
   refresh();
 
   return { ok: true };
+}
+
+/**
+ * ── จัดการพนักงาน (บทที่ 13b) ────────────────────────────────────────────
+ *
+ * ทุกตัวเรียก `requireAdminStaff()` ก่อน แล้วส่งต่อให้ `lib/server/staff-admin.ts`
+ * ซึ่งเป็นที่ที่บังคับสิทธิ์ "ละเอียดกว่าหน้าจอ" อีกชั้น (ตำแหน่งไหนแก้ตำแหน่งไหนได้)
+ * — action พวกนี้จึงไม่ตัดสินใจเรื่องสิทธิ์เองเลย นอกจากด่านเข้าจอ
+ */
+export async function createStaffAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requireAdminStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const result = await createStaffMember(staff, {
+    code: String(formData.get("code") ?? ""),
+    name: String(formData.get("name") ?? ""),
+    role: String(formData.get("role") ?? "SERVER") as StaffRole,
+    pin: String(formData.get("pin") ?? ""),
+  });
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  redirect(`/admin/staff/${result.staffId}`);
+}
+
+export async function updateStaffAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requireAdminStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const result = await updateStaffMember(staff, String(formData.get("staffId") ?? ""), {
+    code: String(formData.get("code") ?? ""),
+    name: String(formData.get("name") ?? ""),
+    role: String(formData.get("role") ?? "SERVER") as StaffRole,
+    isActive: formData.get("isActive") === "on",
+  });
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  refresh();
+
+  return {
+    status: "success",
+    message: result.revokedSessions
+      ? `บันทึกแล้ว · เตะออก ${result.revokedSessions} เครื่อง`
+      : "บันทึกแล้ว",
+  };
+}
+
+export async function resetStaffPinAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requireAdminStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const result = await resetStaffPin(
+    staff,
+    String(formData.get("staffId") ?? ""),
+    String(formData.get("pin") ?? ""),
+  );
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  refresh();
+
+  /**
+   * บอกจำนวนเครื่องที่หลุดออกไปด้วย ไม่ใช่แค่ "สำเร็จ" — เพราะนั่นคือสิ่งที่
+   * ผู้จัดการต้องรู้ทันที: ถ้าเลขไม่ใช่ศูนย์ แปลว่ามีเครื่องเปิดค้างอยู่จริง
+   * ซึ่งอาจเป็นเครื่องที่ตั้งใจตามหาอยู่พอดี
+   */
+  return {
+    status: "success",
+    message: result.revokedSessions
+      ? `ตั้ง PIN ใหม่แล้ว · เตะออก ${result.revokedSessions} เครื่อง`
+      : "ตั้ง PIN ใหม่แล้ว",
+  };
+}
+
+export async function revokeStaffSessionsAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requireAdminStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const result = await revokeStaffSessions(staff, String(formData.get("staffId") ?? ""));
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  refresh();
+
+  return {
+    status: "success",
+    message: result.revokedSessions
+      ? `เตะออก ${result.revokedSessions} เครื่องแล้ว`
+      : "ไม่มีเครื่องที่ล็อกอินค้างอยู่",
+  };
+}
+
+/**
+ * ── ตั้งค่าร้าน (spec §22 §23 §24) ────────────────────────────────────────
+ *
+ * แยกเป็นสาม action ตามสามแผงบนหน้าจอ ไม่ใช่ action เดียวที่รับทุกช่อง เพราะ
+ * **สามแผงนี้คนละสิทธิ์กัน** (อัตราภาษี = เจ้าของร้านเท่านั้น) และการรวมเป็น
+ * ฟอร์มเดียวแปลว่าผู้จัดการที่กดบันทึกที่อยู่ร้านจะยิงค่าอัตราภาษีไปด้วยทุกครั้ง
+ */
+export async function updateTaxSettingsAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requireAdminStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const result = await updateTaxSettings(staff, {
+    // ช่องกรอกเป็น "เปอร์เซ็นต์" ที่คนอ่านออก แต่ที่เก็บเป็น basis point จำนวนเต็ม
+    vatRateBp: percentToBp(formData.get("vatRatePercent")),
+    serviceChargeBp: percentToBp(formData.get("serviceChargePercent")),
+    staffMealDiscountBp: percentToBp(formData.get("staffMealDiscountPercent")),
+    pricesIncludeVat: formData.get("pricesIncludeVat") === "on",
+    currency: String(formData.get("currency") ?? "THB") as Currency,
+    timezone: String(formData.get("timezone") ?? "Asia/Bangkok"),
+  });
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  refresh();
+
+  return { status: "success", message: result.changed ? "บันทึกอัตราใหม่แล้ว" : "ค่าเหมือนเดิม" };
+}
+
+export async function updateBusinessInfoAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requireAdminStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const result = await updateBusinessInfo(staff, {
+    tenantName: String(formData.get("tenantName") ?? ""),
+    taxId: String(formData.get("taxId") ?? ""),
+    branchName: String(formData.get("branchName") ?? ""),
+    addressLine: String(formData.get("addressLine") ?? ""),
+    phone: String(formData.get("phone") ?? ""),
+    receiptFooter: String(formData.get("receiptFooter") ?? ""),
+  });
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  refresh();
+
+  return {
+    status: "success",
+    message: result.changed ? "บันทึกข้อมูลร้านแล้ว · ใบเสร็จใบถัดไปจะใช้ค่าใหม่" : "ค่าเหมือนเดิม",
+  };
+}
+
+export async function upsertStationAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requireAdminStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const stationId = String(formData.get("stationId") ?? "");
+
+  const result = await upsertStation(staff, stationId || null, {
+    code: String(formData.get("code") ?? ""),
+    name: String(formData.get("name") ?? ""),
+    sortOrder: Number.parseInt(String(formData.get("sortOrder") ?? "0"), 10) || 0,
+    isActive: formData.get("isActive") === "on",
+  });
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  refresh();
+
+  return { status: "success", message: stationId ? "บันทึกสถานีแล้ว" : "เพิ่มสถานีแล้ว" };
+}
+
+export async function deleteStationAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requireAdminStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const result = await deleteStation(staff, String(formData.get("stationId") ?? ""));
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  refresh();
+
+  return { status: "success", message: "ลบสถานีแล้ว" };
+}
+
+/**
+ * "7.5" (เปอร์เซ็นต์ที่คนกรอก) → 750 (basis point ที่ระบบเก็บ)
+ *
+ * แยกสตริงที่จุดทศนิยมแล้วประกอบเป็นจำนวนเต็มเอง **ห้ามคูณ 100 แบบ float**
+ * ด้วยเหตุผลเดียวกับ `parseMoneyInput()` ใน lib/money.ts — `7.5 * 100` ให้
+ * 750.0000000000001 ในบางค่า แล้วอัตราภาษีของร้านจะเพี้ยนแบบที่ไม่มีใครหาเจอ
+ *
+ * คืน NaN เมื่อรูปแบบผิด เพื่อให้ชั้น lib/server/settings.ts เป็นคนปฏิเสธ
+ * ที่เดียว (มันตรวจ Number.isInteger อยู่แล้ว) ไม่ใช่เงียบ ๆ กลายเป็น 0
+ */
+function percentToBp(raw: FormDataEntryValue | null): number {
+  const text = String(raw ?? "").trim();
+
+  if (!/^\d+(\.\d{1,2})?$/.test(text)) {
+    return Number.NaN;
+  }
+
+  const [whole, fraction = ""] = text.split(".");
+  return Number.parseInt(whole, 10) * 100 + Number.parseInt(fraction.padEnd(2, "0") || "0", 10);
 }

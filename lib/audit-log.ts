@@ -29,6 +29,17 @@ export const AUDIT_ACTION_LABEL: Record<string, string> = {
   "receipt.print": "พิมพ์ใบเสร็จ",
   "table_session.staff_meal_set": "ติดธงส่วนลดพนักงาน",
   "table_session.staff_meal_clear": "ปลดธงส่วนลดพนักงาน",
+  "staff.login": "เข้าใช้งาน",
+  "staff.session_revoke": "เตะออกจากเครื่อง",
+  "staff.create": "เพิ่มพนักงาน",
+  "staff.update": "แก้ไขพนักงาน",
+  "staff.pin_reset": "รีเซ็ต PIN",
+  "staff.deactivate": "ปิดใช้งานพนักงาน",
+  "staff.activate": "เปิดใช้งานพนักงาน",
+  "settings.tax_update": "แก้อัตราภาษี/ค่าบริการ",
+  "settings.business_update": "แก้ข้อมูลร้าน",
+  "settings.station_upsert": "แก้สถานีครัว",
+  "settings.station_delete": "ลบสถานีครัว",
 };
 
 /**
@@ -41,6 +52,20 @@ export const AUDIT_SENSITIVE_ACTIONS: readonly string[] = [
   "order_item.cancel",
   "table_session.staff_meal_set",
   "table_session.abandon",
+  /**
+   * เพิ่มในบทที่ 13b — ไม่ได้ทำให้ร้านเสียเงินโดยตรงเหมือนสามอันบน แต่เป็น
+   * "การได้มาซึ่งสิทธิ์" ซึ่งเป็นขั้นก่อนหน้าของการโกงทุกแบบ: ตั้งพนักงานใหม่
+   * เป็นผู้จัดการ หรือรีเซ็ต PIN ของคนอื่นแล้วไปกดในนามเขา
+   */
+  "staff.create",
+  "staff.update",
+  "staff.pin_reset",
+  /**
+   * เพิ่มในก้อน Settings — ลดเซอร์วิสชาร์จเป็น 0 ตอนดึก เก็บเงินลูกค้าเท่าเดิม
+   * แล้วตั้งกลับตอนเช้า คือการโกงที่เนียนที่สุดเท่าที่ระบบนี้เปิดช่องให้ทำได้
+   * (ตระกูลเดียวกับการแก้ราคาเมนูชั่วคราวในโมดูล 04)
+   */
+  "settings.tax_update",
 ];
 
 /** ป้ายของ action ที่ยังไม่มีในตาราง — คืนชื่อดิบ ไม่ใช่ "ไม่ทราบ" */
