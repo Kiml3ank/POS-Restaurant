@@ -25,17 +25,17 @@ import {
  * แยกหน้ากันเมื่อไหร่ ขั้นตอนกลางจะถูกข้ามทุกครั้ง
  */
 const SCREEN_LABEL: Record<StaffScreenKind, string> = {
-  POS: "จอพนักงาน (POS)",
-  KDS: "จอครัว",
-  ADMIN: "จอหลังร้าน",
+  POS: "Staff terminal (POS)",
+  KDS: "Kitchen display",
+  ADMIN: "Back office",
 };
 
 /** เหตุผลที่ session ถูกปิด — ค่าดิบมาจาก SESSION_REVOKE_REASONS */
 const REVOKE_LABEL: Record<string, string> = {
-  logout: "ล็อกจอเอง",
-  revoked_all: "ถูกเตะออก",
-  pin_reset: "รีเซ็ต PIN",
-  deactivated: "ปิดบัญชี",
+  logout: "Locked screen",
+  revoked_all: "Signed out",
+  pin_reset: "PIN reset",
+  deactivated: "Account deactivated",
 };
 
 const ALL_ROLES: StaffRole[] = ["OWNER", "MANAGER", "CASHIER", "SERVER", "KITCHEN"];
@@ -62,7 +62,7 @@ export default async function StaffDetailPage({
 
   if (staffId === "new") {
     return (
-      <Shell title="เพิ่มพนักงาน" subtitle="ตั้งรหัส ชื่อ ตำแหน่ง และ PIN ตั้งต้น">
+      <Shell title="Add staff member" subtitle="Set code, name, role, and initial PIN">
         <section className="panel flex flex-col gap-4 p-5">
           <CreateStaffForm roles={assignableRoles} />
         </section>
@@ -80,20 +80,20 @@ export default async function StaffDetailPage({
   const canEditTarget = canManageStaffMember(staff.role, detail.staff.role);
 
   const disabledReason = isSelf
-    ? "แก้ไขบัญชีของตัวเองจากหน้านี้ไม่ได้ ให้อีกคนที่มีสิทธิ์เป็นคนแก้"
+    ? "You can't edit your own account from this screen — have another authorized user do it"
     : !canEditTarget
-      ? "คุณแก้ไขบัญชีของตำแหน่งนี้ไม่ได้"
+      ? "You can't edit an account of this role"
       : undefined;
 
   return (
     <Shell
       title={`${detail.staff.code} · ${detail.staff.name}`}
       subtitle={`${STAFF_ROLE_LABEL[detail.staff.role]} · ${
-        detail.staff.isActive ? "ใช้งานอยู่" : "ปิดใช้งาน"
+        detail.staff.isActive ? "Active" : "Deactivated"
       }`}
     >
       <section className="panel flex flex-col gap-4 p-5">
-        <span className="display text-[17px]">ข้อมูลบัญชี</span>
+        <span className="display text-[17px]">Account info</span>
         <EditStaffForm
           staffId={detail.staff.id}
           code={detail.staff.code}
@@ -109,7 +109,7 @@ export default async function StaffDetailPage({
         <div className="flex flex-col gap-1">
           <span className="display text-[17px]">PIN</span>
           <span className="kicker">
-            ตั้ง PIN ใหม่แล้วทุกเครื่องของคนนี้จะหลุดทันที ต้องใส่ PIN ใหม่ถึงเข้าได้
+            Setting a new PIN signs this person out of every device immediately — they must enter the new PIN to get back in.
           </span>
         </div>
         <ResetPinForm staffId={detail.staff.id} disabled={!canEditTarget && !isSelf} />
@@ -117,11 +117,11 @@ export default async function StaffDetailPage({
 
       <section className="panel flex flex-col gap-4 p-5">
         <div className="flex flex-col gap-1">
-          <span className="display text-[17px]">เครื่องที่ล็อกอินอยู่</span>
+          <span className="display text-[17px]">Signed-in devices</span>
           <span className="kicker">
             {detail.sessions.length === 0
-              ? "ไม่มีเครื่องที่เปิดค้างอยู่"
-              : `${detail.sessions.length} เครื่อง`}
+              ? "No devices currently signed in"
+              : `${detail.sessions.length} device(s)`}
           </span>
         </div>
 
@@ -134,7 +134,7 @@ export default async function StaffDetailPage({
               >
                 <span>{SCREEN_LABEL[session.screen]}</span>
                 <span className="kicker tabular-nums">
-                  เข้าเมื่อ {formatDateTime(session.createdAt, staff.branch.timezone)}
+                  Signed in {formatDateTime(session.createdAt, staff.branch.timezone)}
                   {session.ipAddress ? ` · ${session.ipAddress}` : ""}
                 </span>
               </li>
@@ -147,12 +147,12 @@ export default async function StaffDetailPage({
 
       <section className="panel flex flex-col gap-4 p-5">
         <div className="flex flex-col gap-1">
-          <span className="display text-[17px]">ประวัติการเข้าใช้งาน</span>
-          <span className="kicker">ล่าสุด {detail.history.length} ครั้ง</span>
+          <span className="display text-[17px]">Sign-in history</span>
+          <span className="kicker">Last {detail.history.length} entries</span>
         </div>
 
         {detail.history.length === 0 ? (
-          <p className="text-[var(--color-neutral-700)]">ยังไม่เคยเข้าใช้งาน</p>
+          <p className="text-[var(--color-neutral-700)]">Never signed in</p>
         ) : (
           <ul className="flex flex-col">
             {detail.history.map((entry) => (
@@ -166,12 +166,12 @@ export default async function StaffDetailPage({
                 </span>
                 <span className="kicker">
                   {entry.revokedAt
-                    ? `${REVOKE_LABEL[entry.revokedReason ?? ""] ?? entry.revokedReason ?? "ปิดแล้ว"}${
-                        entry.revokedBy ? ` โดย ${entry.revokedBy.name}` : ""
+                    ? `${REVOKE_LABEL[entry.revokedReason ?? ""] ?? entry.revokedReason ?? "Closed"}${
+                        entry.revokedBy ? ` by ${entry.revokedBy.name}` : ""
                       }`
                     : entry.stillValid
-                      ? "ยังใช้งานอยู่"
-                      : "หมดอายุเอง"}
+                      ? "Still active"
+                      : "Expired"}
                 </span>
               </li>
             ))}
@@ -200,7 +200,7 @@ function Shell({
         </div>
 
         <Link href="/admin/staff" className="btn btn-ghost h-10 text-[14px]">
-          ‹ กลับไปรายชื่อ
+          ‹ Back to list
         </Link>
       </header>
 

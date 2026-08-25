@@ -78,7 +78,7 @@ export function TaxSettingsForm({
     <form action={formAction} className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1">
-          <span className="kicker">อัตรา VAT (%)</span>
+          <span className="kicker">VAT rate (%)</span>
           <input
             name="vatRatePercent"
             type="text"
@@ -90,7 +90,7 @@ export function TaxSettingsForm({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">เซอร์วิสชาร์จ (%)</span>
+          <span className="kicker">Service charge (%)</span>
           <input
             name="serviceChargePercent"
             type="text"
@@ -102,7 +102,7 @@ export function TaxSettingsForm({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">ส่วนลดพนักงาน (%)</span>
+          <span className="kicker">Staff meal discount (%)</span>
           <input
             name="staffMealDiscountPercent"
             type="text"
@@ -114,7 +114,7 @@ export function TaxSettingsForm({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">สกุลเงิน</span>
+          <span className="kicker">Currency</span>
           <select
             name="currency"
             defaultValue={currency}
@@ -129,13 +129,13 @@ export function TaxSettingsForm({
           </select>
           {currencyLocked ? (
             <span className="kicker">
-              สาขานี้รับเงินไปแล้ว จึงเปลี่ยนสกุลเงินไม่ได้ — ยอดที่เก็บไว้เป็นหน่วยของสกุลเดิม
+              This branch has already taken payments, so the currency can&apos;t change — stored amounts are in units of the current currency.
             </span>
           ) : null}
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">timezone ของสาขา (ใช้ตัดวันของเลขบิล/รายงาน)</span>
+          <span className="kicker">Branch timezone (used to cut off the day for bill numbers/reports)</span>
           <input
             name="timezone"
             type="text"
@@ -153,9 +153,9 @@ export function TaxSettingsForm({
             className="size-5"
           />
           <span>
-            ราคาเมนูรวม VAT แล้ว
+            Menu prices already include VAT
             <span className="kicker block">
-              ติ๊ก = ถอด VAT ออกมาแสดง · ไม่ติ๊ก = บวก VAT เพิ่มท้ายบิล (คนละยอดกัน)
+              Checked = VAT is extracted for display · Unchecked = VAT is added on top of the bill (different totals)
             </span>
           </span>
         </label>
@@ -166,8 +166,8 @@ export function TaxSettingsForm({
 
       <Message state={state} />
 
-      <SubmitButton pendingLabel="กำลังบันทึก..." className="btn btn-primary h-12">
-        บันทึกอัตรา
+      <SubmitButton pendingLabel="Saving..." className="btn btn-primary h-12">
+        Save rates
       </SubmitButton>
     </form>
   );
@@ -203,7 +203,7 @@ export function BusinessInfoForm({
     <form action={formAction} className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1">
-          <span className="kicker">ชื่อกิจการ (ขึ้นหัวใบเสร็จ)</span>
+          <span className="kicker">Business name (appears on receipts)</span>
           <input
             name="tenantName"
             type="text"
@@ -215,7 +215,7 @@ export function BusinessInfoForm({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">เลขประจำตัวผู้เสียภาษี (13 หลัก)</span>
+          <span className="kicker">Tax ID (13 digits)</span>
           <input
             name="taxId"
             type="text"
@@ -227,7 +227,7 @@ export function BusinessInfoForm({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">ชื่อสาขา</span>
+          <span className="kicker">Branch name</span>
           <input
             name="branchName"
             type="text"
@@ -239,7 +239,7 @@ export function BusinessInfoForm({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">เบอร์โทร</span>
+          <span className="kicker">Phone</span>
           <input
             name="phone"
             type="text"
@@ -250,7 +250,7 @@ export function BusinessInfoForm({
         </label>
 
         <label className="flex flex-col gap-1 sm:col-span-2">
-          <span className="kicker">ที่อยู่สถานประกอบการ</span>
+          <span className="kicker">Business address</span>
           <input
             name="addressLine"
             type="text"
@@ -261,25 +261,25 @@ export function BusinessInfoForm({
         </label>
 
         <label className="flex flex-col gap-1 sm:col-span-2">
-          <span className="kicker">ข้อความท้ายใบเสร็จ</span>
+          <span className="kicker">Receipt footer text</span>
           <input
             name="receiptFooter"
             type="text"
             maxLength={200}
-            placeholder="ขอบคุณที่ใช้บริการ"
+            placeholder="Thank you for your visit"
             defaultValue={receiptFooter ?? ""}
             className="input h-12"
           />
           <span className="kicker">
-            ปล่อยว่าง = ใช้ข้อความเริ่มต้น · ใบที่ออกไปแล้วไม่เปลี่ยนตาม (เก็บข้อความ ณ วันที่ออกไว้)
+            Leave blank to use the default text · already-issued receipts keep the text as it was when printed.
           </span>
         </label>
       </div>
 
       <Message state={state} />
 
-      <SubmitButton pendingLabel="กำลังบันทึก..." className="btn btn-primary h-12">
-        บันทึกข้อมูลร้าน
+      <SubmitButton pendingLabel="Saving..." className="btn btn-primary h-12">
+        Save business info
       </SubmitButton>
     </form>
   );
@@ -307,7 +307,7 @@ export function StationForm({
 
       <div className="grid gap-3 sm:grid-cols-4">
         <label className="flex flex-col gap-1">
-          <span className="kicker">รหัส</span>
+          <span className="kicker">Code</span>
           <input
             name="code"
             type="text"
@@ -319,7 +319,7 @@ export function StationForm({
         </label>
 
         <label className="flex flex-col gap-1 sm:col-span-2">
-          <span className="kicker">ชื่อสถานี</span>
+          <span className="kicker">Station name</span>
           <input
             name="name"
             type="text"
@@ -331,7 +331,7 @@ export function StationForm({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">ลำดับ</span>
+          <span className="kicker">Sort order</span>
           <input
             name="sortOrder"
             type="number"
@@ -349,13 +349,13 @@ export function StationForm({
           defaultChecked={station?.isActive ?? true}
           className="size-5"
         />
-        <span>เปิดใช้งาน (สถานีที่ปิดจะไม่ขึ้นบนจอครัว)</span>
+        <span>Active (disabled stations don&apos;t appear on the kitchen display)</span>
       </label>
 
       <Message state={state} />
 
-      <SubmitButton pendingLabel="กำลังบันทึก..." className="btn btn-secondary h-11">
-        {station ? "บันทึกสถานี" : "เพิ่มสถานี"}
+      <SubmitButton pendingLabel="Saving..." className="btn btn-secondary h-11">
+        {station ? "Save station" : "Add station"}
       </SubmitButton>
     </form>
   );
@@ -379,8 +379,8 @@ export function DeleteStationForm({ stationId }: { stationId: string }) {
 
       <Message state={state} />
 
-      <SubmitButton pendingLabel="กำลังลบ..." className="btn btn-ghost h-9 text-[13px]">
-        ลบสถานี
+      <SubmitButton pendingLabel="Deleting..." className="btn btn-ghost h-9 text-[13px]">
+        Delete station
       </SubmitButton>
     </form>
   );
