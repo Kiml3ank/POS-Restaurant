@@ -47,10 +47,10 @@ export default async function PosTableMapPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-2">
           <p className="kicker kicker-accent">
-            {needAttention > 0 ? `มีของพร้อมเสิร์ฟค้างอยู่ ${needAttention} โต๊ะ` : "ไม่มีของค้างรอยก"}
+            {needAttention > 0 ? `${needAttention} table(s) have food waiting` : "Nothing waiting to be served"}
           </p>
           {/* หัวเรื่องย่อลงบนจอแคบ เพราะ 40px กินความสูงไปหนึ่งแถวโต๊ะเต็ม ๆ */}
-          <h1 className="display text-[28px] lg:text-[40px]">ผังโต๊ะ</h1>
+          <h1 className="display text-[28px] lg:text-[40px]">Table map</h1>
         </div>
 
         <div className="flex flex-wrap items-end gap-4 lg:gap-8">
@@ -62,13 +62,13 @@ export default async function PosTableMapPage() {
           <LiveRefresh src="/api/realtime" className="text-[var(--color-accent-700)]" />
 
           <div className="flex flex-col gap-1">
-            <span className="kicker">เปิดอยู่</span>
+            <span className="kicker">Open</span>
             <span className="display text-[22px]">
-              {openTables.length}/{tables.length} โต๊ะ
+              {openTables.length}/{tables.length} tables
             </span>
           </div>
           <div className="flex flex-col gap-1">
-            <span className="kicker">ยอดค้างบนโต๊ะรวม</span>
+            <span className="kicker">Total on tables</span>
             <span className="display text-[22px]">{formatMoney(totalOnFloor, currency)}</span>
           </div>
         </div>
@@ -94,18 +94,18 @@ export default async function PosTableMapPage() {
       >
         <span className="flex min-w-0 flex-col gap-1">
           <span className={`kicker ${takeawayReady > 0 ? "text-white/80" : "kicker-accent"}`}>
-            ซื้อกลับ
+            Takeaway
           </span>
           <span className="display text-[19px]">
             {takeawayQueue.length === 0
-              ? "เปิดบิลซื้อกลับใบใหม่"
-              : `${takeawayQueue.length} บิลที่เปิดอยู่`}
+              ? "Open a new takeaway bill"
+              : `${takeawayQueue.length} open bill(s)`}
           </span>
         </span>
 
         <span className="flex items-baseline gap-4 whitespace-nowrap lg:gap-6">
           {takeawayReady > 0 ? (
-            <span className="display text-[17px]">พร้อมให้รับ {takeawayReady} คิว</span>
+            <span className="display text-[17px]">{takeawayReady} order(s) ready</span>
           ) : null}
           <span className="display text-[22px]">›</span>
         </span>
@@ -115,7 +115,7 @@ export default async function PosTableMapPage() {
 
       {tables.length === 0 ? (
         <p className="text-[var(--color-neutral-700)]">
-          สาขานี้ยังไม่มีโต๊ะ — เพิ่มได้ในหน้าหลังร้าน (บทที่ 13)
+          This branch has no tables yet — add one from the back office.
         </p>
       ) : (
         <ul className="ink-grid ink-grid-sparse grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
@@ -128,7 +128,7 @@ export default async function PosTableMapPage() {
       )}
 
       <p className="kicker mt-auto">
-        คิดเงิน/รับชำระ กดได้จากในหน้าโต๊ะ · ย้าย/รวมโต๊ะ และแยกบิล ยังไม่ได้ทำ
+        Checkout/payment is inside each table screen · move/merge tables from there too · splitting a bill isn&apos;t built yet
       </p>
     </main>
   );
@@ -150,26 +150,26 @@ function TableCard({ table, currency }: { table: PosTableSummary; currency: Curr
       <div className="flex items-start justify-between gap-3">
         <span className="display text-[28px]">{table.name}</span>
         {needsAttention ? (
-          <span className="tag tag-solid">พร้อมเสิร์ฟ {table.readyItems}</span>
+          <span className="tag tag-solid">{table.readyItems} ready</span>
         ) : isOpen ? (
-          <span className="tag tag-outline">{table.session?.pax} คน</span>
+          <span className="tag tag-outline">{table.session?.pax} guests</span>
         ) : (
-          <span className="kicker">{table.seats} ที่นั่ง</span>
+          <span className="kicker">{table.seats} seats</span>
         )}
       </div>
 
       {isOpen ? (
         <>
           <div className="flex flex-1 flex-col gap-1 text-[var(--color-neutral-700)]">
-            {table.pendingItems > 0 ? <span>ครัวกำลังทำ {table.pendingItems} ชิ้น</span> : null}
-            {table.draftCount > 0 ? <span>มีตะกร้าที่ยังไม่ส่งเข้าครัว</span> : null}
+            {table.pendingItems > 0 ? <span>Kitchen is preparing {table.pendingItems} item(s)</span> : null}
+            {table.draftCount > 0 ? <span>Cart not sent to kitchen yet</span> : null}
             {table.pendingItems === 0 && table.draftCount === 0 && !needsAttention ? (
-              <span>เสิร์ฟครบแล้ว รอคิดเงิน</span>
+              <span>All served — awaiting checkout</span>
             ) : null}
           </div>
 
           <div className="flex items-baseline justify-between gap-3">
-            <span className="kicker">ยอดสะสม</span>
+            <span className="kicker">Running total</span>
             <span className="display text-[24px]">{formatMoney(table.runningTotal, currency)}</span>
           </div>
 
@@ -177,13 +177,13 @@ function TableCard({ table, currency }: { table: PosTableSummary; currency: Curr
               ตัวนี้จึงเป็น <span> ที่หน้าตาเป็นปุ่ม ไม่ใช่ <button> ซ้อนในลิงก์
               มีไว้เพราะการ์ดที่เปิดอยู่ไม่เคยบอกเลยว่ากดแล้วเจออะไร */}
           <span className="btn btn-secondary btn-block h-11">
-            {table.draftCount > 0 ? "ดูตะกร้า / สั่งเพิ่ม" : "สั่งอาหาร / ดูบิล"}
+            {table.draftCount > 0 ? "View cart / order more" : "Order / view bill"}
           </span>
         </>
       ) : (
         <>
-          <div className="flex flex-1 items-start text-[var(--color-neutral-600)]">ว่าง</div>
-          <span className="btn btn-secondary btn-block h-11">เปิดโต๊ะ</span>
+          <div className="flex flex-1 items-start text-[var(--color-neutral-600)]">Empty</div>
+          <span className="btn btn-secondary btn-block h-11">Open table</span>
         </>
       )}
     </Link>

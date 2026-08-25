@@ -116,7 +116,7 @@ export async function SalePointScreen({
       <div className="flex h-[58px] flex-none items-stretch border-b-2 border-[var(--color-text)]">
         <Link
           href={backHref}
-          aria-label="กลับ"
+          aria-label="Back"
           className="flex w-14 flex-none items-center justify-center border-r-2 border-[var(--color-text)] text-xl leading-none transition-colors hover:bg-[var(--color-accent-100)]"
         >
           ‹
@@ -147,7 +147,7 @@ export async function SalePointScreen({
               <span className="flex items-baseline gap-2 lg:gap-3">
                 {/* ป้าย "ยอดสะสม" ตัดทิ้งบนจอแคบ — ตัวเลขที่มีสัญลักษณ์เงินนำหน้า
                     อยู่ตรงมุมนี้ อ่านออกอยู่แล้วว่าคือยอดของโต๊ะ ไม่ต้องมีป้ายบอก */}
-                <span className="kicker hidden sm:inline">ยอดสะสม</span>
+                <span className="kicker hidden sm:inline">Running total</span>
                 <span className="display text-[18px] lg:text-[24px]">
                   {formatMoney(runningTotal, currency)}
                 </span>
@@ -160,8 +160,8 @@ export async function SalePointScreen({
       {!session ? (
         <div className="flex flex-1 items-start justify-center overflow-auto p-8">
           <section className="panel w-full max-w-md p-6">
-            <p className="kicker kicker-accent mb-4">โต๊ะว่าง</p>
-            <h2 className="display mb-6 text-[28px]">เปิดโต๊ะ {table.name}</h2>
+            <p className="kicker kicker-accent mb-4">Table empty</p>
+            <h2 className="display mb-6 text-[28px]">Open table {table.name}</h2>
             <OpenTableForm tableId={table.id} seats={table.seats} />
           </section>
         </div>
@@ -204,7 +204,7 @@ export async function SalePointScreen({
                   href={`${base}/bill`}
                   className="display flex flex-none items-center border-r-2 border-[var(--color-text)] bg-[var(--color-accent)] px-5 text-[15px] whitespace-nowrap text-white transition-colors hover:bg-[var(--color-accent-600)]"
                 >
-                  คิดเงิน
+                  Checkout
                 </Link>
               ) : null}
 
@@ -218,8 +218,8 @@ export async function SalePointScreen({
                   */}
                   <span className="kicker whitespace-nowrap">
                     {needsQueueNumber(table.kind)
-                      ? "ตั้งชื่อลูกค้า ยกเลิกรายการ และปิดบิลทำได้ที่นี่"
-                      : "ยกเลิกรายการและปิดรอบโต๊ะทำได้ที่นี่"}
+                      ? "Set customer name, cancel items, and close the bill here"
+                      : "Cancel items and close the table session here"}
                   </span>
                 </div>
               ) : (
@@ -314,7 +314,7 @@ export async function SalePointScreen({
                           {item.name}
                         </span>
                         <span className="flex w-full items-end justify-between gap-2">
-                          <span className="kicker">{item.hasOptions ? "มีตัวเลือก" : ""}</span>
+                          <span className="kicker">{item.hasOptions ? "Has options" : ""}</span>
                           <span className="display text-[19px]">
                             {formatMoney(item.basePrice, currency)}
                           </span>
@@ -374,12 +374,12 @@ export async function SalePointScreen({
                 <span>ค่าอาหาร</span>
                 <span>{formatMoney(cart?.subtotal ?? 0, currency)}</span>
               </div>
-              <p className="kicker">เซอร์วิสชาร์จและ VAT คิดตอนเก็บเงิน (บทที่ 10)</p>
+              <p className="kicker">Service charge and VAT are calculated at checkout</p>
 
               <div className="rule my-2" />
 
               <div className="flex items-baseline justify-between">
-                <span className="kicker">รวมตะกร้านี้</span>
+                <span className="kicker">Cart total</span>
                 <span className="display text-[34px]">{formatMoney(cart?.subtotal ?? 0, currency)}</span>
               </div>
 
@@ -390,8 +390,8 @@ export async function SalePointScreen({
                   itemCount={cartItemCount}
                   label={
                     cartItemCount === 0
-                      ? "ยังไม่มีรายการ"
-                      : `ส่ง ${cartItemCount} รายการเข้าครัว`
+                      ? "No items yet"
+                      : `Send ${cartItemCount} item(s) to kitchen`
                   }
                 />
               </div>
@@ -423,7 +423,7 @@ function OrderCard({
         <span className="kicker">
           {order.placedAt ? formatTime(order.placedAt, timezone) : "—"} ·{" "}
           {ORDER_STATUS_LABEL[order.status]} ·{" "}
-          {order.placedByStaff ? order.placedByStaff.name : "ลูกค้าสั่งเอง"}
+          {order.placedByStaff ? order.placedByStaff.name : "Customer order"}
         </span>
       </div>
 
@@ -477,7 +477,7 @@ function OrderCard({
                   // ของที่ไม่ผูกสถานี = หยิบจากตู้เย็นหน้าร้าน ไม่เคยขึ้นจอครัว
                   // (ดู lib/server/cart.ts ตอน placeOrder) จึงบอกไว้ตรงนี้ให้ชัด
                   // ว่าไม่ต้องรอครัว
-                  <span className="kicker">หยิบเอง</span>
+                  <span className="kicker">Self-serve</span>
                 )}
 
                 {/* ปุ่มเสิร์ฟอยู่ทั้งที่นี่และบนจอครัว — ที่นี่คือทางเดียวที่ปิด
@@ -492,7 +492,7 @@ function OrderCard({
       </ul>
 
       <div className="flex items-baseline justify-between px-5 py-3">
-        <span className="kicker">รวมบิลนี้</span>
+        <span className="kicker">Order total</span>
         <span className="display text-[20px]">{formatMoney(order.subtotal, currency)}</span>
       </div>
     </article>
