@@ -84,7 +84,7 @@ export function AvailabilityToggle({
           available ? "btn-secondary" : "is-active"
         }`}
       >
-        {available ? "ขายอยู่" : "ของหมด"}
+        {available ? "In stock" : "Out of stock"}
       </SubmitButton>
 
       {state.status === "error" ? (
@@ -137,7 +137,7 @@ function MoveButton({
         className="btn btn-secondary relative size-9 p-0 text-[13px]"
       >
         <span aria-hidden>{direction === "up" ? "↑" : "↓"}</span>
-        <span className="sr-only">{direction === "up" ? "เลื่อนขึ้น" : "เลื่อนลง"}</span>
+        <span className="sr-only">{direction === "up" ? "Move up" : "Move down"}</span>
       </SubmitButton>
     </form>
   );
@@ -168,7 +168,7 @@ export function DeleteButton({
     <form
       action={formAction}
       onSubmit={(event) => {
-        if (!window.confirm(`ลบ "${name}" ถาวร?`)) {
+        if (!window.confirm(`Permanently delete "${name}"?`)) {
           event.preventDefault();
         }
       }}
@@ -177,8 +177,8 @@ export function DeleteButton({
       <input type="hidden" name="entity" value={entity} />
       <input type="hidden" name="id" value={id} />
 
-      <SubmitButton pendingLabel="กำลังลบ…" className="btn btn-secondary h-11">
-        ลบถาวร
+      <SubmitButton pendingLabel="Deleting…" className="btn btn-secondary h-11">
+        Delete permanently
       </SubmitButton>
 
       <FormError state={state} />
@@ -199,7 +199,7 @@ export function CategoryForm({ category }: { category: { id: string; name: strin
 
       <div className="flex flex-col gap-2">
         <label htmlFor={nameId} className="kicker">
-          ชื่อหมวด
+          Category name
         </label>
         <input
           id={nameId}
@@ -207,15 +207,15 @@ export function CategoryForm({ category }: { category: { id: string; name: strin
           defaultValue={category?.name ?? ""}
           required
           autoComplete="off"
-          placeholder="เช่น ผัด · ต้ม · เครื่องดื่ม"
+          placeholder="e.g. Stir-fry · Soup · Drinks"
           className="input display h-12 text-[16px]"
         />
       </div>
 
       <FormError state={state} />
 
-      <SubmitButton pendingLabel="กำลังบันทึก…" className="btn btn-primary display h-12">
-        {category ? "บันทึกการแก้ไข" : "เพิ่มหมวด"}
+      <SubmitButton pendingLabel="Saving…" className="btn btn-primary display h-12">
+        {category ? "Save changes" : "Add category"}
       </SubmitButton>
     </form>
   );
@@ -253,7 +253,7 @@ export function MenuItemForm({
 
       <div className="flex flex-col gap-2">
         <label htmlFor={`${fieldId}-name`} className="kicker">
-          ชื่อเมนู
+          Item name
         </label>
         <input
           id={`${fieldId}-name`}
@@ -268,7 +268,7 @@ export function MenuItemForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
           <label htmlFor={`${fieldId}-price`} className="kicker">
-            ราคา ({formatMoney(0, currency).replace(/[\d.,]/g, "") || currency})
+            Price ({formatMoney(0, currency).replace(/[\d.,]/g, "") || currency})
           </label>
           {/*
             inputMode="decimal" ไม่ใช่ type="number" — เหตุผลเดียวกับช่องรับเงินสด
@@ -289,7 +289,7 @@ export function MenuItemForm({
 
         <div className="flex flex-col gap-2">
           <label htmlFor={`${fieldId}-category`} className="kicker">
-            หมวด
+            Category
           </label>
           <select
             id={`${fieldId}-category`}
@@ -301,7 +301,7 @@ export function MenuItemForm({
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
-                {category.isAvailable ? "" : " (หมวดปิดอยู่)"}
+                {category.isAvailable ? "" : " (category disabled)"}
               </option>
             ))}
           </select>
@@ -310,7 +310,7 @@ export function MenuItemForm({
 
       <div className="flex flex-col gap-2">
         <label htmlFor={`${fieldId}-station`} className="kicker">
-          สถานีครัว
+          Kitchen station
         </label>
         <select
           id={`${fieldId}-station`}
@@ -323,7 +323,7 @@ export function MenuItemForm({
             ของพวกนี้ (น้ำขวด ขนมซอง) ข้ามไป READY ตั้งแต่ตอนกดส่ง เพราะไม่มีใคร
             ต้องทำมัน — ถ้าเลือกผิดเป็นสถานีครัว มันจะไปค้างรอครัวกดบนจอที่ไม่มีใครดู
           */}
-          <option value="">ไม่ต้องผ่านครัว (หยิบเองได้เลย)</option>
+          <option value="">No kitchen station (self-serve)</option>
           {stations.map((station) => (
             <option key={station.id} value={station.id}>
               {station.name}
@@ -334,7 +334,7 @@ export function MenuItemForm({
 
       <div className="flex flex-col gap-2">
         <label htmlFor={`${fieldId}-description`} className="kicker">
-          คำอธิบาย (ไม่บังคับ)
+          Description (optional)
         </label>
         <textarea
           id={`${fieldId}-description`}
@@ -347,7 +347,7 @@ export function MenuItemForm({
 
       <div className="flex flex-col gap-2">
         <label htmlFor={`${fieldId}-image`} className="kicker">
-          ลิงก์รูป (https:// หรือ /ไฟล์ใน public)
+          Image URL (https:// or a /file in public)
         </label>
         <input
           id={`${fieldId}-image`}
@@ -376,8 +376,8 @@ export function MenuItemForm({
 
       <FormError state={state} />
 
-      <SubmitButton pendingLabel="กำลังบันทึก…" className="btn btn-primary display h-12">
-        {item ? "บันทึกการแก้ไข" : "เพิ่มเมนู"}
+      <SubmitButton pendingLabel="Saving…" className="btn btn-primary display h-12">
+        {item ? "Save changes" : "Add item"}
       </SubmitButton>
     </form>
   );
@@ -406,7 +406,7 @@ export function MenuItemGroupsForm({
 
   if (groups.length === 0) {
     return (
-      <p className="kicker">ยังไม่มีกลุ่มตัวเลือกในสาขานี้ — สร้างที่หน้า “กลุ่มตัวเลือก” ก่อน</p>
+      <p className="kicker">No modifier groups in this branch yet — create one on the &ldquo;Modifiers&rdquo; page first</p>
     );
   }
 
@@ -426,8 +426,8 @@ export function MenuItemGroupsForm({
                 className="size-5 flex-none accent-[var(--color-accent)]"
               />
               <span className="display text-[15px]">{group.name}</span>
-              {group.required ? <span className="tag tag-accent">บังคับเลือก</span> : null}
-              {group.isActive ? null : <span className="tag tag-neutral">ปิดใช้งาน</span>}
+              {group.required ? <span className="tag tag-accent">Required</span> : null}
+              {group.isActive ? null : <span className="tag tag-neutral">Disabled</span>}
             </label>
           </li>
         ))}
@@ -441,8 +441,8 @@ export function MenuItemGroupsForm({
         </p>
       ) : null}
 
-      <SubmitButton pendingLabel="กำลังบันทึก…" className="btn btn-secondary h-11">
-        บันทึกกลุ่มตัวเลือกของเมนูนี้
+      <SubmitButton pendingLabel="Saving…" className="btn btn-secondary h-11">
+        Save this item&apos;s modifier groups
       </SubmitButton>
     </form>
   );
@@ -500,7 +500,7 @@ export function ModifierGroupForm({
 
       <div className="flex flex-col gap-2">
         <label htmlFor={`${fieldId}-name`} className="kicker">
-          ชื่อกลุ่ม
+          Group name
         </label>
         <input
           id={`${fieldId}-name`}
@@ -508,7 +508,7 @@ export function ModifierGroupForm({
           defaultValue={group?.name ?? ""}
           required
           autoComplete="off"
-          placeholder="เช่น ระดับความเผ็ด · ขนาด"
+          placeholder="e.g. Spice level · Size"
           className="input display h-12 text-[16px]"
         />
       </div>
@@ -521,13 +521,13 @@ export function ModifierGroupForm({
             defaultChecked={group?.required ?? false}
             className="size-5 flex-none accent-[var(--color-accent)]"
           />
-          <span className="display text-[15px]">บังคับเลือกก่อนใส่ตะกร้า</span>
+          <span className="display text-[15px]">Required before adding to cart</span>
         </label>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
             <label htmlFor={`${fieldId}-min`} className="kicker">
-              เลือกอย่างน้อย (ชิ้น)
+              Minimum selections
             </label>
             <input
               id={`${fieldId}-min`}
@@ -542,7 +542,7 @@ export function ModifierGroupForm({
 
           <div className="flex flex-col gap-2">
             <label htmlFor={`${fieldId}-max`} className="kicker">
-              เลือกได้มากสุด (ชิ้น)
+              Maximum selections
             </label>
             <input
               id={`${fieldId}-max`}
@@ -557,14 +557,14 @@ export function ModifierGroupForm({
         </div>
 
         <p className="kicker">
-          มากสุด = 1 คือให้เลือกได้อย่างเดียว · มากกว่า 1 คือติ๊กได้หลายอย่าง
+          Maximum = 1 means single choice · more than 1 allows multiple selections
         </p>
       </div>
 
       <div className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between gap-3">
-          <span className="kicker">ตัวเลือกในกลุ่ม</span>
-          <span className="kicker">ส่วนต่างราคาติดลบได้ เช่น -10</span>
+          <span className="kicker">Options in this group</span>
+          <span className="kicker">Price delta can be negative, e.g. -10</span>
         </div>
 
         {rows.map((row, index) => (
@@ -573,7 +573,7 @@ export function ModifierGroupForm({
 
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <label htmlFor={`${fieldId}-mod-${index}`} className="sr-only">
-                ชื่อตัวเลือกที่ {index + 1}
+                Option {index + 1} name
               </label>
               <input
                 id={`${fieldId}-mod-${index}`}
@@ -581,14 +581,14 @@ export function ModifierGroupForm({
                 value={row.name}
                 onChange={(event) => updateRow(row.key, { name: event.target.value })}
                 autoComplete="off"
-                placeholder="เช่น เผ็ดน้อย"
+                placeholder="e.g. Mild"
                 className="input h-11 text-[15px]"
               />
             </div>
 
             <div className="flex w-[110px] flex-none flex-col gap-1">
               <label htmlFor={`${fieldId}-price-${index}`} className="sr-only">
-                ส่วนต่างราคาของตัวเลือกที่ {index + 1}
+                Option {index + 1} price delta
               </label>
               <input
                 id={`${fieldId}-price-${index}`}
@@ -605,7 +605,7 @@ export function ModifierGroupForm({
               type="button"
               onClick={() => setRows((current) => current.filter((item) => item.key !== row.key))}
               disabled={rows.length === 1}
-              aria-label={`เอาตัวเลือกที่ ${index + 1} ออก`}
+              aria-label={`Remove option ${index + 1}`}
               className="btn btn-secondary size-11 flex-none p-0"
             >
               ✕
@@ -628,21 +628,21 @@ export function ModifierGroupForm({
           }
           className="btn btn-secondary h-11"
         >
-          + เพิ่มตัวเลือก
+          + Add option
         </button>
 
         {group ? (
           <p className="kicker">
-            ตัวเลือกที่เอาออกจากรายการนี้จะถูก <strong>ปิดขาย</strong> ไม่ใช่ลบทิ้ง
-            เพราะบิลเก่าที่เคยสั่งอ้างถึงมันอยู่
+            Options removed from this list are <strong>disabled</strong>, not deleted,
+            because past bills still reference them.
           </p>
         ) : null}
       </div>
 
       <FormError state={state} />
 
-      <SubmitButton pendingLabel="กำลังบันทึก…" className="btn btn-primary display h-12">
-        {group ? "บันทึกการแก้ไข" : "สร้างกลุ่มตัวเลือก"}
+      <SubmitButton pendingLabel="Saving…" className="btn btn-primary display h-12">
+        {group ? "Save changes" : "Create modifier group"}
       </SubmitButton>
     </form>
   );
