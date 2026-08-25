@@ -44,11 +44,11 @@ export default async function PosTablePage({
       detail={detail}
       base={`/pos/table/${table.id}`}
       backHref="/pos"
-      heading={`โต๊ะ ${table.name}`}
+      heading={`Table ${table.name}`}
       subtitle={`${
         session
-          ? `${session.pax} คน · เปิดเมื่อ ${formatTime(session.openedAt, staff.branch.timezone)}`
-          : "ยังไม่ได้เปิดโต๊ะ"
+          ? `${session.pax} guests · opened ${formatTime(session.openedAt, staff.branch.timezone)}`
+          : "Table not open"
       } · QR ${table.tableCode}`}
       view={view}
       cat={cat}

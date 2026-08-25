@@ -53,7 +53,7 @@ export default async function PosBillPage({
       staff={staff}
       detail={detail}
       base={base}
-      heading={`คิดเงิน · โต๊ะ ${detail.table.name}`}
+      heading={`Checkout · Table ${detail.table.name}`}
     />
   );
 }

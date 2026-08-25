@@ -51,24 +51,24 @@ export default async function PosReceiptPage({
         className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--color-text)] bg-[var(--color-bg)] px-4 py-3 lg:px-6"
       >
         <div className="flex min-w-0 flex-col">
-          <span className="display text-[17px]">ใบเสร็จ {detail.receipt.number}</span>
+          <span className="display text-[17px]">Receipt {detail.receipt.number}</span>
           <span className="kicker">
-            {salePointDisplayName(table, detail.payment.tableSession)} · พิมพ์แล้ว{" "}
-            {detail.receipt.printCount} ครั้ง
+            {salePointDisplayName(table, detail.payment.tableSession)} · printed{" "}
+            {detail.receipt.printCount} time(s)
           </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <Link href={`${base}/bill?paid=${detail.payment.id}`} className="btn btn-ghost h-10 text-[14px]">
-            ‹ กลับไปสรุปการรับเงิน
+            ‹ Back to payment summary
           </Link>
           {showsInTableMap(table.kind) ? (
             <Link href="/pos" className="btn btn-secondary h-10 text-[14px]">
-              ผังโต๊ะ
+              Table map
             </Link>
           ) : (
             <Link href="/pos/counter" className="btn btn-secondary h-10 text-[14px]">
-              คิวซื้อกลับ
+              Takeaway queue
             </Link>
           )}
 
@@ -82,7 +82,7 @@ export default async function PosReceiptPage({
               className="btn btn-primary h-10 text-[14px]"
             />
           ) : (
-            <span className="kicker">ตำแหน่งของคุณพิมพ์ใบเสร็จไม่ได้</span>
+            <span className="kicker">Your role can&apos;t print receipts</span>
           )}
         </div>
       </div>

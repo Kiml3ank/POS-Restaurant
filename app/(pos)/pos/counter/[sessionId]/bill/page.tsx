@@ -58,7 +58,7 @@ export default async function PosCounterBillPage({
       staff={staff}
       detail={detail}
       base={`/pos/counter/${sessionId}`}
-      heading={`คิดเงิน · ${salePointDisplayName(detail.table, detail.session)}`}
+      heading={`Checkout · ${salePointDisplayName(detail.table, detail.session)}`}
       sessionId={detail.session.id}
     />
   );

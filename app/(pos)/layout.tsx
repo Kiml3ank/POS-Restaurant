@@ -52,12 +52,12 @@ export default async function PosLayout({
 
         <div className="flex min-w-0 flex-1 items-center justify-end gap-3 px-4 lg:gap-6 lg:px-6">
           {/* รหัสพนักงานซ้ำกับชื่อที่อยู่ข้าง ๆ อยู่แล้ว จอแคบเก็บแค่ชื่อไว้ */}
-          <span className="kicker hidden whitespace-nowrap lg:inline">รหัส {staff.code}</span>
+          <span className="kicker hidden whitespace-nowrap lg:inline">Code {staff.code}</span>
           <span className="display truncate text-[15px]">{staff.name}</span>
 
           <form action={logoutAction} className="flex-none">
             <button type="submit" className="btn btn-secondary h-[38px] whitespace-nowrap">
-              ล็อกจอ
+              Lock screen
             </button>
           </form>
         </div>

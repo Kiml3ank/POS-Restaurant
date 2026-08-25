@@ -38,25 +38,25 @@ export default async function PosLoginPage() {
     <main className="grid flex-1 grid-cols-1 xl:grid-cols-[1fr_620px]">
       <div className="flex min-w-0 flex-col justify-between gap-10 border-b-2 border-[var(--color-text)] p-6 sm:p-10 xl:border-r-2 xl:border-b-0 xl:p-16">
         <div className="flex flex-col gap-4">
-          <p className="kicker kicker-accent">เครื่องพนักงาน · เคาน์เตอร์ 01</p>
+          <p className="kicker kicker-accent">Staff terminal · Counter 01</p>
           <p className="display text-[40px] leading-[0.92] tracking-[-0.03em] sm:text-[56px] xl:text-[76px]">
             POINT OF
             <br />
             SALE
           </p>
           <p className="max-w-[420px] leading-relaxed text-[var(--color-neutral-700)]">
-            ใส่ PIN เพื่อเริ่มกะของคุณ ทุกบิล ทุกการยกเลิก และการปิดรอบโต๊ะ
-            จะถูกบันทึกไว้ในชื่อของคุณจนกว่าจะกดล็อกจอ
+            Enter your PIN to start your shift. Every bill, cancellation, and closed table is
+            recorded under your name until you lock the screen.
           </p>
         </div>
 
         <div className="flex flex-col gap-3">
           <div className="rule" />
           <div className="kicker flex flex-wrap justify-between gap-3">
-            <span>รหัส / PIN สำหรับ dev (4 หลัก)</span>
-            <span>001 · 1234 เจ้าของร้าน</span>
-            <span>002 · 2345 แคชเชียร์</span>
-            <span>003 · 3456 เสิร์ฟ</span>
+            <span>Dev staff code / PIN (4 digits)</span>
+            <span>001 · 1234 Owner</span>
+            <span>002 · 2345 Cashier</span>
+            <span>003 · 3456 Server</span>
           </div>
         </div>
       </div>

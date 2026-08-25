@@ -54,7 +54,7 @@ export default async function PosCounterBillPage({
       base={`/pos/counter/${session.id}`}
       backHref="/pos/counter"
       heading={salePointDisplayName(table, session)}
-      subtitle={`${table.name} · เปิดเมื่อ ${formatTime(session.openedAt, staff.branch.timezone)}${
+      subtitle={`${table.name} · opened ${formatTime(session.openedAt, staff.branch.timezone)}${
         session.customerName ? ` · ${session.customerName}` : ""
       }`}
       view={view}
