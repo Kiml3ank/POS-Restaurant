@@ -233,6 +233,18 @@
   font-family: var(--font-heading);
   font-weight: 800;
   transition: background-color 120ms ease;
+  /*
+   * min-height ที่นี่ ไม่ใช่ py-* ที่ component — `all: unset` ข้างบนมี
+   * specificity (0,2,0) ซึ่งชนะ utility คลาสเดี่ยวของ Tailwind (0,1,0) เสมอ
+   * ต่อให้ component เขียน py-9 ก็โดนรีเซ็ตกลับเป็น 0 เงียบ ๆ โดยไม่มี error
+   * ให้เห็น (กับดักเดียวกับ specificity ของ .ink-row ที่ CLAUDE.md เตือนไว้แล้ว
+   * ในหัวข้อ 4) — ต้องแก้ค่าเริ่มต้นที่นี่แทน เผื่อปุ่มแป้น PIN บนจอสัมผัสให้กดง่ายขึ้น
+   *
+   * ไม่ตั้ง font-size ที่นี่เพราะปุ่มแต่ละแบบ (ตัวเลข/"Clear"/⌫) ต้องการขนาดต่างกัน
+   * — component ตั้งด้วย `style={{ fontSize }}` แทน เพราะ inline style ชนะ
+   * `all: unset` ได้เสมอไม่ว่า specificity ของ selector จะเท่าไหร่
+   */
+  min-height: 84px;
 }
 .pos-skin .btn-tile:not(:disabled):hover { background: var(--color-accent-200); }
 .pos-skin .btn-tile:disabled { opacity: 0.4; cursor: not-allowed; }

@@ -187,9 +187,15 @@ export function PinForm({
       </div>
 
       {/*
-        ปุ่มแป้นตัวเลข — ขยายจาก py-6/text-[26px] เดิม เพราะบนจอสัมผัสจริงนิ้วโป้ง
-        กดพลาดแป้นข้างเคียงได้ง่ายเมื่อปุ่มเตี้ยเกินไป ค่าตอนนี้ให้พื้นที่แตะสูง
-        กว่า 80px ต่อปุ่มซึ่งเทียบเท่าปุ่มบนเครื่อง POS จริงที่ใช้กันหน้าร้าน
+        ปุ่มแป้นตัวเลข — บนจอสัมผัสจริงนิ้วโป้งกดพลาดแป้นข้างเคียงได้ง่ายเมื่อปุ่ม
+        เตี้ยเกินไป จึงบังคับความสูงขั้นต่ำไว้ที่ `.btn-tile` ใน globals.css (84px)
+        เทียบเท่าปุ่มบนเครื่อง POS จริงที่ใช้กันหน้าร้าน
+
+        ⚠ ขนาดตัวอักษรตั้งด้วย `style={{ fontSize }}` ไม่ใช่ text-[Npx] —
+        `.btn-tile` มี `all: unset` ที่ specificity (0,2,0) ซึ่งชนะ utility คลาส
+        เดี่ยว (0,1,0) เสมอ ต่อให้เขียน text-[32px] ก็ไม่มีผลอะไรเลยเงียบ ๆ
+        (เจอบั๊กนี้จริงตอนขยายปุ่มครั้งแรก — ปุ่มไม่ใหญ่ขึ้นเลยทั้งที่ className เปลี่ยน)
+        มีแค่ inline style เท่านั้นที่ชนะ `all: unset` ได้เสมอ
       */}
       <div className="ink-grid grid-cols-3">
         {KEYS.map((key) => (
@@ -197,18 +203,25 @@ export function PinForm({
             key={key}
             type="button"
             onClick={() => pressKey((current) => current + key)}
-            className="btn-tile py-9 text-[32px]"
+            className="btn-tile"
+            style={{ fontSize: 34 }}
           >
             {key}
           </button>
         ))}
-        <button type="button" onClick={() => pressKey(() => "")} className="btn-tile py-9 text-[20px]">
+        <button
+          type="button"
+          onClick={() => pressKey(() => "")}
+          className="btn-tile"
+          style={{ fontSize: 20 }}
+        >
           Clear
         </button>
         <button
           type="button"
           onClick={() => pressKey((current) => current + "0")}
-          className="btn-tile py-9 text-[32px]"
+          className="btn-tile"
+          style={{ fontSize: 34 }}
         >
           0
         </button>
@@ -216,7 +229,8 @@ export function PinForm({
           type="button"
           onClick={() => pressKey((current) => current.slice(0, -1))}
           aria-label="Delete one digit"
-          className="btn-tile py-9 text-[32px]"
+          style={{ fontSize: 34 }}
+          className="btn-tile"
         >
           ⌫
         </button>
