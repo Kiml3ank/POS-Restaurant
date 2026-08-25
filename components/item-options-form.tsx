@@ -43,7 +43,7 @@ export function ItemOptionsForm({
   basePrice,
   groups,
   currency,
-  submitLabel = "ใส่ตะกร้า",
+  submitLabel = "Add to cart",
   skin = "default",
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
@@ -120,8 +120,8 @@ export function ItemOptionsForm({
         const atLimit = group.maxSelect > 1 && picked.length >= group.maxSelect;
         const hint =
           group.required || group.minSelect > 0
-            ? "จำเป็นต้องเลือก"
-            : `เลือกได้ไม่เกิน ${group.maxSelect} อย่าง`;
+            ? "Required"
+            : `Choose up to ${group.maxSelect}`;
 
         return (
           <fieldset key={group.id} className="flex flex-col gap-3">
@@ -188,14 +188,14 @@ export function ItemOptionsForm({
 
       <div className="flex flex-col gap-3">
         <label htmlFor="note" className={isPos ? "kicker" : "font-medium"}>
-          หมายเหตุถึงครัว
+          Note to kitchen
         </label>
         <input
           id="note"
           name="note"
           type="text"
           maxLength={200}
-          placeholder="เช่น ไม่ใส่ผักชี"
+          placeholder="e.g. no cilantro"
           className={
             isPos
               ? "input h-12"
@@ -205,14 +205,14 @@ export function ItemOptionsForm({
       </div>
 
       <div className="flex items-center justify-between">
-        <span className={isPos ? "kicker" : "font-medium"}>จำนวน</span>
+        <span className={isPos ? "kicker" : "font-medium"}>Quantity</span>
 
         {isPos ? (
           <div className="stepper h-12 w-40">
             <button
               type="button"
               onClick={() => setQuantity((current) => Math.max(1, current - 1))}
-              aria-label="ลดจำนวน"
+              aria-label="Decrease quantity"
               className="flex-1"
             >
               −
@@ -223,7 +223,7 @@ export function ItemOptionsForm({
             <button
               type="button"
               onClick={() => setQuantity((current) => Math.min(99, current + 1))}
-              aria-label="เพิ่มจำนวน"
+              aria-label="Increase quantity"
               className="flex-1"
             >
               +
@@ -234,7 +234,7 @@ export function ItemOptionsForm({
             <button
               type="button"
               onClick={() => setQuantity((current) => Math.max(1, current - 1))}
-              aria-label="ลดจำนวน"
+              aria-label="Decrease quantity"
               className="size-11 rounded-full border border-neutral-300 text-xl leading-none"
             >
               −
@@ -245,7 +245,7 @@ export function ItemOptionsForm({
             <button
               type="button"
               onClick={() => setQuantity((current) => Math.min(99, current + 1))}
-              aria-label="เพิ่มจำนวน"
+              aria-label="Increase quantity"
               className="size-11 rounded-full border border-neutral-300 text-xl leading-none"
             >
               +
@@ -270,7 +270,7 @@ export function ItemOptionsForm({
       ) : null}
 
       <SubmitButton
-        pendingLabel="กำลังใส่ตะกร้า..."
+        pendingLabel="Adding to cart..."
         disabled={missingRequired.length > 0}
         className={
           isPos

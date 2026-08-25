@@ -84,7 +84,7 @@ export default async function PosMenuItemPage({
             basePrice={item.basePrice}
             groups={groups}
             currency={currency}
-            submitLabel="เพิ่มลงตะกร้าโต๊ะ"
+            submitLabel="Add to table cart"
             skin="pos"
           />
 

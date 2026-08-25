@@ -53,16 +53,16 @@ export default async function CartPage({
       />
 
       <main className="flex flex-1 flex-col gap-4 px-4 py-4 pb-40">
-        <h1 className="text-xl font-semibold">ตะกร้าของโต๊ะ {context.table.name}</h1>
+        <h1 className="text-xl font-semibold">Cart for table {context.table.name}</h1>
 
         {lines.length === 0 ? (
           <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-neutral-300 p-6">
-            <p className="text-sm text-neutral-600">ยังไม่มีรายการในตะกร้า</p>
+            <p className="text-sm text-neutral-600">No items in the cart yet.</p>
             <Link
               href={`/t/${tableCode}`}
               className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
             >
-              เลือกเมนู
+              Browse menu
             </Link>
           </div>
         ) : (
@@ -82,7 +82,7 @@ export default async function CartPage({
                   ) : null}
 
                   {line.note ? (
-                    <span className="text-sm text-amber-700">หมายเหตุ: {line.note}</span>
+                    <span className="text-sm text-amber-700">Note: {line.note}</span>
                   ) : null}
 
                   <span className="text-sm text-neutral-600">
@@ -107,11 +107,11 @@ export default async function CartPage({
       {lines.length > 0 ? (
         <div className="fixed inset-x-0 bottom-0 mx-auto w-full max-w-md border-t border-neutral-200 bg-white p-3">
           <div className="flex items-baseline justify-between pb-2 text-sm">
-            <span className="text-neutral-600">ยอดรวมค่าอาหาร</span>
+            <span className="text-neutral-600">Food subtotal</span>
             <span className="text-lg font-semibold">{formatMoney(cart?.subtotal ?? 0, currency)}</span>
           </div>
           <p className="pb-2 text-xs text-neutral-500">
-            ยังไม่รวมเซอร์วิสชาร์จและ VAT — คิดตอนเช็คบิลที่เคาน์เตอร์
+            Service charge and VAT not included yet — calculated at checkout
           </p>
 
           <PlaceOrderForm

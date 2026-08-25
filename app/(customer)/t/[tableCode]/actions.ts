@@ -26,17 +26,17 @@ export async function openTableSessionAction(
   const pax = Number.parseInt(String(formData.get("pax") ?? "1"), 10);
 
   if (!tableCode) {
-    return { status: "error", message: "ไม่พบรหัสโต๊ะ กรุณาสแกน QR ใหม่" };
+    return { status: "error", message: "Table code not found — please scan the QR code again" };
   }
 
   if (!Number.isFinite(pax) || pax < 1 || pax > 20) {
-    return { status: "error", message: "จำนวนลูกค้าต้องอยู่ระหว่าง 1 ถึง 20 คน" };
+    return { status: "error", message: "Party size must be between 1 and 20" };
   }
 
   const session = await openTableSession(tableCode, pax);
 
   if (!session) {
-    return { status: "error", message: "โต๊ะนี้ยังไม่เปิดให้บริการ กรุณาเรียกพนักงาน" };
+    return { status: "error", message: "This table isn't available yet — please call staff" };
   }
 
   // redirect โยน control-flow exception ของ framework โค้ดหลังบรรทัดนี้จะไม่ทำงาน
@@ -52,7 +52,7 @@ export async function addToCartAction(
   const context = await resolveCustomerContext(tableCode);
 
   if (!context?.session) {
-    return { status: "error", message: "รอบโต๊ะหมดอายุแล้ว กรุณาสแกน QR ที่โต๊ะใหม่อีกครั้ง" };
+    return { status: "error", message: "Your table session expired — please scan the table's QR code again" };
   }
 
   const result = await addToCart({
@@ -90,7 +90,7 @@ export async function setCartLineQuantityAction(
   const context = await resolveCustomerContext(tableCode);
 
   if (!context?.session) {
-    return { status: "error", message: "รอบโต๊ะหมดอายุแล้ว กรุณาสแกน QR ที่โต๊ะใหม่อีกครั้ง" };
+    return { status: "error", message: "Your table session expired — please scan the table's QR code again" };
   }
 
   const result = await setCartLineQuantity(
@@ -106,7 +106,7 @@ export async function setCartLineQuantityAction(
   // อยู่หน้าตะกร้าต่อ แค่ให้ router ดึงข้อมูลใหม่มาแสดง
   refresh();
 
-  return { status: "success", message: "อัปเดตตะกร้าแล้ว" };
+  return { status: "success", message: "Cart updated" };
 }
 
 /**
@@ -125,7 +125,7 @@ export async function placeOrderAction(
   const context = await resolveCustomerContext(tableCode);
 
   if (!context?.session) {
-    return { status: "error", message: "รอบโต๊ะหมดอายุแล้ว กรุณาสแกน QR ที่โต๊ะใหม่อีกครั้ง" };
+    return { status: "error", message: "Your table session expired — please scan the table's QR code again" };
   }
 
   const result = await placeOrder(context.session.id);

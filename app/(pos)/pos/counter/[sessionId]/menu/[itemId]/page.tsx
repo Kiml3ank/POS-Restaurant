@@ -87,7 +87,7 @@ export default async function PosCounterMenuItemPage({
             basePrice={item.basePrice}
             groups={groups}
             currency={currency}
-            submitLabel="เพิ่มลงบิลซื้อกลับ"
+            submitLabel="Add to takeaway bill"
             skin="pos"
           />
 

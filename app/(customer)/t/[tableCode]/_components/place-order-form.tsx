@@ -44,15 +44,15 @@ export function PlaceOrderForm({
       ) : null}
 
       <SubmitButton
-        pendingLabel="กำลังส่งเข้าครัว..."
+        pendingLabel="Sending to kitchen..."
         disabled={itemCount === 0}
         className="rounded-lg bg-neutral-900 px-4 py-4 text-center text-base font-medium text-white"
       >
-        ส่ง {itemCount} รายการเข้าครัว · {formatMoney(subtotal, currency)}
+        Send {itemCount} item(s) to kitchen · {formatMoney(subtotal, currency)}
       </SubmitButton>
 
       <p className="text-center text-xs text-neutral-500">
-        ส่งแล้วครัวเริ่มทำทันที ยกเลิกเองไม่ได้ ต้องเรียกพนักงาน
+        The kitchen starts right away once sent — you can&apos;t cancel it yourself, please call staff.
       </p>
     </form>
   );

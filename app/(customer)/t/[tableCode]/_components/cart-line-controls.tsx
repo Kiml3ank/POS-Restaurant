@@ -44,7 +44,7 @@ export function CartLineControls({
             pendingLabel="…"
             className={quantity === 1 ? `${roundButton} text-xs` : roundButton}
           >
-            {quantity === 1 ? "ลบ" : "−"}
+            {quantity === 1 ? "Remove" : "−"}
           </SubmitButton>
         </form>
 
