@@ -108,7 +108,7 @@ export async function loginAction(_prevState: FormState, formData: FormData): Pr
 
   if (!canAccessScreen(result.staff.role, "pos")) {
     await logoutStaff("pos");
-    return { status: "error", message: "ตำแหน่งของคุณไม่มีสิทธิ์เข้าหน้า POS" };
+    return { status: "error", message: "Your role can't access the POS screen" };
   }
 
   redirect("/pos");
@@ -197,7 +197,7 @@ export async function posServeItemAction(
 
   refresh();
 
-  return { status: "success", message: "เสิร์ฟแล้ว" };
+  return { status: "success", message: "Served" };
 }
 
 /**
@@ -226,7 +226,7 @@ export async function takePaymentAction(
   const method = String(formData.get("method") ?? "");
 
   if (method !== "CASH" && method !== "QR") {
-    return { status: "error", message: "กรุณาเลือกวิธีชำระเงิน" };
+    return { status: "error", message: "Please choose a payment method" };
   }
 
   const sessionId = sessionIdOf(formData);
@@ -298,7 +298,7 @@ export async function cancelItemAction(
 
   refresh();
 
-  return { status: "success", message: "ยกเลิกรายการแล้ว" };
+  return { status: "success", message: "Item cancelled" };
 }
 
 /**
@@ -319,7 +319,7 @@ export async function posAddToCartAction(
   const target = await resolveOpenTarget(staff.branchId, tableId, sessionIdOf(formData));
 
   if (!target) {
-    return { status: "error", message: "ไม่พบบิลที่เปิดอยู่ กรุณากดเปิดบิลก่อน" };
+    return { status: "error", message: "No open bill found — please open one first" };
   }
 
   const result = await addToCart({
@@ -360,7 +360,7 @@ export async function posSetLineQuantityAction(
   );
 
   if (!target) {
-    return { status: "error", message: "ไม่พบบิลที่เปิดอยู่" };
+    return { status: "error", message: "No open bill found" };
   }
 
   const result = await setCartLineQuantity(
@@ -375,7 +375,7 @@ export async function posSetLineQuantityAction(
 
   refresh();
 
-  return { status: "success", message: "อัปเดตตะกร้าแล้ว" };
+  return { status: "success", message: "Cart updated" };
 }
 
 /** ส่งตะกร้าของโต๊ะเข้าครัว โดยบันทึกว่าพนักงานคนไหนเป็นคนกด */
@@ -396,7 +396,7 @@ export async function posPlaceOrderAction(
   );
 
   if (!target) {
-    return { status: "error", message: "ไม่พบบิลที่เปิดอยู่" };
+    return { status: "error", message: "No open bill found" };
   }
 
   const result = await placeOrder(target.session.id, { placedByStaffId: staff.id });
@@ -458,7 +458,7 @@ export async function setCustomerNameAction(
 
   return {
     status: "success",
-    message: result.customerName ? `บันทึกชื่อ "${result.customerName}" แล้ว` : "ล้างชื่อลูกค้าแล้ว",
+    message: result.customerName ? `Saved name "${result.customerName}"` : "Customer name cleared",
   };
 }
 
@@ -524,7 +524,7 @@ export async function setStaffMealAction(
 
   refresh();
 
-  return { status: "success", message: "ติดธงส่วนลดพนักงานแล้ว" };
+  return { status: "success", message: "Staff meal discount flagged" };
 }
 
 /**
@@ -607,5 +607,5 @@ export async function clearStaffMealAction(
 
   refresh();
 
-  return { status: "success", message: "ปลดธงส่วนลดพนักงานแล้ว" };
+  return { status: "success", message: "Staff meal discount cleared" };
 }

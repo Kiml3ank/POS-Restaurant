@@ -52,7 +52,7 @@ export function PaymentPanel({
   if (!canTake) {
     return (
       <p className="alert" role="status">
-        ตำแหน่งของคุณไม่มีสิทธิ์รับเงิน — กรุณาเรียกแคชเชียร์หรือผู้จัดการมากดปิดบิล
+        Your role can&apos;t take payments — please call a cashier or manager to close this bill
       </p>
     );
   }
@@ -80,9 +80,9 @@ export function PaymentPanel({
         (กับดักเดียวกับใน archive/report/2026-08-22-responsive-screens.md §3.1)
         ที่นี่จึงแบ่งครึ่งด้วย flex-1 ที่ลูกแทน
       */}
-      <div className="ink-row" role="group" aria-label="วิธีชำระเงิน">
+      <div className="ink-row" role="group" aria-label="Payment method">
         <MethodButton
-          label="เงินสด"
+          label="Cash"
           active={method === "CASH"}
           onSelect={() => setMethod("CASH")}
         />
@@ -92,7 +92,7 @@ export function PaymentPanel({
       {method === "CASH" ? (
         <div className="flex flex-col gap-2">
           <label htmlFor={cashFieldId} className="kicker">
-            รับเงินมา
+            Cash received
           </label>
           <input
             id={cashFieldId}
@@ -124,9 +124,9 @@ export function PaymentPanel({
 
           {/* เงินทอนต้องใหญ่และอ่านได้จากระยะที่ลูกค้ายืนอยู่ — เป็นตัวเลขที่ทั้งสองฝ่ายต้องเห็นตรงกัน */}
           <div className="flex items-baseline justify-between gap-3 border-t-2 border-[var(--color-text)] pt-3">
-            <span className="kicker">เงินทอน</span>
+            <span className="kicker">Change</span>
             <span className="display text-[26px] tabular-nums">
-              {change === null ? "—" : change < 0 ? "ยังไม่พอ" : formatMoney(change, currency)}
+              {change === null ? "—" : change < 0 ? "Not enough" : formatMoney(change, currency)}
             </span>
           </div>
         </div>
@@ -141,11 +141,11 @@ export function PaymentPanel({
       ) : null}
 
       <SubmitButton
-        pendingLabel="กำลังปิดบิล…"
+        pendingLabel="Closing bill…"
         className="btn btn-primary btn-block display h-14 text-[17px]"
         disabled={method === "CASH" && (received === null || received < grandTotal)}
       >
-        ยืนยันรับเงิน {formatMoney(grandTotal, currency)}
+        Confirm payment of {formatMoney(grandTotal, currency)}
       </SubmitButton>
     </form>
   );
@@ -186,7 +186,7 @@ function MethodButton({
 function QrPlaceholder({ amount, currency }: { amount: number; currency: Currency }) {
   return (
     <div className="flex flex-col items-center gap-3 border-2 border-dashed border-[var(--color-text)] p-5 text-center">
-      <span className="tag tag-accent">โหมดสาธิต · สแกนไม่ได้จริง</span>
+      <span className="tag tag-accent">Demo mode · not a real scannable code</span>
 
       <div
         aria-hidden
@@ -197,7 +197,7 @@ function QrPlaceholder({ amount, currency }: { amount: number; currency: Currenc
 
       <p className="display text-[22px] tabular-nums">{formatMoney(amount, currency)}</p>
       <p className="text-[13px] text-[var(--color-neutral-700)]">
-        ระบบนี้ยังไม่ได้ต่อกับธนาคาร — กดยืนยันเมื่อได้รับเงินแล้วเท่านั้น
+        Not connected to a bank yet — only confirm once payment has actually been received.
       </p>
     </div>
   );
