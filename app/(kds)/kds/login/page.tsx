@@ -29,24 +29,24 @@ export default async function KdsLoginPage() {
     <main className="grid flex-1 grid-cols-1 xl:grid-cols-[1fr_620px]">
       <div className="flex min-w-0 flex-col justify-between gap-10 border-b-2 border-[var(--color-text)] p-6 sm:p-10 xl:border-r-2 xl:border-b-0 xl:p-16">
         <div className="flex flex-col gap-4">
-          <p className="kicker kicker-accent">จอครัว · สถานีทั้งหมด</p>
+          <p className="kicker kicker-accent">Kitchen display · all stations</p>
           <p className="display text-[40px] leading-[0.92] tracking-[-0.03em] sm:text-[56px] xl:text-[76px]">
             KITCHEN
             <br />
             DISPLAY
           </p>
           <p className="max-w-[420px] leading-relaxed text-[var(--color-neutral-700)]">
-            ใส่ PIN เพื่อเปิดจอ ออร์เดอร์จะวิ่งเข้ามาเองไม่ต้องกดโหลดใหม่
-            และทุกครั้งที่กดรับงานหรือทำเสร็จ จะถูกบันทึกเวลาไว้ในชื่อของคุณ
+            Enter your PIN to open the display. Orders arrive automatically —
+            every time you accept or finish an item, it&apos;s timestamped under your name.
           </p>
         </div>
 
         <div className="flex flex-col gap-3">
           <div className="rule" />
           <div className="kicker flex flex-wrap justify-between gap-3">
-            <span>รหัส / PIN สำหรับ dev (4 หลัก)</span>
-            <span>004 · 4567 ครัว</span>
-            <span>001 · 1234 เจ้าของร้าน</span>
+            <span>Dev staff code / PIN (4 digits)</span>
+            <span>004 · 4567 Kitchen</span>
+            <span>001 · 1234 Owner</span>
           </div>
         </div>
       </div>

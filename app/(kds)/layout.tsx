@@ -66,13 +66,13 @@ export default async function KdsLayout({
           */}
           {canAccessScreen(staff.role, "pos") && (
             <Link href="/pos" className="btn btn-secondary h-[38px] flex-none whitespace-nowrap">
-              หน้าร้าน
+              POS
             </Link>
           )}
 
           <form action={kdsLogoutAction} className="flex-none">
             <button type="submit" className="btn btn-secondary h-[38px] whitespace-nowrap">
-              ล็อกจอ
+              Lock screen
             </button>
           </form>
         </div>

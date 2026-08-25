@@ -46,7 +46,7 @@ export function Elapsed({
 
   return (
     <span className={minutes >= LATE_AFTER_MINUTES ? "text-[var(--color-accent)]" : undefined}>
-      {minutes < 1 ? "เพิ่งเข้า" : `${minutes} นาที`}
+      {minutes < 1 ? "Just now" : `${minutes} min`}
     </span>
   );
 }

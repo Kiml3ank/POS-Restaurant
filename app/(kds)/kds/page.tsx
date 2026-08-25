@@ -53,12 +53,12 @@ export default async function KdsPage({
   return (
     <main className="flex min-h-0 flex-1 flex-col">
       <nav
-        aria-label="สถานีครัว"
+        aria-label="Kitchen stations"
         className="ink-row flex-none overflow-x-auto border-x-0 border-t-0"
       >
         <StationTab
           href="/kds"
-          label="ทุกสถานี"
+          label="All stations"
           count={stations.reduce((sum, item) => sum + item.queued + item.cooking, 0)}
           active={activeStation === null}
         />
@@ -76,12 +76,12 @@ export default async function KdsPage({
 
       {tickets.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center">
-          <p className="display text-[32px]">ไม่มีออร์เดอร์ค้าง</p>
+          <p className="display text-[32px]">No orders pending</p>
           <p className="text-[var(--color-neutral-700)]">
             {activeStation
-              ? `${activeStation.name} เคลียร์หมดแล้ว`
-              : "ทุกสถานีเคลียร์หมดแล้ว"}{" "}
-            · ออร์เดอร์ใหม่จะขึ้นเองไม่ต้องกดโหลด
+              ? `${activeStation.name} is all clear`
+              : "All stations are clear"}{" "}
+            · New orders appear automatically
           </p>
         </div>
       ) : (
@@ -185,7 +185,7 @@ function TicketCard({
           <span className="display truncate text-[22px]">
             {ticket.table
               ? salePointDisplayName(ticket.table, ticket.tableSession)
-              : "กลับบ้าน"}
+              : "Delivery"}
           </span>
           <span className="kicker truncate">#{dailyOrderNumber(ticket.orderNumber)}</span>
         </div>
@@ -195,14 +195,14 @@ function TicketCard({
             <Elapsed since={queuedAt} initialMinutes={minutes} />
           </span>
           <span className="kicker">
-            {ticket.channel === "CUSTOMER_QR" ? "ลูกค้าสั่งเอง" : "พนักงานสั่ง"}
+            {ticket.channel === "CUSTOMER_QR" ? "Customer order" : "Staff order"}
           </span>
         </div>
       </header>
 
       {ticket.note ? (
         <p className="flex-none border-b-2 border-[var(--color-text)] bg-[var(--color-accent-100)] px-4 py-2 text-[14px] text-[var(--color-accent-800)]">
-          หมายเหตุทั้งบิล: {ticket.note}
+          Order note: {ticket.note}
         </p>
       ) : null}
 
@@ -255,8 +255,8 @@ function TicketCard({
             stationId={stationId}
             label={
               allPlaced
-                ? `รับทั้งใบ (${pending.length} รายการ)`
-                : `ทำเสร็จทั้งใบ (${pending.length} รายการ)`
+                ? `Accept all (${pending.length} items)`
+                : `Mark all done (${pending.length} items)`
             }
           />
         </footer>

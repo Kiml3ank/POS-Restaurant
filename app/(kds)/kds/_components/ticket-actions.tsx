@@ -83,7 +83,7 @@ export function ServeItemButton({
         disabled={disabled}
         className="btn btn-secondary h-11 min-w-[110px] text-[15px] sm:min-w-[132px]"
       >
-        ยกไปเสิร์ฟแล้ว
+        Served
       </SubmitButton>
 
       {state.status === "error" ? (
@@ -124,7 +124,7 @@ export function BumpTicketButton({
       <input type="hidden" name="stationId" value={stationId ?? ""} />
 
       <SubmitButton
-        pendingLabel="กำลังอัปเดต..."
+        pendingLabel="Updating..."
         disabled={disabled}
         className="btn btn-primary btn-block h-12 text-[15px]"
       >

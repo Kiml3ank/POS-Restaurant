@@ -11,11 +11,11 @@ import type { StaffRole } from "@/lib/generated/prisma/enums";
  */
 
 export const STAFF_ROLE_LABEL: Record<StaffRole, string> = {
-  OWNER: "เจ้าของร้าน",
-  MANAGER: "ผู้จัดการ",
-  CASHIER: "แคชเชียร์",
-  SERVER: "พนักงานเสิร์ฟ",
-  KITCHEN: "ครัว",
+  OWNER: "Owner",
+  MANAGER: "Manager",
+  CASHIER: "Cashier",
+  SERVER: "Server",
+  KITCHEN: "Kitchen",
 };
 
 /** หน้าจอที่มีการจำกัดสิทธิ์ */

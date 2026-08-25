@@ -21,7 +21,7 @@ import { getCurrentStaff, loginStaff, logoutStaff } from "@/lib/server/staff-ses
 
 const NOT_SIGNED_IN: FormState = {
   status: "error",
-  message: "เซสชันหมดอายุ กรุณาใส่ PIN ใหม่",
+  message: "Session expired — please enter your PIN again",
 };
 
 async function requireKdsStaff() {
@@ -53,7 +53,7 @@ export async function kdsLoginAction(
     // ต้อง logout ทิ้งด้วย ไม่ใช่แค่คืน error — ไม่งั้น cookie ที่เพิ่งออกให้จะค้าง
     // อยู่แล้วคนคนนั้นเดินไปเปิด /pos ต่อได้เลยโดยไม่ต้องใส่ PIN ใหม่
     await logoutStaff("kds");
-    return { status: "error", message: "ตำแหน่งของคุณไม่มีสิทธิ์เข้าจอครัว" };
+    return { status: "error", message: "Your role can't access the kitchen display" };
   }
 
   redirect("/kds");
@@ -91,9 +91,9 @@ export async function advanceItemAction(
   refresh();
 
   return result.changed > 0
-    ? { status: "success", message: "อัปเดตแล้ว" }
+    ? { status: "success", message: "Updated" }
     : // changed = 0 แปลว่าอีกจอกดไปก่อนแล้ว ซึ่งคือผลลัพธ์ที่ต้องการอยู่ดี
-      { status: "success", message: "รายการนี้ถูกอัปเดตไปแล้ว" };
+      { status: "success", message: "This item was already updated" };
 }
 
 /** บั๊มทั้งใบ — ดันทุกรายการของสถานีนี้ในบิลเดียวกันไปขั้นถัดไปพร้อมกัน */
@@ -122,7 +122,7 @@ export async function advanceTicketAction(
 
   refresh();
 
-  return { status: "success", message: `อัปเดต ${result.changed} รายการ` };
+  return { status: "success", message: `Updated ${result.changed} item(s)` };
 }
 
 /** พนักงานเสิร์ฟกด "ยกไปเสิร์ฟแล้ว" (READY → SERVED) */
@@ -144,5 +144,5 @@ export async function serveItemAction(
 
   refresh();
 
-  return { status: "success", message: "เสิร์ฟแล้ว" };
+  return { status: "success", message: "Served" };
 }

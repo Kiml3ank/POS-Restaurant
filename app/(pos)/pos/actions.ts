@@ -33,7 +33,7 @@ import { getCurrentStaff, loginStaff, logoutStaff } from "@/lib/server/staff-ses
 
 const NOT_SIGNED_IN: FormState = {
   status: "error",
-  message: "เซสชันหมดอายุ กรุณาใส่ PIN ใหม่",
+  message: "Session expired — please enter your PIN again",
 };
 
 async function requirePosStaff() {
@@ -479,7 +479,7 @@ export async function posPrintReceiptAction(
   const staff = await requirePosStaff();
 
   if (!staff) {
-    return { ok: false, error: "เซสชันหมดอายุ กรุณาใส่ PIN ใหม่" };
+    return { ok: false, error: "Session expired — please enter your PIN again" };
   }
 
   const result = await recordReceiptPrint(staff, receiptId);
