@@ -120,7 +120,7 @@ export async function addToCart(input: AddToCartInput): Promise<CartResult<undef
   const quantity = Math.trunc(input.quantity);
 
   if (!Number.isFinite(quantity) || quantity < 1 || quantity > 99) {
-    return { ok: false, error: "จำนวนต้องอยู่ระหว่าง 1 ถึง 99" };
+    return { ok: false, error: "Quantity must be between 1 and 99" };
   }
 
   const menuItem = await prisma.menuItem.findFirst({
@@ -143,7 +143,7 @@ export async function addToCart(input: AddToCartInput): Promise<CartResult<undef
   });
 
   if (!menuItem) {
-    return { ok: false, error: "เมนูนี้ปิดการขายแล้ว กรุณาเลือกรายการอื่น" };
+    return { ok: false, error: "This item is no longer available — please choose something else" };
   }
 
   const remaining = new Set(input.modifierIds);
@@ -154,15 +154,15 @@ export async function addToCart(input: AddToCartInput): Promise<CartResult<undef
     const picked = group.modifiers.filter((modifier) => remaining.has(modifier.id));
 
     if (group.required && picked.length < Math.max(group.minSelect, 1)) {
-      return { ok: false, error: `กรุณาเลือก "${group.name}" ก่อน` };
+      return { ok: false, error: `Please choose "${group.name}" first` };
     }
 
     if (picked.length < group.minSelect) {
-      return { ok: false, error: `"${group.name}" ต้องเลือกอย่างน้อย ${group.minSelect} อย่าง` };
+      return { ok: false, error: `"${group.name}" needs at least ${group.minSelect} option(s)` };
     }
 
     if (picked.length > group.maxSelect) {
-      return { ok: false, error: `"${group.name}" เลือกได้ไม่เกิน ${group.maxSelect} อย่าง` };
+      return { ok: false, error: `"${group.name}" allows at most ${group.maxSelect} option(s)` };
     }
 
     for (const modifier of picked) {
@@ -173,7 +173,7 @@ export async function addToCart(input: AddToCartInput): Promise<CartResult<undef
 
   // ยังเหลือค้างใน set = ส่ง id ที่ไม่ใช่ตัวเลือกของเมนูนี้ (หรือของหมดไปแล้ว) เข้ามา
   if (remaining.size > 0) {
-    return { ok: false, error: "ตัวเลือกที่ส่งมาไม่ตรงกับเมนูนี้ กรุณาลองใหม่" };
+    return { ok: false, error: "The selected options don't match this item — please try again" };
   }
 
   const note = normalizeNote(input.note);
@@ -262,7 +262,7 @@ export async function setCartLineQuantity(
   const next = Math.trunc(quantity);
 
   if (!Number.isFinite(next) || next < 0 || next > 99) {
-    return { ok: false, error: "จำนวนต้องอยู่ระหว่าง 0 ถึง 99" };
+    return { ok: false, error: "Quantity must be between 0 and 99" };
   }
 
   const line = await prisma.orderItem.findFirst({
@@ -275,7 +275,7 @@ export async function setCartLineQuantity(
   });
 
   if (!line) {
-    return { ok: false, error: "ไม่พบรายการนี้ในตะกร้า อาจถูกส่งเข้าครัวไปแล้ว" };
+    return { ok: false, error: "Item not found in the cart — it may already have been sent to the kitchen" };
   }
 
   await prisma.$transaction(async (tx) => {
@@ -326,7 +326,7 @@ export async function placeOrder(
   }
 
   if (cart.items.length === 0) {
-    return { ok: false, error: "ตะกร้าว่างอยู่ กรุณาเลือกเมนูก่อน" };
+    return { ok: false, error: "Cart is empty — please choose an item first" };
   }
 
   const placedAt = new Date();

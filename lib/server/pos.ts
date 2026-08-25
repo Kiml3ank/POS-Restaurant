@@ -279,11 +279,11 @@ export async function openSalePointSession(staff: CurrentStaff, tableId: string)
   });
 
   if (!table) {
-    return { ok: false as const, error: "ไม่พบจุดขายนี้ในสาขาของคุณ" };
+    return { ok: false as const, error: "Sale point not found in your branch" };
   }
 
   if (table.kind === "DINE_IN") {
-    return { ok: false as const, error: "จุดขายนี้เป็นโต๊ะนั่ง ให้เปิดโต๊ะจากผังโต๊ะแทน" };
+    return { ok: false as const, error: "This sale point is a dine-in table — open it from the table map instead" };
   }
 
   const session = await openOrJoinTableSession({
@@ -333,11 +333,11 @@ export async function setSessionCustomerName(
   });
 
   if (!session) {
-    return { ok: false as const, error: "ไม่พบบิลที่เปิดอยู่ใบนี้ในสาขาของคุณ" };
+    return { ok: false as const, error: "Open bill not found in your branch" };
   }
 
   if (!needsQueueNumber(session.table.kind)) {
-    return { ok: false as const, error: "บิลของโต๊ะนั่งใช้ชื่อโต๊ะเรียกอยู่แล้ว" };
+    return { ok: false as const, error: "Dine-in bills are already identified by table name" };
   }
 
   const name = rawName.trim();
@@ -345,7 +345,7 @@ export async function setSessionCustomerName(
   if (name.length > CUSTOMER_NAME_MAX_LENGTH) {
     return {
       ok: false as const,
-      error: `ชื่อลูกค้ายาวเกิน ${CUSTOMER_NAME_MAX_LENGTH} ตัวอักษร`,
+      error: `Customer name is longer than ${CUSTOMER_NAME_MAX_LENGTH} characters`,
     };
   }
 
@@ -407,7 +407,7 @@ async function buildPosDetail(
 /** เปิดโต๊ะให้ลูกค้าจากเครื่อง POS (หรือเข้าร่วมรอบที่เปิดค้างอยู่) */
 export async function openTableByStaff(staff: CurrentStaff, tableId: string, pax: number) {
   if (!Number.isFinite(pax) || pax < 1 || pax > 50) {
-    return { ok: false as const, error: "จำนวนลูกค้าต้องอยู่ระหว่าง 1 ถึง 50 คน" };
+    return { ok: false as const, error: "Party size must be between 1 and 50" };
   }
 
   const table = await prisma.restaurantTable.findFirst({
@@ -415,7 +415,7 @@ export async function openTableByStaff(staff: CurrentStaff, tableId: string, pax
   });
 
   if (!table) {
-    return { ok: false as const, error: "ไม่พบโต๊ะนี้ในสาขาของคุณ" };
+    return { ok: false as const, error: "Table not found in your branch" };
   }
 
   const session = await openOrJoinTableSession({
@@ -445,7 +445,7 @@ export async function closeTableSession(staff: CurrentStaff, sessionId: string, 
   const note = reason.trim();
 
   if (note.length < 3) {
-    return { ok: false as const, error: "กรุณากรอกเหตุผลอย่างน้อย 3 ตัวอักษร" };
+    return { ok: false as const, error: "Enter a reason of at least 3 characters" };
   }
 
   const session = await prisma.tableSession.findFirst({
@@ -454,7 +454,7 @@ export async function closeTableSession(staff: CurrentStaff, sessionId: string, 
   });
 
   if (!session) {
-    return { ok: false as const, error: "ไม่พบรอบโต๊ะที่เปิดอยู่" };
+    return { ok: false as const, error: "No open table session found" };
   }
 
   const sentToKitchen = session.orders.filter((order) => order.status !== "DRAFT");
@@ -462,7 +462,7 @@ export async function closeTableSession(staff: CurrentStaff, sessionId: string, 
   if (sentToKitchen.length > 0) {
     return {
       ok: false as const,
-      error: "โต๊ะนี้มีบิลที่ส่งเข้าครัวแล้ว ต้องรับเงินปิดบิลที่หน้าคิดเงินก่อน",
+      error: "This table has orders already sent to the kitchen — take payment on the billing screen first",
     };
   }
 
@@ -512,13 +512,13 @@ export async function cancelOrderItemByStaff(
   reason: string,
 ) {
   if (!canCancelOrderItem(staff.role)) {
-    return { ok: false as const, error: "ตำแหน่งของคุณไม่มีสิทธิ์ยกเลิกรายการ กรุณาเรียกผู้จัดการ" };
+    return { ok: false as const, error: "Your role can't cancel items — please call a manager" };
   }
 
   const note = reason.trim();
 
   if (note.length < 3) {
-    return { ok: false as const, error: "กรุณากรอกเหตุผลอย่างน้อย 3 ตัวอักษร" };
+    return { ok: false as const, error: "Enter a reason of at least 3 characters" };
   }
 
   const item = await prisma.orderItem.findFirst({
@@ -527,11 +527,11 @@ export async function cancelOrderItemByStaff(
   });
 
   if (!item) {
-    return { ok: false as const, error: "ไม่พบรายการนี้ หรือถูกยกเลิกไปแล้ว" };
+    return { ok: false as const, error: "Item not found, or already cancelled" };
   }
 
   if (item.order.status === "PAID") {
-    return { ok: false as const, error: "บิลนี้จ่ายเงินแล้ว ยกเลิกรายการไม่ได้" };
+    return { ok: false as const, error: "This bill has already been paid — can't cancel items" };
   }
 
   await prisma.$transaction(async (tx) => {

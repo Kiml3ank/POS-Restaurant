@@ -47,7 +47,7 @@ export async function setStaffMeal(
 ): Promise<StaffMealResult> {
   // การซ่อนปุ่มไม่ใช่การกันสิทธิ์ — action ถูกยิงตรงด้วย POST ได้
   if (!canSetStaffMeal(staff.role)) {
-    return { ok: false, error: "ตำแหน่งของคุณติดธงส่วนลดพนักงานไม่ได้" };
+    return { ok: false, error: "Your role can't flag the staff meal discount" };
   }
 
   const table = await prisma.restaurantTable.findFirst({
@@ -56,7 +56,7 @@ export async function setStaffMeal(
   });
 
   if (!table) {
-    return { ok: false, error: "ไม่พบโต๊ะนี้ในสาขาของคุณ" };
+    return { ok: false, error: "Table not found in your branch" };
   }
 
   /**
@@ -71,7 +71,7 @@ export async function setStaffMeal(
   });
 
   if (!customer) {
-    return { ok: false, error: "ไม่พบพนักงานคนนี้ หรือบัญชีถูกปิดใช้งานแล้ว" };
+    return { ok: false, error: "Staff member not found, or the account is deactivated" };
   }
 
   const ipAddress = await clientIp();
@@ -86,7 +86,7 @@ export async function setStaffMeal(
     });
 
     if (!session) {
-      return { kind: "error" as const, error: "โต๊ะนี้ไม่มีรอบที่เปิดอยู่" };
+      return { kind: "error" as const, error: "This table has no open session" };
     }
 
     /**
@@ -113,7 +113,7 @@ export async function setStaffMeal(
     if (otherOpen) {
       return {
         kind: "error" as const,
-        error: `${customer.name} มีบิลที่ยังไม่ปิดอยู่ที่โต๊ะ ${otherOpen.table.name} แล้ว — ปิดบิลนั้นก่อน`,
+        error: `${customer.name} already has an open bill at table ${otherOpen.table.name} — close that one first`,
       };
     }
 
@@ -176,7 +176,7 @@ export async function clearStaffMeal(
   sessionId?: string,
 ): Promise<StaffMealResult> {
   if (!canSetStaffMeal(staff.role)) {
-    return { ok: false, error: "ตำแหน่งของคุณปลดธงส่วนลดพนักงานไม่ได้" };
+    return { ok: false, error: "Your role can't clear the staff meal discount" };
   }
 
   const table = await prisma.restaurantTable.findFirst({
@@ -185,7 +185,7 @@ export async function clearStaffMeal(
   });
 
   if (!table) {
-    return { ok: false, error: "ไม่พบโต๊ะนี้ในสาขาของคุณ" };
+    return { ok: false, error: "Table not found in your branch" };
   }
 
   const ipAddress = await clientIp();
@@ -199,7 +199,7 @@ export async function clearStaffMeal(
   });
 
   if (!session) {
-    return { ok: false, error: "โต๊ะนี้ไม่มีรอบที่เปิดอยู่" };
+    return { ok: false, error: "This table has no open session" };
   }
 
   if (!session.staffCustomerId) {

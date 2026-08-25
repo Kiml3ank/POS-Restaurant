@@ -192,7 +192,7 @@ export async function advanceKitchenItem(
   orderItemId: string,
 ): Promise<KitchenResult> {
   if (!canCookOrderItem(staff.role)) {
-    return { ok: false, error: "ปุ่มนี้เป็นของครัว ตำแหน่งของคุณกดแทนไม่ได้" };
+    return { ok: false, error: "This button belongs to the kitchen — your role can't press it on their behalf" };
   }
 
   const item = await prisma.orderItem.findFirst({
@@ -201,7 +201,7 @@ export async function advanceKitchenItem(
   });
 
   if (!item) {
-    return { ok: false, error: "ไม่พบรายการนี้ในสาขาของคุณ" };
+    return { ok: false, error: "Item not found in your branch" };
   }
 
   if (!isKitchenActionable(item.status)) {
@@ -234,7 +234,7 @@ export async function advanceKitchenTicket(
   stationId: string | null,
 ): Promise<KitchenResult> {
   if (!canCookOrderItem(staff.role)) {
-    return { ok: false, error: "ปุ่มนี้เป็นของครัว ตำแหน่งของคุณกดแทนไม่ได้" };
+    return { ok: false, error: "This button belongs to the kitchen — your role can't press it on their behalf" };
   }
 
   const order = await prisma.order.findFirst({
@@ -253,7 +253,7 @@ export async function advanceKitchenTicket(
   });
 
   if (!order) {
-    return { ok: false, error: "ไม่พบบิลนี้ในสาขาของคุณ" };
+    return { ok: false, error: "Bill not found in your branch" };
   }
 
   if (order.items.length === 0) {
@@ -292,7 +292,7 @@ export async function serveOrderItem(
   orderItemId: string,
 ): Promise<KitchenResult> {
   if (!canServeOrderItem(staff.role)) {
-    return { ok: false, error: "ตำแหน่งของคุณไม่มีสิทธิ์กดเสิร์ฟ" };
+    return { ok: false, error: "Your role can't mark items as served" };
   }
 
   const item = await prisma.orderItem.findFirst({
@@ -301,7 +301,7 @@ export async function serveOrderItem(
   });
 
   if (!item) {
-    return { ok: false, error: "ไม่พบรายการนี้ในสาขาของคุณ" };
+    return { ok: false, error: "Item not found in your branch" };
   }
 
   if (item.status !== "READY") {

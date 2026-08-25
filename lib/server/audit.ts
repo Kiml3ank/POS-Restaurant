@@ -59,7 +59,7 @@ export async function listAuditLogs(
   filters: AuditLogFilters = {},
 ): Promise<ListAuditLogsResult> {
   if (!canReadAuditLog(staff.role)) {
-    return { ok: false, error: "ตำแหน่งของคุณไม่มีสิทธิ์อ่านบันทึกการใช้งาน" };
+    return { ok: false, error: "Your role can't read the audit log" };
   }
 
   const where: Prisma.AuditLogWhereInput = { branchId: staff.branchId };

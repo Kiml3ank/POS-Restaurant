@@ -34,7 +34,7 @@ export type DashboardResult =
 
 export async function getDashboard(staff: CurrentStaff): Promise<DashboardResult> {
   if (!canViewDashboard(staff.role)) {
-    return { ok: false, error: "ตำแหน่งของคุณไม่มีสิทธิ์ดูสรุปยอดขายของสาขา" };
+    return { ok: false, error: "Your role can't view the branch sales summary" };
   }
 
   return { ok: true, data: await buildDashboard(staff) };

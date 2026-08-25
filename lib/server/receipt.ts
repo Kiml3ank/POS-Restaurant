@@ -94,7 +94,7 @@ export async function listReceipts(
   filters: ListReceiptsFilters = {},
 ): Promise<ListReceiptsResult> {
   if (!canBrowseReceipts(staff.role)) {
-    return { ok: false, error: "ตำแหน่งของคุณไม่มีสิทธิ์ดูใบเสร็จย้อนหลังทั้งสาขา" };
+    return { ok: false, error: "Your role can't browse the branch's receipt history" };
   }
 
   const where: Prisma.ReceiptWhereInput = { branchId: staff.branchId };
@@ -203,7 +203,7 @@ export async function recordReceiptPrint(
   if (!canReprintReceipt(staff.role)) {
     return {
       ok: false,
-      error: "ตำแหน่งของคุณไม่มีสิทธิ์พิมพ์ใบเสร็จ กรุณาเรียกแคชเชียร์หรือผู้จัดการ",
+      error: "Your role can't print receipts — please call a cashier or manager",
     };
   }
 
@@ -250,7 +250,7 @@ export async function recordReceiptPrint(
   });
 
   if (!outcome) {
-    return { ok: false, error: "ไม่พบใบเสร็จนี้ในสาขาของคุณ" };
+    return { ok: false, error: "Receipt not found in your branch" };
   }
 
   return { ok: true, printCount: outcome.printCount };

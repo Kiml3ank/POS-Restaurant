@@ -129,7 +129,7 @@ export async function loginStaff(staffCode: string, pin: string, screen: StaffSc
   const code = staffCode.trim();
 
   if (!code || !pin) {
-    return { ok: false as const, error: "กรุณากรอกรหัสพนักงานและ PIN" };
+    return { ok: false as const, error: "Enter both staff code and PIN" };
   }
 
   const staff = await prisma.staff.findFirst({
@@ -139,7 +139,7 @@ export async function loginStaff(staffCode: string, pin: string, screen: StaffSc
 
   // ข้อความเดียวกันทั้งกรณีไม่มีรหัสนี้และกรณี PIN ผิด เพื่อไม่ให้ใช้หน้าล็อกอิน
   // ไล่เดาว่ารหัสพนักงานไหนมีอยู่จริง
-  const invalid = { ok: false as const, error: "รหัสพนักงานหรือ PIN ไม่ถูกต้อง" };
+  const invalid = { ok: false as const, error: "Incorrect staff code or PIN" };
 
   if (!staff) {
     return invalid;
@@ -150,7 +150,7 @@ export async function loginStaff(staffCode: string, pin: string, screen: StaffSc
   if (throttle.locked) {
     return {
       ok: false as const,
-      error: `กรอกผิดหลายครั้งเกินไป ลองใหม่ในอีก ${throttle.minutesLeft} นาที`,
+      error: `Too many failed attempts — try again in ${throttle.minutesLeft} minute(s)`,
     };
   }
 

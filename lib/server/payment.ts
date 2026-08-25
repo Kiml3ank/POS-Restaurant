@@ -76,11 +76,11 @@ export async function takePayment(
 ): Promise<TakePaymentResult> {
   // การซ่อนปุ่มบนหน้าจอไม่ใช่การกันสิทธิ์ — action ถูกยิงตรงด้วย POST ได้
   if (!canTakePayment(staff.role)) {
-    return { ok: false, error: "ตำแหน่งของคุณไม่มีสิทธิ์รับเงิน กรุณาเรียกแคชเชียร์หรือผู้จัดการ" };
+    return { ok: false, error: "Your role can't take payments — please call a cashier or manager" };
   }
 
   if (!ENABLED_METHODS.includes(input.method)) {
-    return { ok: false, error: "ยังไม่รองรับวิธีชำระเงินนี้ (บัตรต้องมีเครื่อง EDC จริง)" };
+    return { ok: false, error: "This payment method isn't supported yet (card needs a real EDC terminal)" };
   }
 
   const table = await prisma.restaurantTable.findFirst({
@@ -94,7 +94,7 @@ export async function takePayment(
   });
 
   if (!table) {
-    return { ok: false, error: "ไม่พบโต๊ะนี้ในสาขาของคุณ" };
+    return { ok: false, error: "Table not found in your branch" };
   }
 
   /**
@@ -121,7 +121,7 @@ export async function takePayment(
   if (!input.sessionId && openSessions.length > 1) {
     return {
       ok: false,
-      error: "จุดขายนี้มีบิลที่เปิดอยู่หลายใบ กรุณาเลือกบิลที่จะรับเงินให้ชัดเจน",
+      error: "This sale point has multiple open bills — please specify which one to pay",
     };
   }
 
@@ -155,7 +155,7 @@ export async function takePayment(
       return { ok: true, paymentId: recent.id, alreadyPaid: true };
     }
 
-    return { ok: false, error: "โต๊ะนี้ไม่มีรอบที่เปิดอยู่ อาจถูกปิดบิลไปแล้ว" };
+    return { ok: false, error: "This table has no open session — it may already be paid" };
   }
 
   const branch = table.branch;
@@ -215,7 +215,7 @@ export async function takePayment(
 
       return existing
         ? ({ kind: "already" as const, paymentId: existing.id })
-        : ({ kind: "error" as const, error: "รอบโต๊ะนี้ถูกปิดไปแล้วโดยไม่ได้รับเงิน" });
+        : ({ kind: "error" as const, error: "This table session was closed without a payment" });
     }
 
     const orders = await tx.order.findMany({
@@ -244,11 +244,11 @@ export async function takePayment(
     });
 
     if (draft.some((order) => order._count.items > 0)) {
-      throw new PaymentAbort("โต๊ะนี้ยังมีรายการค้างในตะกร้าที่ยังไม่ได้ส่งเข้าครัว กรุณาส่งหรือลบออกก่อนคิดเงิน");
+      throw new PaymentAbort("This table still has items in the cart that haven't been sent to the kitchen — send or remove them before taking payment");
     }
 
     if (orders.length === 0) {
-      throw new PaymentAbort("บิลนี้ไม่มีรายการให้คิดเงิน");
+      throw new PaymentAbort("This bill has no items to charge");
     }
 
     // ── คิดยอดใหม่จากของจริงใน DB ตรงนี้ ห้ามใช้ยอดที่อ่านไว้ก่อนเข้า transaction ──
@@ -258,7 +258,7 @@ export async function takePayment(
     const subtotal = orderSubtotals.reduce((sum, amount) => sum + amount, 0);
 
     if (subtotal === 0 && orders.every((order) => order.items.length === 0)) {
-      throw new PaymentAbort("บิลนี้ไม่มีรายการให้คิดเงิน (รายการถูกยกเลิกทั้งหมด)");
+      throw new PaymentAbort("This bill has no items to charge (everything was cancelled)");
     }
 
     /**
@@ -278,7 +278,7 @@ export async function takePayment(
       input.expectedTotal !== bill.grandTotal
     ) {
       throw new PaymentAbort(
-        "ยอดบิลเพิ่งเปลี่ยน (มีรายการเข้ามาใหม่หรือถูกยกเลิก) กรุณาอ่านยอดใหม่ให้ลูกค้าก่อนกดยืนยัน",
+        "The bill total just changed (an item was added or cancelled) — please re-read the total to the customer before confirming",
       );
     }
 
@@ -286,7 +286,7 @@ export async function takePayment(
     const received = isCash ? Math.trunc(input.receivedAmount ?? 0) : null;
 
     if (isCash && received !== null && received < bill.grandTotal) {
-      throw new PaymentAbort("รับเงินมาไม่พอกับยอดที่ต้องจ่าย");
+      throw new PaymentAbort("Amount received is less than the total due");
     }
 
     // เงินทอนเป็นการลบจำนวนเต็มล้วน ไม่มีการหาร/ปัดเศษที่ไหนเลย
