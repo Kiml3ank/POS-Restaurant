@@ -469,7 +469,7 @@ export async function setCustomerNameAction(
  * — ต่างกันที่ cookie ที่อ่าน (`pos` กับ `admin`) ซึ่งเป็นคนละ session คนละคนกด
  * และ AuditLog ต้องแยกออกจากกันให้ได้ว่ากดจากจอไหน การรวมเป็น action เดียว
  * แปลว่าต้องมี action ที่ยอมรับ cookie ใบไหนก็ได้ ซึ่งเป็นรูปแบบ auth แบบที่สี่
- * ที่ระบบนี้ตั้งใจไม่มี (ดู report/2026-08-23-plan-chapter-12-receipt.md §2.4)
+ * ที่ระบบนี้ตั้งใจไม่มี (ดู archive/report/2026-08-23-plan-chapter-12-receipt.md §2.4)
  *
  * ตรรกะจริงทั้งหมดอยู่ที่ recordReceiptPrint() ที่เดียว ตรงนี้เป็นแค่ด่าน session
  */

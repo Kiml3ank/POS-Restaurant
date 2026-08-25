@@ -33,7 +33,7 @@ import { openOrJoinTableSession } from "@/lib/server/table-session";
  *
  * ตัว SSE route handler ไม่ได้ทดสอบที่นี่เพราะต้องมี request context ของ Next.js
  * (เหตุผลเดียวกับที่ smoke:pos ไม่ทดสอบ loginStaff) — ทดสอบผ่าน curl แทน
- * ดูคำสั่งที่ report/2026-08-22-kds-realtime-sse.md
+ * ดูคำสั่งที่ archive/report/2026-08-22-kds-realtime-sse.md
  */
 
 const KITCHEN_TABLE_ID = "seed-table-a2";

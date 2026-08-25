@@ -77,7 +77,7 @@ export function PaymentPanel({
         ห้ามใส่ utility ที่ชนกับคลาสของ design system ตรงนี้ (`grid`, `hidden`, ฯลฯ)
         — `.pos-skin .ink-row` มี specificity 0-2-0 ซึ่งชนะ utility คลาสเดียวเสมอ
         แล้วจะได้ layout ที่ไม่ตรงกับคลาสที่เขียนไว้โดยไม่มีอะไรฟ้อง
-        (กับดักเดียวกับใน report/2026-08-22-responsive-screens.md §3.1)
+        (กับดักเดียวกับใน archive/report/2026-08-22-responsive-screens.md §3.1)
         ที่นี่จึงแบ่งครึ่งด้วย flex-1 ที่ลูกแทน
       */}
       <div className="ink-row" role="group" aria-label="วิธีชำระเงิน">
