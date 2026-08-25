@@ -60,7 +60,7 @@ export function OpenSalePointForm({ tableId, label }: { tableId: string; label: 
         </p>
       ) : null}
 
-      <SubmitButton className="btn btn-accent h-14 px-6 text-[16px]" pendingLabel="กำลังเปิดบิล…">
+      <SubmitButton className="btn btn-accent h-14 px-6 text-[16px]" pendingLabel="Opening bill…">
         {label}
       </SubmitButton>
     </form>
@@ -79,7 +79,7 @@ export function OpenTableForm({ tableId, seats }: { tableId: string; seats: numb
       <input type="hidden" name="tableId" value={tableId} />
 
       <label htmlFor={`pax-${tableId}`} className="kicker">
-        จำนวนลูกค้า
+        Number of guests
       </label>
       <select
         id={`pax-${tableId}`}
@@ -89,7 +89,7 @@ export function OpenTableForm({ tableId, seats }: { tableId: string; seats: numb
       >
         {Array.from({ length: 20 }, (_, index) => index + 1).map((pax) => (
           <option key={pax} value={pax}>
-            {pax} คน
+            {pax} guests
           </option>
         ))}
       </select>
@@ -101,10 +101,10 @@ export function OpenTableForm({ tableId, seats }: { tableId: string; seats: numb
       ) : null}
 
       <SubmitButton
-        pendingLabel="กำลังเปิดโต๊ะ..."
+        pendingLabel="Opening table..."
         className="btn btn-primary btn-block h-14 text-base"
       >
-        เปิดโต๊ะ
+        Open table
       </SubmitButton>
     </form>
   );
@@ -123,7 +123,7 @@ export function CloseTableForm({ sessionId }: { sessionId: string }) {
   return (
     <details className="panel p-4">
       <summary className="kicker cursor-pointer">
-        ปิดรอบโต๊ะโดยไม่คิดเงิน (เปิดผิดใบ / ลูกค้าลุกไปก่อนสั่ง)
+        Close table without payment (opened wrong table / customer left before ordering)
       </summary>
 
       <form action={formAction} className="flex flex-col gap-3 pt-4">
@@ -134,7 +134,7 @@ export function CloseTableForm({ sessionId }: { sessionId: string }) {
           required
           minLength={3}
           maxLength={200}
-          placeholder="เหตุผล เช่น เปิดโต๊ะผิดใบ"
+          placeholder="e.g. opened the wrong table"
           className="input h-12"
         />
 
@@ -144,8 +144,8 @@ export function CloseTableForm({ sessionId }: { sessionId: string }) {
           </p>
         ) : null}
 
-        <SubmitButton pendingLabel="กำลังปิดรอบ..." className="btn btn-secondary h-12">
-          ยืนยันปิดรอบ
+        <SubmitButton pendingLabel="Closing..." className="btn btn-secondary h-12">
+          Confirm close
         </SubmitButton>
       </form>
     </details>
@@ -179,13 +179,13 @@ export function CustomerNameForm({
   return (
     <form action={formAction} className="panel flex flex-col gap-3 p-4">
       <label className="flex flex-col gap-1">
-        <span className="kicker">ชื่อลูกค้า (ไม่บังคับ — ใช้เรียกตอนของเสร็จ)</span>
+        <span className="kicker">Customer name (optional — used when calling the order)</span>
         <input
           name="customerName"
           type="text"
           defaultValue={customerName ?? ""}
           maxLength={maxLength}
-          placeholder="เช่น คุณนัท"
+          placeholder="e.g. Nat"
           className="input h-12"
         />
       </label>
@@ -199,8 +199,8 @@ export function CustomerNameForm({
       ) : null}
       {state.status === "success" ? <p className="kicker">{state.message}</p> : null}
 
-      <SubmitButton pendingLabel="กำลังบันทึก..." className="btn btn-secondary h-12">
-        บันทึกชื่อ
+      <SubmitButton pendingLabel="Saving..." className="btn btn-secondary h-12">
+        Save name
       </SubmitButton>
     </form>
   );
@@ -246,7 +246,7 @@ export function MoveTableForm({
 
   return (
     <details className="panel p-4">
-      <summary className="kicker cursor-pointer">ย้ายโต๊ะ / รวมบิลกับโต๊ะอื่น</summary>
+      <summary className="kicker cursor-pointer">Move table / merge with another table</summary>
 
       <div className="flex flex-col gap-4 pt-4">
         {moveState.status === "error" ? (
@@ -261,11 +261,11 @@ export function MoveTableForm({
         ) : null}
 
         <div className="flex flex-col gap-2">
-          <p className="kicker">ย้ายทั้งบิลไปโต๊ะว่าง</p>
+          <p className="kicker">Move the whole bill to an empty table</p>
 
           {free.length === 0 ? (
             <p className="text-[14px] text-[var(--color-neutral-700)]">
-              ตอนนี้ไม่มีโต๊ะว่างในสาขา
+              No empty tables in this branch right now.
             </p>
           ) : (
             <div className="flex flex-wrap gap-2">
@@ -274,8 +274,8 @@ export function MoveTableForm({
                   <input type="hidden" name="sessionId" value={sessionId} />
                   <input type="hidden" name="targetTableId" value={target.id} />
 
-                  <SubmitButton pendingLabel="กำลังย้าย..." className="btn btn-secondary h-11 px-4">
-                    ย้ายไป {target.name}
+                  <SubmitButton pendingLabel="Moving..." className="btn btn-secondary h-11 px-4">
+                    Move to {target.name}
                   </SubmitButton>
                 </form>
               ))}
@@ -286,17 +286,17 @@ export function MoveTableForm({
         <div className="rule" />
 
         <div className="flex flex-col gap-2">
-          <p className="kicker">รวมบิลนี้เข้ากับโต๊ะที่มีคนนั่งอยู่</p>
+          <p className="kicker">Merge this bill with an occupied table</p>
 
           {occupied.length === 0 ? (
             <p className="text-[14px] text-[var(--color-neutral-700)]">
-              ตอนนี้ไม่มีโต๊ะอื่นที่เปิดบิลอยู่
+              No other tables have an open bill right now.
             </p>
           ) : (
             occupied.map((target) => (
               <details key={target.id} className="border-2 border-[var(--color-text)] p-3">
                 <summary className="cursor-pointer text-[15px]">
-                  รวมกับ {target.name} · {formatMoney(target.total, currency)}
+                  Merge with {target.name} · {formatMoney(target.total, currency)}
                 </summary>
 
                 <form action={mergeAction} className="flex flex-col gap-3 pt-3">
@@ -304,21 +304,21 @@ export function MoveTableForm({
                   <input type="hidden" name="targetSessionId" value={target.sessionId} />
 
                   <p className="text-[14px] leading-relaxed">
-                    บิลนี้ {formatMoney(currentTotal, currency)} จะถูกย้ายไปรวมกับโต๊ะ{" "}
-                    {target.name} {formatMoney(target.total, currency)} —{" "}
+                    This bill ({formatMoney(currentTotal, currency)}) will be merged into table{" "}
+                    {target.name} ({formatMoney(target.total, currency)}) —{" "}
                     {/* ยอดจริงคิดใหม่ครั้งเดียวบนยอดรวมตอนคิดเงิน ตัวเลขนี้จึงเป็นค่าประมาณ */}
-                    ยอดหลังรวมประมาณ{" "}
+                    the merged total will be approximately{" "}
                     <strong>{formatMoney(currentTotal + target.total, currency)}</strong>{" "}
                     <br />
-                    หลังรวมแล้ว <strong>แยกกลับเป็นสองบิลไม่ได้</strong> และคนที่นั่งโต๊ะนี้จะจ่าย
-                    รวมกับโต๊ะ {target.name}
+                    Once merged, <strong>it can&apos;t be split back into two bills</strong> — guests at
+                    this table will pay together with table {target.name}.
                   </p>
 
                   <SubmitButton
-                    pendingLabel="กำลังรวมบิล..."
+                    pendingLabel="Merging..."
                     className="btn btn-primary h-12 self-start px-5"
                   >
-                    ยืนยันรวมกับ {target.name}
+                    Confirm merge with {target.name}
                   </SubmitButton>
                 </form>
               </details>
@@ -348,7 +348,7 @@ export function ServeItemForm({ orderItemId }: { orderItemId: string }) {
       <input type="hidden" name="orderItemId" value={orderItemId} />
 
       <SubmitButton pendingLabel="..." className="btn btn-secondary h-9 whitespace-nowrap">
-        เสิร์ฟแล้ว
+        Served
       </SubmitButton>
 
       {state.status === "error" ? (
@@ -368,7 +368,7 @@ export function CancelItemForm({ orderItemId }: { orderItemId: string }) {
 
   return (
     <details className="mt-1">
-      <summary className="kicker kicker-accent cursor-pointer">ยกเลิกรายการนี้</summary>
+      <summary className="kicker kicker-accent cursor-pointer">Cancel this item</summary>
 
       <form action={formAction} className="flex flex-col gap-2 pt-2">
         <input type="hidden" name="orderItemId" value={orderItemId} />
@@ -378,7 +378,7 @@ export function CancelItemForm({ orderItemId }: { orderItemId: string }) {
           required
           minLength={3}
           maxLength={200}
-          placeholder="เหตุผล เช่น ลูกค้าเปลี่ยนใจ / ของหมด"
+          placeholder="e.g. customer changed their mind / out of stock"
           className="input"
         />
 
@@ -388,8 +388,8 @@ export function CancelItemForm({ orderItemId }: { orderItemId: string }) {
           </p>
         ) : null}
 
-        <SubmitButton pendingLabel="กำลังยกเลิก..." className="btn btn-secondary h-10 self-start">
-          ยืนยันยกเลิก
+        <SubmitButton pendingLabel="Cancelling..." className="btn btn-secondary h-10 self-start">
+          Confirm cancel
         </SubmitButton>
       </form>
     </details>
@@ -430,7 +430,7 @@ export function PosLineControls({
           pendingLabel="…"
           className={quantity === 1 ? "text-[13px]" : undefined}
         >
-          {quantity === 1 ? "ลบ" : "−"}
+          {quantity === 1 ? "Remove" : "−"}
         </SubmitButton>
       </form>
 
@@ -478,7 +478,7 @@ export function PosPlaceOrderForm({
       ) : null}
 
       <SubmitButton
-        pendingLabel="กำลังส่งเข้าครัว..."
+        pendingLabel="Sending to kitchen..."
         disabled={itemCount === 0}
         className="btn btn-primary btn-block h-[52px] text-base"
       >

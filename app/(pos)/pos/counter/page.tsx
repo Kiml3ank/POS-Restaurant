@@ -46,9 +46,9 @@ export default async function PosCounterQueuePage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-2">
           <p className="kicker kicker-accent">
-            {readyCount > 0 ? `มีของพร้อมให้ลูกค้ารับ ${readyCount} คิว` : "ไม่มีของค้างรอลูกค้ารับ"}
+            {readyCount > 0 ? `${readyCount} order(s) ready for pickup` : "Nothing waiting for pickup"}
           </p>
-          <h1 className="display text-[28px] lg:text-[40px]">ซื้อกลับ</h1>
+          <h1 className="display text-[28px] lg:text-[40px]">Takeaway</h1>
         </div>
 
         <div className="flex flex-wrap items-end gap-4 lg:gap-8">
@@ -57,12 +57,12 @@ export default async function PosCounterQueuePage() {
           <LiveRefresh src="/api/realtime" className="text-[var(--color-accent-700)]" />
 
           <div className="flex flex-col gap-1">
-            <span className="kicker">บิลที่เปิดอยู่</span>
-            <span className="display text-[22px]">{queue.length} ใบ</span>
+            <span className="kicker">Open bills</span>
+            <span className="display text-[22px]">{queue.length}</span>
           </div>
 
           <div className="flex flex-col gap-1">
-            <span className="kicker">ยอดรวม</span>
+            <span className="kicker">Total</span>
             <span className="display text-[22px]">{formatMoney(total, currency)}</span>
           </div>
         </div>
@@ -75,16 +75,16 @@ export default async function PosCounterQueuePage() {
       */}
       <section className="panel flex flex-col gap-4 p-5">
         <div className="flex flex-col gap-1">
-          <span className="kicker kicker-accent">รับออร์เดอร์ใหม่</span>
+          <span className="kicker kicker-accent">Take a new order</span>
           <p className="text-[var(--color-neutral-700)]">
-            เปิดบิลใหม่ทุกครั้งที่ลูกค้าคนใหม่มาถึง — แต่ละใบได้เลขคิวของตัวเอง
-            และ<strong>ไม่คิดเซอร์วิสชาร์จ</strong>
+            Open a new bill every time a new customer arrives — each one gets its own queue number
+            and <strong>doesn&apos;t charge a service fee</strong>.
           </p>
         </div>
 
         {salePoints.length === 0 ? (
           <p className="alert">
-            สาขานี้ยังไม่มีจุดขายสำหรับซื้อกลับ — เพิ่มได้ที่หน้าหลังร้าน
+            This branch has no takeaway sale points yet — add one from the back office.
           </p>
         ) : (
           <div className="flex flex-wrap gap-3">
@@ -94,8 +94,8 @@ export default async function PosCounterQueuePage() {
                 tableId={point.id}
                 label={
                   salePoints.length === 1
-                    ? "เปิดบิลซื้อกลับใบใหม่"
-                    : `เปิดบิลใหม่ · ${point.name}`
+                    ? "Open a new takeaway bill"
+                    : `Open new bill · ${point.name}`
                 }
               />
             ))}
@@ -105,7 +105,7 @@ export default async function PosCounterQueuePage() {
 
       {queue.length === 0 ? (
         <p className="panel p-6 text-[var(--color-neutral-700)]">
-          ยังไม่มีบิลซื้อกลับที่เปิดอยู่ — กดปุ่มด้านบนเมื่อลูกค้ามาถึง
+          No open takeaway bills — press the button above when a customer arrives.
         </p>
       ) : (
         <ul className="ink-grid ink-grid-sparse grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
@@ -152,7 +152,7 @@ function QueueCard({
     >
       <div className="flex items-start justify-between gap-2">
         <span className="display text-[26px] leading-none">
-          {entry.queueNumber ? `คิว ${entry.queueNumber}` : "—"}
+          {entry.queueNumber ? `#${entry.queueNumber}` : "—"}
         </span>
         <span className={ready ? "tag tag-solid" : "tag tag-neutral"}>
           {SALE_POINT_LABEL[entry.table.kind]}
@@ -166,12 +166,12 @@ function QueueCard({
 
         <span className={`text-xs ${ready ? "text-white/80" : "text-[var(--color-neutral-700)]"}`}>
           {ready
-            ? `พร้อมให้รับ ${entry.readyItems} ชิ้น`
+            ? `${entry.readyItems} item(s) ready`
             : entry.pendingItems > 0
-              ? `ครัวกำลังทำ ${entry.pendingItems} ชิ้น`
+              ? `Kitchen preparing ${entry.pendingItems} item(s)`
               : entry.draftCount > 0
-                ? "ยังไม่ได้ส่งเข้าครัว"
-                : "ยังไม่มีรายการ"}
+                ? "Not sent to kitchen yet"
+                : "No items yet"}
         </span>
 
         <span className="flex items-baseline justify-between gap-2">

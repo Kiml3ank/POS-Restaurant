@@ -46,7 +46,7 @@ type Module = {
 const MODULES: Module[] = [
   {
     num: "01",
-    label: "ผังโต๊ะ / สั่งอาหาร",
+    label: "Table map / Order",
     href: "/pos",
     /**
      * `/pos/counter` (ซื้อกลับ) นับเป็นโมดูลเดียวกับผังโต๊ะโดยตั้งใจ
@@ -60,21 +60,21 @@ const MODULES: Module[] = [
   },
   {
     num: "02",
-    label: "จอครัว",
+    label: "Kitchen display",
     href: "/kds",
     isCurrent: (pathname) => pathname.startsWith("/kds"),
     screen: "kds",
   },
-  { num: "03", label: "คิดเงิน / รับชำระ", hint: "เลือกจากผังโต๊ะ" },
+  { num: "03", label: "Checkout / Payment", hint: "Pick a table from the map" },
   {
     num: "04",
-    label: "เมนูและสินค้า",
+    label: "Menu & items",
     href: "/admin/menu",
     isCurrent: (pathname) => pathname.startsWith("/admin"),
     screen: "admin",
   },
-  { num: "05", label: "สต็อกวัตถุดิบ", todo: "บทที่ 14" },
-  { num: "06", label: "รายงาน / ปิดกะ", todo: "บทที่ 15" },
+  { num: "05", label: "Inventory", todo: "Chapter 14" },
+  { num: "06", label: "Reports / Shift close", todo: "Chapter 15" },
 ];
 
 export function PosSidebar({ role }: { role: StaffRole }) {
@@ -125,7 +125,7 @@ export function PosSidebar({ role }: { role: StaffRole }) {
                   <span className="w-3.5 text-[11px] font-bold">{module.num}</span>
                   <span className="display text-[15px]">{module.label}</span>
                   <span className="kicker ml-auto whitespace-nowrap">
-                    {module.hint ?? module.todo ?? "ไม่มีสิทธิ์"}
+                    {module.hint ?? module.todo ?? "No access"}
                   </span>
                 </div>
               )}
@@ -134,7 +134,7 @@ export function PosSidebar({ role }: { role: StaffRole }) {
         })}
 
         <div className="mt-auto flex flex-col gap-1 border-t-2 border-[var(--color-text)] p-4">
-          <span className="kicker">ตำแหน่ง</span>
+          <span className="kicker">Role</span>
           <span className="display text-[14px]">{STAFF_ROLE_LABEL[role]}</span>
         </div>
       </nav>
@@ -157,7 +157,7 @@ export function PosSidebar({ role }: { role: StaffRole }) {
       */}
       <nav
         data-print-hide
-        aria-label="โมดูล"
+        aria-label="Modules"
         className="flex flex-none gap-[2px] border-t-2 border-[var(--color-text)] bg-[var(--color-text)] lg:hidden"
       >
         {barModules.map((module) => {
