@@ -38,10 +38,10 @@ const MENU_ENTITIES: readonly MenuEntity[] = [
 
 /** ป้ายภาษาไทยของแต่ละชนิด ใช้ในข้อความ error และ AuditLog */
 const ENTITY_LABEL: Record<MenuEntity, string> = {
-  category: "หมวด",
-  menuItem: "เมนู",
-  modifierGroup: "กลุ่มตัวเลือก",
-  modifier: "ตัวเลือก",
+  category: "category",
+  menuItem: "item",
+  modifierGroup: "modifier group",
+  modifier: "modifier",
 };
 
 export type MenuAdminResult<T = object> = ({ ok: true } & T) | { ok: false; error: string };
@@ -154,17 +154,17 @@ export async function setAvailability(
   next: boolean,
 ): Promise<MenuAdminResult<{ available: boolean }>> {
   if (!canToggleMenuAvailability(staff.role)) {
-    return { ok: false, error: "ตำแหน่งของคุณไม่มีสิทธิ์แก้เมนู" };
+    return { ok: false, error: "Your role can't edit the menu" };
   }
 
   if (!MENU_ENTITIES.includes(entity)) {
-    return { ok: false, error: "ไม่รู้จักสิ่งที่จะแก้" };
+    return { ok: false, error: "Unknown entity to edit" };
   }
 
   const found = await findEntity(staff.branchId, entity, id);
 
   if (!found) {
-    return { ok: false, error: `ไม่พบ${ENTITY_LABEL[entity]}นี้ในสาขาของคุณ` };
+    return { ok: false, error: `This ${ENTITY_LABEL[entity]} was not found in your branch` };
   }
 
   await prisma.$transaction(async (tx) => {
@@ -220,13 +220,13 @@ export async function moveSortOrder(
   direction: "up" | "down",
 ): Promise<MenuAdminResult> {
   if (!canEditMenu(staff.role)) {
-    return { ok: false, error: "ตำแหน่งของคุณไม่มีสิทธิ์เรียงลำดับเมนู" };
+    return { ok: false, error: "Your role can't reorder the menu" };
   }
 
   const siblings = await loadSiblings(staff.branchId, entity, id);
 
   if (!siblings) {
-    return { ok: false, error: `ไม่พบ${ENTITY_LABEL[entity]}นี้ในสาขาของคุณ` };
+    return { ok: false, error: `This ${ENTITY_LABEL[entity]} was not found in your branch` };
   }
 
   const index = siblings.findIndex((row) => row.id === id);
@@ -272,13 +272,13 @@ export async function upsertCategory(
   input: { id: string | null; name: string },
 ): Promise<MenuAdminResult<{ id: string }>> {
   if (!canEditMenu(staff.role)) {
-    return { ok: false, error: "ตำแหน่งของคุณไม่มีสิทธิ์แก้หมวดเมนู" };
+    return { ok: false, error: "Your role can't edit categories" };
   }
 
   const name = input.name.trim();
 
   if (name.length < 1) {
-    return { ok: false, error: "กรุณากรอกชื่อหมวด" };
+    return { ok: false, error: "Enter a category name" };
   }
 
   const existing = input.id
@@ -286,7 +286,7 @@ export async function upsertCategory(
     : null;
 
   if (input.id && !existing) {
-    return { ok: false, error: "ไม่พบหมวดนี้ในสาขาของคุณ" };
+    return { ok: false, error: "Category not found in your branch" };
   }
 
   const id = await prisma.$transaction(async (tx) => {
@@ -332,13 +332,13 @@ export async function upsertMenuItem(
   },
 ): Promise<MenuAdminResult<{ id: string }>> {
   if (!canEditMenu(staff.role)) {
-    return { ok: false, error: "ตำแหน่งของคุณไม่มีสิทธิ์แก้เมนู" };
+    return { ok: false, error: "Your role can't edit items" };
   }
 
   const name = input.name.trim();
 
   if (name.length < 1) {
-    return { ok: false, error: "กรุณากรอกชื่อเมนู" };
+    return { ok: false, error: "Enter an item name" };
   }
 
   /**
@@ -349,15 +349,15 @@ export async function upsertMenuItem(
   const basePrice = parseMoneyInput(input.basePriceText, staff.branch.currency);
 
   if (basePrice === null) {
-    return { ok: false, error: "ราคาไม่ถูกต้อง กรอกเป็นตัวเลข เช่น 120 หรือ 120.50" };
+    return { ok: false, error: "Invalid price — enter a number, e.g. 120 or 120.50" };
   }
 
   if (basePrice < 0) {
-    return { ok: false, error: "ราคาเมนูติดลบไม่ได้" };
+    return { ok: false, error: "Item price can't be negative" };
   }
 
   if (input.imageUrl !== null && !isUsableImageUrl(input.imageUrl)) {
-    return { ok: false, error: "ลิงก์รูปต้องขึ้นต้นด้วย https:// หรือ / เท่านั้น" };
+    return { ok: false, error: "Image URL must start with https:// or /" };
   }
 
   const category = await prisma.menuCategory.findFirst({
@@ -366,7 +366,7 @@ export async function upsertMenuItem(
   });
 
   if (!category) {
-    return { ok: false, error: "กรุณาเลือกหมวดเมนู" };
+    return { ok: false, error: "Select a category" };
   }
 
   // สถานีต้องเป็นของสาขาเดียวกัน ไม่งั้นออร์เดอร์จะไปโผล่บนจอครัวของอีกสาขา
@@ -377,7 +377,7 @@ export async function upsertMenuItem(
     });
 
     if (!station) {
-      return { ok: false, error: "ไม่พบสถานีครัวที่เลือกในสาขาของคุณ" };
+      return { ok: false, error: "Selected kitchen station not found in your branch" };
     }
   }
 
@@ -386,7 +386,7 @@ export async function upsertMenuItem(
     : null;
 
   if (input.id && !existing) {
-    return { ok: false, error: "ไม่พบเมนูนี้ในสาขาของคุณ" };
+    return { ok: false, error: "Item not found in your branch" };
   }
 
   const data = {
@@ -461,7 +461,7 @@ export async function setMenuItemModifierGroups(
   groupIds: string[],
 ): Promise<MenuAdminResult> {
   if (!canEditMenu(staff.role)) {
-    return { ok: false, error: "ตำแหน่งของคุณไม่มีสิทธิ์แก้เมนู" };
+    return { ok: false, error: "Your role can't edit items" };
   }
 
   const item = await prisma.menuItem.findFirst({
@@ -470,7 +470,7 @@ export async function setMenuItemModifierGroups(
   });
 
   if (!item) {
-    return { ok: false, error: "ไม่พบเมนูนี้ในสาขาของคุณ" };
+    return { ok: false, error: "Item not found in your branch" };
   }
 
   // ตัด id ซ้ำทิ้ง แล้วยืนยันว่าทุกกลุ่มเป็นของสาขานี้จริง (ฟอร์มยิงตรงมาได้)
@@ -481,7 +481,7 @@ export async function setMenuItemModifierGroups(
   });
 
   if (groups.length !== wanted.length) {
-    return { ok: false, error: "มีกลุ่มตัวเลือกที่ไม่ได้อยู่ในสาขาของคุณ" };
+    return { ok: false, error: "Some modifier groups don't belong to your branch" };
   }
 
   await prisma.$transaction(async (tx) => {
@@ -520,20 +520,20 @@ export async function upsertModifierGroup(
   },
 ): Promise<MenuAdminResult<{ id: string }>> {
   if (!canEditMenu(staff.role)) {
-    return { ok: false, error: "ตำแหน่งของคุณไม่มีสิทธิ์แก้กลุ่มตัวเลือก" };
+    return { ok: false, error: "Your role can't edit modifier groups" };
   }
 
   const name = input.name.trim();
 
   if (name.length < 1) {
-    return { ok: false, error: "กรุณากรอกชื่อกลุ่มตัวเลือก" };
+    return { ok: false, error: "Enter a modifier group name" };
   }
 
   // แถวที่เว้นชื่อไว้ว่างถือว่าไม่ได้ตั้งใจเพิ่ม (ฟอร์มมีช่องว่างรอไว้ให้กรอกเสมอ)
   const rows = input.modifiers.filter((modifier) => modifier.name.trim() !== "");
 
   if (rows.length === 0) {
-    return { ok: false, error: "ต้องมีตัวเลือกอย่างน้อยหนึ่งอย่างในกลุ่ม" };
+    return { ok: false, error: "The group needs at least one option" };
   }
 
   const parsed: { id: string | null; name: string; priceDelta: number }[] = [];
@@ -544,7 +544,7 @@ export async function upsertModifierGroup(
     if (priceDelta === null) {
       return {
         ok: false,
-        error: `ส่วนต่างราคาของ "${row.name.trim()}" ไม่ถูกต้อง (ติดลบได้ เช่น -10)`,
+        error: `Invalid price delta for "${row.name.trim()}" (negative is fine, e.g. -10)`,
       };
     }
 
@@ -570,7 +570,7 @@ export async function upsertModifierGroup(
     : null;
 
   if (input.id && !existing) {
-    return { ok: false, error: "ไม่พบกลุ่มตัวเลือกนี้ในสาขาของคุณ" };
+    return { ok: false, error: "Modifier group not found in your branch" };
   }
 
   const id = await prisma.$transaction(async (tx) => {
@@ -681,27 +681,27 @@ function validateSelectionRules(input: {
   const { required, minSelect, maxSelect, optionCount } = input;
 
   if (!Number.isInteger(minSelect) || !Number.isInteger(maxSelect)) {
-    return "จำนวนที่เลือกได้ต้องเป็นจำนวนเต็ม";
+    return "Selection counts must be whole numbers";
   }
 
   if (minSelect < 0) {
-    return "จำนวนขั้นต่ำติดลบไม่ได้";
+    return "Minimum selection can't be negative";
   }
 
   if (maxSelect < 1) {
-    return "จำนวนสูงสุดต้องอย่างน้อย 1 (กลุ่มที่เลือกอะไรไม่ได้เลยไม่ควรมีอยู่)";
+    return "Maximum selection must be at least 1 (a group with nothing selectable shouldn't exist)";
   }
 
   if (maxSelect < minSelect) {
-    return "จำนวนสูงสุดต้องไม่น้อยกว่าจำนวนขั้นต่ำ";
+    return "Maximum selection can't be less than the minimum";
   }
 
   if (required && minSelect < 1) {
-    return 'กลุ่มที่ตั้งเป็น "บังคับเลือก" ต้องมีขั้นต่ำอย่างน้อย 1';
+    return 'A group marked "required" must have a minimum of at least 1';
   }
 
   if (minSelect > optionCount) {
-    return `ขั้นต่ำ ${minSelect} แต่มีตัวเลือกแค่ ${optionCount} อย่าง — ลูกค้าจะเลือกให้ครบไม่ได้`;
+    return `Minimum is ${minSelect} but the group only has ${optionCount} option(s) — customers could never satisfy it`;
   }
 
   return null;
@@ -729,17 +729,17 @@ export async function deleteMenuEntity(
   id: string,
 ): Promise<MenuAdminResult> {
   if (!canEditMenu(staff.role)) {
-    return { ok: false, error: "ตำแหน่งของคุณไม่มีสิทธิ์ลบ" };
+    return { ok: false, error: "Your role can't delete" };
   }
 
   if (!MENU_ENTITIES.includes(entity)) {
-    return { ok: false, error: "ไม่รู้จักสิ่งที่จะลบ" };
+    return { ok: false, error: "Unknown entity to delete" };
   }
 
   const found = await findEntity(staff.branchId, entity, id);
 
   if (!found) {
-    return { ok: false, error: `ไม่พบ${ENTITY_LABEL[entity]}นี้ในสาขาของคุณ` };
+    return { ok: false, error: `This ${ENTITY_LABEL[entity]} was not found in your branch` };
   }
 
   const blocked = await reasonCannotDelete(entity, id);
@@ -783,7 +783,7 @@ async function reasonCannotDelete(entity: MenuEntity, id: string): Promise<strin
       const items = await prisma.menuItem.count({ where: { categoryId: id } });
 
       return items > 0
-        ? `หมวดนี้ยังมีเมนูอยู่ ${items} รายการ ย้ายเมนูออกหรือลบเมนูก่อน`
+        ? `This category still has ${items} item(s) — move or delete them first`
         : null;
     }
 
@@ -791,7 +791,7 @@ async function reasonCannotDelete(entity: MenuEntity, id: string): Promise<strin
       const ordered = await prisma.orderItem.count({ where: { menuItemId: id } });
 
       return ordered > 0
-        ? `เมนูนี้เคยถูกสั่งไปแล้ว ${ordered} ครั้ง ลบไม่ได้เพราะบิลเก่าอ้างถึงอยู่ — ใช้ "ปิดขาย" แทน`
+        ? `This item has been ordered ${ordered} time(s) — can't delete because past bills reference it. Use "Disable" instead`
         : null;
     }
 
@@ -799,7 +799,7 @@ async function reasonCannotDelete(entity: MenuEntity, id: string): Promise<strin
       const linked = await prisma.menuItemModifierGroup.count({ where: { modifierGroupId: id } });
 
       if (linked > 0) {
-        return `กลุ่มนี้ยังผูกอยู่กับ ${linked} เมนู ถอดออกจากเมนูก่อนถึงจะลบได้`;
+        return `This group is still linked to ${linked} item(s) — remove it from those items first`;
       }
 
       // ลบกลุ่ม = ตัวเลือกข้างในถูก Cascade ตามไปด้วย จึงต้องเช็คแทนมันทั้งกลุ่ม
@@ -808,7 +808,7 @@ async function reasonCannotDelete(entity: MenuEntity, id: string): Promise<strin
       });
 
       return ordered > 0
-        ? `ตัวเลือกในกลุ่มนี้เคยถูกสั่งไปแล้ว ลบไม่ได้ — ใช้ "ปิดใช้งาน" แทน`
+        ? `Options in this group have been ordered before — can't delete. Use "Disable" instead`
         : null;
     }
 
@@ -816,7 +816,7 @@ async function reasonCannotDelete(entity: MenuEntity, id: string): Promise<strin
       const ordered = await prisma.orderItemModifier.count({ where: { modifierId: id } });
 
       return ordered > 0
-        ? `ตัวเลือกนี้เคยถูกสั่งไปแล้ว ${ordered} ครั้ง ลบไม่ได้ — ใช้ "ปิดขาย" แทน`
+        ? `This option has been ordered ${ordered} time(s) — can't delete. Use "Disable" instead`
         : null;
     }
   }

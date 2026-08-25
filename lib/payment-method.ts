@@ -11,7 +11,7 @@ import type { PaymentMethod } from "@/lib/generated/prisma/enums";
  * ใน schema แล้วลืมมาเพิ่มป้ายที่นี่
  */
 export const PAYMENT_METHOD_LABEL: Record<PaymentMethod, string> = {
-  CASH: "เงินสด",
+  CASH: "Cash",
   QR: "QR",
-  CARD: "บัตร",
+  CARD: "Card",
 };

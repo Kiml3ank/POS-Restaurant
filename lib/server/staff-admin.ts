@@ -55,11 +55,11 @@ function normalizeCode(value: string) {
 
 function validatePin(pin: string): string | null {
   if (!/^\d+$/.test(pin)) {
-    return "PIN ต้องเป็นตัวเลขล้วน";
+    return "PIN must be digits only";
   }
 
   if (pin.length < PIN_MIN_LENGTH || pin.length > PIN_MAX_LENGTH) {
-    return `PIN ต้องยาว ${PIN_MIN_LENGTH}-${PIN_MAX_LENGTH} หลัก`;
+    return `PIN must be ${PIN_MIN_LENGTH}-${PIN_MAX_LENGTH} digits long`;
   }
 
   return null;
@@ -160,18 +160,18 @@ export async function createStaffMember(
   input: { code: string; name: string; role: StaffRole; pin: string },
 ) {
   if (!canManageStaff(actor.role)) {
-    return fail("ตำแหน่งของคุณไม่มีสิทธิ์จัดการพนักงาน");
+    return fail("Your role can't manage staff");
   }
 
   if (!canAssignRole(actor.role, input.role)) {
-    return fail("คุณตั้งตำแหน่งนี้ให้ใครไม่ได้ — ตั้งได้เฉพาะตำแหน่งที่ต่ำกว่าตัวเอง");
+    return fail("You can't assign this role — only roles below your own");
   }
 
   const code = normalizeCode(input.code);
   const name = input.name.trim();
 
   if (!code || !name) {
-    return fail("กรุณากรอกรหัสพนักงานและชื่อ");
+    return fail("Enter a staff code and name");
   }
 
   const pinError = validatePin(input.pin);
@@ -185,7 +185,7 @@ export async function createStaffMember(
   });
 
   if (duplicate) {
-    return fail(`มีพนักงานรหัส ${code} อยู่แล้วในสาขานี้`);
+    return fail(`Staff code ${code} already exists in this branch`);
   }
 
   const created = await prisma.staff.create({
@@ -216,7 +216,7 @@ export async function updateStaffMember(
   input: { code: string; name: string; role: StaffRole; isActive: boolean },
 ) {
   if (!canManageStaff(actor.role)) {
-    return fail("ตำแหน่งของคุณไม่มีสิทธิ์จัดการพนักงาน");
+    return fail("Your role can't manage staff");
   }
 
   const target = await prisma.staff.findFirst({
@@ -224,15 +224,15 @@ export async function updateStaffMember(
   });
 
   if (!target) {
-    return fail("ไม่พบพนักงานคนนี้ในสาขาของคุณ");
+    return fail("Staff member not found in your branch");
   }
 
   if (!canManageStaffMember(actor.role, target.role)) {
-    return fail("คุณแก้ไขบัญชีของตำแหน่งนี้ไม่ได้");
+    return fail("You can't edit an account of this role");
   }
 
   if (!canAssignRole(actor.role, input.role)) {
-    return fail("คุณตั้งตำแหน่งนี้ให้ใครไม่ได้ — ตั้งได้เฉพาะตำแหน่งที่ต่ำกว่าตัวเอง");
+    return fail("You can't assign this role — only roles below your own");
   }
 
   /**
@@ -241,14 +241,14 @@ export async function updateStaffMember(
    * ส่วนการเปลี่ยนชื่อตัวเองไม่ใช่เรื่องที่ต้องรีบพอจะยอมเปิดช่องนั้น
    */
   if (target.id === actor.id) {
-    return fail("แก้ไขบัญชีของตัวเองจากหน้านี้ไม่ได้ ให้อีกคนที่มีสิทธิ์เป็นคนแก้");
+    return fail("You can't edit your own account from this screen — have another authorized user do it");
   }
 
   const code = normalizeCode(input.code);
   const name = input.name.trim();
 
   if (!code || !name) {
-    return fail("กรุณากรอกรหัสพนักงานและชื่อ");
+    return fail("Enter a staff code and name");
   }
 
   const duplicate = await prisma.staff.findFirst({
@@ -257,7 +257,7 @@ export async function updateStaffMember(
   });
 
   if (duplicate) {
-    return fail(`มีพนักงานรหัส ${code} อยู่แล้วในสาขานี้`);
+    return fail(`Staff code ${code} already exists in this branch`);
   }
 
   /**
@@ -283,7 +283,7 @@ export async function updateStaffMember(
     });
 
     if (otherOwners === 0) {
-      return fail("ต้องเหลือเจ้าของร้านที่ใช้งานได้อย่างน้อยหนึ่งคนเสมอ");
+      return fail("At least one active owner account must remain");
     }
   }
 
@@ -332,7 +332,7 @@ export async function updateStaffMember(
  */
 export async function resetStaffPin(actor: CurrentStaff, staffId: string, pin: string) {
   if (!canManageStaff(actor.role)) {
-    return fail("ตำแหน่งของคุณไม่มีสิทธิ์จัดการพนักงาน");
+    return fail("Your role can't manage staff");
   }
 
   const target = await prisma.staff.findFirst({
@@ -340,11 +340,11 @@ export async function resetStaffPin(actor: CurrentStaff, staffId: string, pin: s
   });
 
   if (!target) {
-    return fail("ไม่พบพนักงานคนนี้ในสาขาของคุณ");
+    return fail("Staff member not found in your branch");
   }
 
   if (!canManageStaffMember(actor.role, target.role)) {
-    return fail("คุณรีเซ็ต PIN ของตำแหน่งนี้ไม่ได้");
+    return fail("You can't reset the PIN of this role");
   }
 
   const pinError = validatePin(pin);
@@ -375,7 +375,7 @@ export async function resetStaffPin(actor: CurrentStaff, staffId: string, pin: s
 /** ปุ่ม "เตะออกทุกเครื่อง" — ใช้ตอนลืมล็อกจอทิ้งไว้ หรือสงสัยว่ามีคนอื่นใช้บัญชีอยู่ */
 export async function revokeStaffSessions(actor: CurrentStaff, staffId: string) {
   if (!canManageStaff(actor.role)) {
-    return fail("ตำแหน่งของคุณไม่มีสิทธิ์จัดการพนักงาน");
+    return fail("Your role can't manage staff");
   }
 
   const target = await prisma.staff.findFirst({
@@ -384,7 +384,7 @@ export async function revokeStaffSessions(actor: CurrentStaff, staffId: string) 
   });
 
   if (!target) {
-    return fail("ไม่พบพนักงานคนนี้ในสาขาของคุณ");
+    return fail("Staff member not found in your branch");
   }
 
   /**
@@ -392,7 +392,7 @@ export async function revokeStaffSessions(actor: CurrentStaff, staffId: string) 
    * เมื่อรู้ตัวว่าลืมล็อกจอไว้ที่เครื่องอื่น และผลที่ตามมาแค่ต้องใส่ PIN ใหม่
    */
   if (target.id !== actor.id && !canManageStaffMember(actor.role, target.role)) {
-    return fail("คุณเตะบัญชีของตำแหน่งนี้ออกไม่ได้");
+    return fail("You can't sign out an account of this role");
   }
 
   const revokedSessions = await revokeAllStaffSessions(target.id, {

@@ -14,22 +14,22 @@ import type { OrderItemStatus, OrderStatus } from "@/lib/generated/prisma/enums"
  */
 
 export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
-  DRAFT: "ตะกร้า",
-  PLACED: "ส่งเข้าครัวแล้ว",
-  IN_PROGRESS: "กำลังทำ",
-  READY: "พร้อมเสิร์ฟ",
-  SERVED: "เสิร์ฟแล้ว",
-  PAID: "จ่ายแล้ว",
-  CANCELLED: "ยกเลิก",
+  DRAFT: "Cart",
+  PLACED: "Sent to kitchen",
+  IN_PROGRESS: "Preparing",
+  READY: "Ready to serve",
+  SERVED: "Served",
+  PAID: "Paid",
+  CANCELLED: "Cancelled",
 };
 
 export const ORDER_ITEM_STATUS_LABEL: Record<OrderItemStatus, string> = {
-  DRAFT: "ในตะกร้า",
-  PLACED: "รอครัวรับ",
-  IN_PROGRESS: "กำลังทำ",
-  READY: "พร้อมเสิร์ฟ",
-  SERVED: "เสิร์ฟแล้ว",
-  CANCELLED: "ยกเลิก",
+  DRAFT: "In cart",
+  PLACED: "Awaiting kitchen",
+  IN_PROGRESS: "Preparing",
+  READY: "Ready to serve",
+  SERVED: "Served",
+  CANCELLED: "Cancelled",
 };
 
 /**
@@ -99,8 +99,8 @@ export function isKitchenActionable(
 
 /** ป้ายบนปุ่มของจอครัว — อยู่ที่นี่เพื่อให้ทุกจอเรียกของเดียวกัน */
 export const KITCHEN_ACTION_LABEL: Record<KitchenActionableStatus, string> = {
-  PLACED: "รับออร์เดอร์",
-  IN_PROGRESS: "ทำเสร็จแล้ว",
+  PLACED: "Accept order",
+  IN_PROGRESS: "Mark done",
 };
 
 /**

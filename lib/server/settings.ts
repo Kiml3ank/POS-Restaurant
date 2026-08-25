@@ -38,11 +38,11 @@ function fail(error: string) {
 /** 0-10000 basis point = 0-100% · ต้องเป็นจำนวนเต็มเสมอ */
 function invalidRate(value: number, label: string): string | null {
   if (!Number.isInteger(value)) {
-    return `${label} ต้องเป็นจำนวนเต็ม (หน่วย basis point)`;
+    return `${label} must be a whole number (in basis points)`;
   }
 
   if (value < 0 || value > 10000) {
-    return `${label} ต้องอยู่ระหว่าง 0 ถึง 10000 (0-100%)`;
+    return `${label} must be between 0 and 10000 (0-100%)`;
   }
 
   return null;
@@ -54,7 +54,7 @@ function invalidTimezone(timezone: string): string | null {
     new Intl.DateTimeFormat("en-US", { timeZone: timezone });
     return null;
   } catch {
-    return `ไม่รู้จัก timezone "${timezone}"`;
+    return `Unknown timezone "${timezone}"`;
   }
 }
 
@@ -123,20 +123,20 @@ export async function updateTaxSettings(
   },
 ): Promise<SettingsResult> {
   if (!canEditTaxSettings(actor.role)) {
-    return fail("เฉพาะเจ้าของร้านเท่านั้นที่แก้อัตราภาษีและค่าบริการได้");
+    return fail("Only the owner can edit tax and service charge rates");
   }
 
   const rateError =
-    invalidRate(input.vatRateBp, "อัตรา VAT") ??
-    invalidRate(input.serviceChargeBp, "เซอร์วิสชาร์จ") ??
-    invalidRate(input.staffMealDiscountBp, "ส่วนลดพนักงาน");
+    invalidRate(input.vatRateBp, "VAT rate") ??
+    invalidRate(input.serviceChargeBp, "Service charge") ??
+    invalidRate(input.staffMealDiscountBp, "Staff meal discount");
 
   if (rateError) {
     return fail(rateError);
   }
 
   if (!(input.currency in CURRENCIES)) {
-    return fail(`ไม่รู้จักสกุลเงิน "${input.currency}"`);
+    return fail(`Unknown currency "${input.currency}"`);
   }
 
   const timezoneError = invalidTimezone(input.timezone);
@@ -158,7 +158,7 @@ export async function updateTaxSettings(
 
     if (payments > 0) {
       return fail(
-        `สาขานี้รับเงินไปแล้ว ${payments} บิล จึงเปลี่ยนสกุลเงินไม่ได้ — ยอดที่เก็บไว้ทั้งหมดเป็นหน่วยของสกุลเดิม`,
+        `This branch has already taken ${payments} payment(s), so the currency can't change — every stored amount is in units of the current currency`,
       );
     }
   }
@@ -202,14 +202,14 @@ export async function updateBusinessInfo(
   },
 ): Promise<SettingsResult> {
   if (!canEditSettings(actor.role)) {
-    return fail("ตำแหน่งของคุณไม่มีสิทธิ์แก้ข้อมูลร้าน");
+    return fail("Your role can't edit business info");
   }
 
   const tenantName = input.tenantName.trim();
   const branchName = input.branchName.trim();
 
   if (!tenantName || !branchName) {
-    return fail("กรุณากรอกชื่อกิจการและชื่อสาขา");
+    return fail("Enter both the business name and branch name");
   }
 
   const taxId = input.taxId.replace(/\s|-/g, "").trim();
@@ -220,7 +220,7 @@ export async function updateBusinessInfo(
    * และจะไม่มีใครรู้จนกว่าสรรพากรจะทัก
    */
   if (taxId && !/^\d{13}$/.test(taxId)) {
-    return fail("เลขประจำตัวผู้เสียภาษีต้องเป็นตัวเลข 13 หลัก");
+    return fail("Tax ID must be 13 digits");
   }
 
   const branch = await prisma.branch.findUniqueOrThrow({
@@ -291,18 +291,18 @@ export async function upsertStation(
   input: { code: string; name: string; sortOrder: number; isActive: boolean },
 ): Promise<SettingsResult & { stationId?: string }> {
   if (!canEditSettings(actor.role)) {
-    return fail("ตำแหน่งของคุณไม่มีสิทธิ์แก้สถานีครัว");
+    return fail("Your role can't edit kitchen stations");
   }
 
   const code = input.code.trim().toUpperCase();
   const name = input.name.trim();
 
   if (!code || !name) {
-    return fail("กรุณากรอกรหัสและชื่อสถานี");
+    return fail("Enter a station code and name");
   }
 
   if (!Number.isInteger(input.sortOrder)) {
-    return fail("ลำดับต้องเป็นจำนวนเต็ม");
+    return fail("Sort order must be a whole number");
   }
 
   const existing = stationId
@@ -310,7 +310,7 @@ export async function upsertStation(
     : null;
 
   if (stationId && !existing) {
-    return fail("ไม่พบสถานีนี้ในสาขาของคุณ");
+    return fail("Station not found in your branch");
   }
 
   const duplicate = await prisma.station.findFirst({
@@ -319,7 +319,7 @@ export async function upsertStation(
   });
 
   if (duplicate) {
-    return fail(`มีสถานีรหัส ${code} อยู่แล้วในสาขานี้`);
+    return fail(`Station code ${code} already exists in this branch`);
   }
 
   const saved = existing
@@ -369,7 +369,7 @@ export async function deleteStation(
   stationId: string,
 ): Promise<SettingsResult> {
   if (!canEditSettings(actor.role)) {
-    return fail("ตำแหน่งของคุณไม่มีสิทธิ์แก้สถานีครัว");
+    return fail("Your role can't edit kitchen stations");
   }
 
   const station = await prisma.station.findFirst({
@@ -377,7 +377,7 @@ export async function deleteStation(
   });
 
   if (!station) {
-    return fail("ไม่พบสถานีนี้ในสาขาของคุณ");
+    return fail("Station not found in your branch");
   }
 
   const [orderItems, menuItems] = await Promise.all([
@@ -387,12 +387,12 @@ export async function deleteStation(
 
   if (orderItems > 0) {
     return fail(
-      `สถานีนี้เคยมีออร์เดอร์ผ่าน ${orderItems} รายการ จึงลบไม่ได้ — ให้ปิดใช้งานแทน`,
+      `This station has handled ${orderItems} order item(s) — can't delete. Disable it instead`,
     );
   }
 
   if (menuItems > 0) {
-    return fail(`ยังมีเมนู ${menuItems} รายการผูกกับสถานีนี้ ให้ย้ายเมนูไปสถานีอื่นก่อน`);
+    return fail(`${menuItems} item(s) are still linked to this station — move them first`);
   }
 
   await prisma.station.delete({ where: { id: station.id } });

@@ -37,9 +37,9 @@ export const ORDER_TYPE_FOR_SALE_POINT: Record<SalePointKind, OrderType> = {
 
 /** ป้ายภาษาไทยของแต่ละช่องทาง — ใช้บนผังโต๊ะ, ตั๋วครัว (KDS) และใบเสร็จ */
 export const SALE_POINT_LABEL: Record<SalePointKind, string> = {
-  DINE_IN: "นั่งที่ร้าน",
-  COUNTER: "ซื้อกลับ",
-  DELIVERY: "ไรเดอร์",
+  DINE_IN: "Dine-in",
+  COUNTER: "Takeaway",
+  DELIVERY: "Delivery",
 };
 
 /**
@@ -64,13 +64,13 @@ export function salePointDisplayName(
   session?: { queueNumber?: number | null } | null,
 ): string {
   if (showsInTableMap(table.kind)) {
-    return `โต๊ะ ${table.name}`;
+    return `Table ${table.name}`;
   }
 
   const queueNumber = session?.queueNumber;
 
   return queueNumber
-    ? `${SALE_POINT_LABEL[table.kind]} คิว ${queueNumber}`
+    ? `${SALE_POINT_LABEL[table.kind]} #${queueNumber}`
     : `${SALE_POINT_LABEL[table.kind]} · ${table.name}`;
 }
 
@@ -98,7 +98,7 @@ export function salePointBasePath(
  * (`<dt>โต๊ะ</dt><dd>A1</dd>`) ซึ่งเขียนว่า "โต๊ะ" ตายตัวไม่ได้อีกต่อไป
  */
 export function salePointFieldLabel(kind: SalePointKind): string {
-  return showsInTableMap(kind) ? "โต๊ะ" : "ช่องทาง";
+  return showsInTableMap(kind) ? "Table" : "Channel";
 }
 
 /**

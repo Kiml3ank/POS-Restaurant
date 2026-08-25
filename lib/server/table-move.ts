@@ -65,13 +65,13 @@ async function loadMovableSession(
   });
 
   if (!session) {
-    return { ok: false, error: `ไม่พบ${label}ที่เปิดอยู่` };
+    return { ok: false, error: `No open ${label} found` };
   }
 
   // รับเงินแล้ว = ประวัติ ห้ามขยับ (ปกติรอบที่จ่ายแล้วจะไม่ OPEN แต่ตรวจซ้ำไว้
   // เพราะราคาของการพลาดตรงนี้คือยอดขายย้อนหลังเปลี่ยนโดยไม่มีใครเห็น)
   if (session.payments.length > 0) {
-    return { ok: false, error: `${label}นี้รับเงินไปแล้ว ขยับไม่ได้` };
+    return { ok: false, error: `This ${label} has already been paid — can't move it` };
   }
 
   /**
@@ -85,7 +85,7 @@ async function loadMovableSession(
   if (session.staffCustomerId) {
     return {
       ok: false,
-      error: `${label}ติดธงส่วนลดพนักงานอยู่ ให้ปลดธงก่อนแล้วค่อยทำรายการนี้`,
+      error: `This ${label} is flagged for the staff meal discount — clear the flag first`,
     };
   }
 
@@ -96,7 +96,7 @@ async function loadMovableSession(
    * ยอดที่ลูกค้าต้องจ่ายจะเปลี่ยนทันทีโดยไม่มีใครกดอะไรที่เกี่ยวกับเงินเลย
    */
   if (session.table.kind !== "DINE_IN") {
-    return { ok: false, error: `${label}ไม่ใช่โต๊ะนั่ง ทำรายการนี้ไม่ได้` };
+    return { ok: false, error: `This ${label} isn't a dine-in table — can't do this` };
   }
 
   return { ok: true, session };
@@ -209,13 +209,13 @@ export async function moveTableSession(
 ) {
   // การซ่อนปุ่มบนหน้าจอไม่ใช่การกันสิทธิ์ — action ถูกยิงตรงด้วย POST ได้
   if (!canMoveTableSession(staff.role)) {
-    return { ok: false as const, error: "ตำแหน่งของคุณย้ายโต๊ะไม่ได้" };
+    return { ok: false as const, error: "Your role can't move tables" };
   }
 
   const result = await prisma.$transaction(async (tx) => {
     // อ่านสดในทรานแซกชันเสมอ — ค่าที่หน้าจอส่งมาบอกได้แค่ "ผู้ใช้ตั้งใจอะไร"
     // ไม่ใช่ "ตอนนี้ยังจริงอยู่ไหม"
-    const loaded = await loadMovableSession(tx, staff.branchId, input.sessionId, "รอบโต๊ะ");
+    const loaded = await loadMovableSession(tx, staff.branchId, input.sessionId, "table session");
 
     if (!loaded.ok) {
       return loaded;
@@ -228,15 +228,15 @@ export async function moveTableSession(
     });
 
     if (!target) {
-      return { ok: false as const, error: "ไม่พบโต๊ะปลายทาง" };
+      return { ok: false as const, error: "Target table not found" };
     }
 
     if (target.kind !== "DINE_IN") {
-      return { ok: false as const, error: "ย้ายไปจุดขายที่ไม่ใช่โต๊ะนั่งไม่ได้" };
+      return { ok: false as const, error: "Can't move to a sale point that isn't a dine-in table" };
     }
 
     if (target.id === session.tableId) {
-      return { ok: false as const, error: "โต๊ะปลายทางเป็นโต๊ะเดิมอยู่แล้ว" };
+      return { ok: false as const, error: "Target table is the same as the current one" };
     }
 
     const occupied = await tx.tableSession.count({
@@ -247,7 +247,7 @@ export async function moveTableSession(
     if (occupied > 0) {
       return {
         ok: false as const,
-        error: `โต๊ะ ${target.name} มีบิลที่เปิดอยู่แล้ว ถ้าต้องการรวมบิลให้กด "รวมโต๊ะ"`,
+        error: `Table ${target.name} already has an open bill — use "Merge tables" instead`,
       };
     }
 
@@ -320,16 +320,16 @@ export async function mergeTableSessions(
   input: { sourceSessionId: string; targetSessionId: string },
 ) {
   if (!canMoveTableSession(staff.role)) {
-    return { ok: false as const, error: "ตำแหน่งของคุณรวมโต๊ะไม่ได้" };
+    return { ok: false as const, error: "Your role can't merge tables" };
   }
 
   if (input.sourceSessionId === input.targetSessionId) {
-    return { ok: false as const, error: "เลือกโต๊ะปลายทางที่ไม่ใช่บิลใบเดิม" };
+    return { ok: false as const, error: "Pick a target bill that isn't the same one" };
   }
 
   const result = await prisma.$transaction(async (tx) => {
     // ด่านชุดเดียวกันทั้งสองฝั่ง — ฝั่งที่ตรวจไม่ครบคือฝั่งที่เงินขยับได้โดยไม่มีใครเห็น
-    const source = await loadMovableSession(tx, staff.branchId, input.sourceSessionId, "บิลต้นทาง");
+    const source = await loadMovableSession(tx, staff.branchId, input.sourceSessionId, "source bill");
 
     if (!source.ok) {
       return source;
@@ -339,7 +339,7 @@ export async function mergeTableSessions(
       tx,
       staff.branchId,
       input.targetSessionId,
-      "บิลปลายทาง",
+      "target bill",
     );
 
     if (!target.ok) {
