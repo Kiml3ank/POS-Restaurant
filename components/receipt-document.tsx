@@ -261,7 +261,7 @@ function Line({ label, value, strong = false }: { label: string; value: string; 
  * render ซ้ำฝั่ง browser ที่จะทำให้ hydration ไม่ตรง
  */
 function formatDateTime(at: Date, timezone: string): string {
-  return new Intl.DateTimeFormat("th-TH", {
+  return new Intl.DateTimeFormat("en-GB", {
     timeZone: timezone,
     dateStyle: "medium",
     timeStyle: "medium",

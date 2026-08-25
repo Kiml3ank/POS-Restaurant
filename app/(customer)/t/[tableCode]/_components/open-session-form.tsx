@@ -35,7 +35,7 @@ export function OpenSessionForm({
 
       <div className="flex flex-col gap-2">
         <label htmlFor="pax" className="text-sm font-medium">
-          มากันกี่คน
+          How many guests
         </label>
         <select
           id="pax"
@@ -45,12 +45,12 @@ export function OpenSessionForm({
         >
           {PAX_OPTIONS.map((pax) => (
             <option key={pax} value={pax}>
-              {pax} คน
+              {pax} guests
             </option>
           ))}
         </select>
         <p className="text-xs text-neutral-500">
-          ถ้ามีคนที่โต๊ะ {tableName} สั่งไปแล้ว ระบบจะพาเข้าบิลใบเดียวกันให้อัตโนมัติ
+          If someone already ordered at table {tableName}, you&apos;ll automatically join their bill.
         </p>
       </div>
 
@@ -61,10 +61,10 @@ export function OpenSessionForm({
       ) : null}
 
       <SubmitButton
-        pendingLabel="กำลังเปิดโต๊ะ..."
+        pendingLabel="Opening table..."
         className="rounded-lg bg-neutral-900 px-4 py-3 text-center font-medium text-white"
       >
-        เริ่มสั่งอาหาร
+        Start ordering
       </SubmitButton>
     </form>
   );

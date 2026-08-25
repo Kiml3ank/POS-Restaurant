@@ -223,7 +223,7 @@ function PageLink({
 
 /** เวลาออกใบตามเวลาของสาขา — render บน server ที่เดียว ไม่มี hydration mismatch */
 function formatIssuedAt(at: Date, timezone: string): string {
-  return new Intl.DateTimeFormat("th-TH", {
+  return new Intl.DateTimeFormat("en-GB", {
     timeZone: timezone,
     dateStyle: "short",
     timeStyle: "short",

@@ -55,7 +55,7 @@ export default async function AdminLoginPage() {
 
       <div className="flex items-center justify-center bg-[var(--color-neutral-100)] p-5 sm:p-10 xl:p-14">
         <div className="w-full max-w-[440px]">
-          <PinForm action={adminLoginAction} submitLabel="เข้าหลังร้าน" lastStaff={lastStaff} />
+          <PinForm action={adminLoginAction} submitLabel="Enter back office" lastStaff={lastStaff} />
         </div>
       </div>
     </main>

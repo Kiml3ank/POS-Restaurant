@@ -46,9 +46,9 @@ export default async function CustomerMenuPage({
       <main className="flex flex-1 flex-col gap-6 p-6">
         <div className="flex flex-col gap-1">
           <p className="text-xs tracking-wide text-neutral-500 uppercase">{branch.name}</p>
-          <h1 className="text-3xl font-semibold">โต๊ะ {table.name}</h1>
+          <h1 className="text-3xl font-semibold">Table {table.name}</h1>
           <p className="text-sm text-neutral-600">
-            ยินดีต้อนรับครับ กดเริ่มสั่งอาหารเพื่อเปิดโต๊ะนี้
+            Welcome! Start ordering to open this table.
           </p>
         </div>
 
@@ -99,8 +99,8 @@ export default async function CustomerMenuPage({
         */}
         {context.mergedFromTableName ? (
           <p className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            รอบของโต๊ะ <strong>{context.mergedFromTableName}</strong> ถูกย้ายไปที่โต๊ะ{" "}
-            <strong>{session.table.name}</strong> แล้ว รายการที่สั่งต่อจากนี้จะเข้าบิลเดียวกัน
+            Table <strong>{context.mergedFromTableName}</strong>&apos;s session was moved to table{" "}
+            <strong>{session.table.name}</strong>. Anything you order from now on joins that bill.
           </p>
         ) : null}
 
@@ -117,7 +117,7 @@ export default async function CustomerMenuPage({
         </nav>
 
         {menu.length === 0 ? (
-          <p className="text-sm text-neutral-600">ตอนนี้ยังไม่มีเมนูเปิดขาย กรุณาเรียกพนักงาน</p>
+          <p className="text-sm text-neutral-600">No items are available right now — please call staff.</p>
         ) : null}
 
         {menu.map((category) => (
@@ -149,7 +149,7 @@ export default async function CustomerMenuPage({
                         </span>
                       ) : null}
                       {item.hasOptions ? (
-                        <span className="text-xs text-neutral-400">มีตัวเลือกให้เลือก</span>
+                        <span className="text-xs text-neutral-400">Has options</span>
                       ) : null}
                     </div>
 
@@ -167,7 +167,7 @@ export default async function CustomerMenuPage({
           href={`/t/${table.tableCode}/orders`}
           className="flex-1 rounded-lg border border-neutral-300 px-4 py-3 text-center text-sm font-medium"
         >
-          ออร์เดอร์ของโต๊ะ
+          Table orders
         </Link>
         <Link
           href={`/t/${table.tableCode}/cart`}
@@ -178,7 +178,7 @@ export default async function CustomerMenuPage({
               : "bg-neutral-900 text-white"
           }`}
         >
-          {cartItemCount === 0 ? "ตะกร้าว่าง" : `ดูตะกร้า (${cartItemCount})`}
+          {cartItemCount === 0 ? "Cart is empty" : `View cart (${cartItemCount})`}
         </Link>
       </nav>
     </>

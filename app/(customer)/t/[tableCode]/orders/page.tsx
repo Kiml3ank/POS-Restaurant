@@ -44,7 +44,7 @@ export default async function TableOrdersPage({
     .filter((order) => order.status !== "CANCELLED")
     .reduce((sum, order) => sum + order.subtotal, 0);
 
-  const timeFormatter = new Intl.DateTimeFormat("th-TH", {
+  const timeFormatter = new Intl.DateTimeFormat("en-GB", {
     timeZone: context.branch.timezone,
     hour: "2-digit",
     minute: "2-digit",
@@ -60,22 +60,22 @@ export default async function TableOrdersPage({
       />
 
       <main className="flex flex-1 flex-col gap-4 px-4 py-4 pb-24">
-        <h1 className="text-xl font-semibold">ออร์เดอร์ของโต๊ะ {context.table.name}</h1>
+        <h1 className="text-xl font-semibold">Orders for table {context.table.name}</h1>
 
         {orders.length === 0 ? (
           <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-neutral-300 p-6">
-            <p className="text-sm text-neutral-600">ยังไม่ได้ส่งออร์เดอร์เข้าครัว</p>
+            <p className="text-sm text-neutral-600">No orders sent to the kitchen yet.</p>
             <Link
               href={`/t/${tableCode}`}
               className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
             >
-              เลือกเมนู
+              Browse menu
             </Link>
           </div>
         ) : (
           <>
             <p className="flex items-center justify-between gap-3 rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
-              <span>ส่งเข้าครัวแล้ว {orders.length} ใบ</span>
+              <span>Sent to kitchen: {orders.length} order(s)</span>
               {/*
                 สถานะจากครัววิ่งมาเองผ่าน SSE (บทที่ 8) — ลูกค้าไม่ต้องกดโหลดใหม่
                 และไม่ต้องเรียกพนักงานมาถามว่า "อาหารถึงไหนแล้ว" ซึ่งเป็นเหตุผล
@@ -122,7 +122,7 @@ export default async function TableOrdersPage({
                   </ul>
 
                   <div className="flex justify-between border-t border-neutral-100 pt-2 text-sm">
-                    <span className="text-neutral-600">รวมบิลนี้</span>
+                    <span className="text-neutral-600">This order&apos;s total</span>
                     <span className="font-medium">{formatMoney(order.subtotal, currency)}</span>
                   </div>
                 </li>
@@ -130,7 +130,7 @@ export default async function TableOrdersPage({
             </ul>
 
             <div className="flex justify-between rounded-xl bg-neutral-100 px-3 py-3">
-              <span className="text-sm text-neutral-600">รวมทั้งโต๊ะ (ยังไม่รวม VAT/เซอร์วิส)</span>
+              <span className="text-sm text-neutral-600">Table total (before VAT/service charge)</span>
               <span className="font-semibold">{formatMoney(runningTotal, currency)}</span>
             </div>
           </>
@@ -142,7 +142,7 @@ export default async function TableOrdersPage({
           href={`/t/${tableCode}`}
           className="block rounded-lg bg-neutral-900 px-4 py-3 text-center text-sm font-medium text-white"
         >
-          สั่งเพิ่ม
+          Order more
         </Link>
       </nav>
     </>

@@ -186,7 +186,7 @@ function QueueCard({
 }
 
 function formatTime(value: Date, timeZone: string) {
-  return new Intl.DateTimeFormat("th-TH", { timeZone, hour: "2-digit", minute: "2-digit" }).format(
+  return new Intl.DateTimeFormat("en-GB", { timeZone, hour: "2-digit", minute: "2-digit" }).format(
     value,
   );
 }

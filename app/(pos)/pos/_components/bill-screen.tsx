@@ -510,7 +510,7 @@ export function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; base: 
  * เครื่องที่รัน (server ที่ตั้งเป็น UTC ต้องแสดงเวลาไทยให้ถูก)
  */
 function formatPaidAt(paidAt: Date, timezone: string): string {
-  return new Intl.DateTimeFormat("th-TH", {
+  return new Intl.DateTimeFormat("en-GB", {
     timeZone: timezone,
     dateStyle: "medium",
     timeStyle: "short",

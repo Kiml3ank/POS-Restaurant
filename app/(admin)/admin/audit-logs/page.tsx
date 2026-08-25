@@ -270,7 +270,7 @@ function PageLink({
 
 /** เวลาตามโซนของสาขา พร้อมวินาที — ลำดับเหตุการณ์ในนาทีเดียวกันคือสิ่งที่ต้องอ่านออก */
 function formatLoggedAt(at: Date, timezone: string): string {
-  return new Intl.DateTimeFormat("th-TH", {
+  return new Intl.DateTimeFormat("en-GB", {
     timeZone: timezone,
     dateStyle: "short",
     timeStyle: "medium",

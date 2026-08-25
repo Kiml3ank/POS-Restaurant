@@ -26,7 +26,7 @@ export function CustomerHeader({
       {backHref ? (
         <Link
           href={backHref}
-          aria-label="ย้อนกลับ"
+          aria-label="Back"
           className="flex size-9 shrink-0 items-center justify-center rounded-full border border-neutral-300 text-lg leading-none"
         >
           ‹
@@ -35,7 +35,7 @@ export function CustomerHeader({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <span className="truncate text-xs text-neutral-500">{branchName}</span>
-        <span className="truncate font-semibold">โต๊ะ {tableName}</span>
+        <span className="truncate font-semibold">Table {tableName}</span>
       </div>
 
       {cart && cart.itemCount > 0 ? (
@@ -43,7 +43,7 @@ export function CustomerHeader({
           href={cart.href}
           className="shrink-0 rounded-full bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
         >
-          ตะกร้า {cart.itemCount} · {formatMoney(cart.subtotal, currency)}
+          Cart {cart.itemCount} · {formatMoney(cart.subtotal, currency)}
         </Link>
       ) : null}
     </header>

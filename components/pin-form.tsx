@@ -49,7 +49,7 @@ const normalizePin = (value: string) => value.replace(/\D/g, "").slice(0, MAX_PI
 
 export function PinForm({
   action,
-  submitLabel = "เริ่มกะ",
+  submitLabel = "Sign in",
   lastStaff = null,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
@@ -86,7 +86,7 @@ export function PinForm({
          * ของสิ่งที่ต้องใช้ล็อกอิน (ดู lib/last-staff-cookie.ts)
          */
         <div className="flex items-baseline justify-between gap-3 border-2 border-[var(--color-neutral-400)] px-4 py-3">
-          <span className="kicker">คนล่าสุดที่ใช้เครื่องนี้</span>
+          <span className="kicker">Last used on this device</span>
           <span className="flex items-baseline gap-3">
             <span className="display text-[16px]">{lastStaff.name}</span>
             <span className="kicker">
@@ -98,7 +98,7 @@ export function PinForm({
 
       <div className="flex flex-col gap-3">
         <label htmlFor="staffCode" className="kicker">
-          รหัสพนักงาน
+          Staff code
         </label>
         <input
           id="staffCode"
@@ -116,7 +116,7 @@ export function PinForm({
               pinInputRef.current?.focus();
             }
           }}
-          placeholder="เช่น 001"
+          placeholder="e.g. 001"
           className="input display h-16 text-center text-[26px] tracking-[0.3em]"
         />
       </div>
@@ -126,8 +126,8 @@ export function PinForm({
           <span className="kicker">PIN</span>
           <span className="kicker">
             {pin.length < MIN_PIN_LENGTH
-              ? `อย่างน้อย ${MIN_PIN_LENGTH} หลัก`
-              : `${pin.length} หลัก · กดส่งได้เลย`}
+              ? `At least ${MIN_PIN_LENGTH} digits`
+              : `${pin.length} digits · ready to submit`}
           </span>
         </div>
 
@@ -146,7 +146,7 @@ export function PinForm({
             type="password"
             inputMode="numeric"
             autoComplete="off"
-            aria-label={`PIN ${MIN_PIN_LENGTH} ถึง ${MAX_PIN_LENGTH} หลัก`}
+            aria-label={`PIN, ${MIN_PIN_LENGTH} to ${MAX_PIN_LENGTH} digits`}
             value={pin}
             onChange={(event) => setPin(normalizePin(event.target.value))}
             onKeyDown={(event) => {
@@ -183,35 +183,40 @@ export function PinForm({
           </div>
         </div>
 
-        <p className="kicker">แตะช่องด้านบนเพื่อพิมพ์ หรือกดแป้นตัวเลขข้างล่าง</p>
+        <p className="kicker">Tap the field above to type, or use the keypad below</p>
       </div>
 
+      {/*
+        ปุ่มแป้นตัวเลข — ขยายจาก py-6/text-[26px] เดิม เพราะบนจอสัมผัสจริงนิ้วโป้ง
+        กดพลาดแป้นข้างเคียงได้ง่ายเมื่อปุ่มเตี้ยเกินไป ค่าตอนนี้ให้พื้นที่แตะสูง
+        กว่า 80px ต่อปุ่มซึ่งเทียบเท่าปุ่มบนเครื่อง POS จริงที่ใช้กันหน้าร้าน
+      */}
       <div className="ink-grid grid-cols-3">
         {KEYS.map((key) => (
           <button
             key={key}
             type="button"
             onClick={() => pressKey((current) => current + key)}
-            className="btn-tile py-6 text-[26px]"
+            className="btn-tile py-9 text-[32px]"
           >
             {key}
           </button>
         ))}
-        <button type="button" onClick={() => pressKey(() => "")} className="btn-tile py-6 text-[17px]">
-          ล้าง
+        <button type="button" onClick={() => pressKey(() => "")} className="btn-tile py-9 text-[20px]">
+          Clear
         </button>
         <button
           type="button"
           onClick={() => pressKey((current) => current + "0")}
-          className="btn-tile py-6 text-[26px]"
+          className="btn-tile py-9 text-[32px]"
         >
           0
         </button>
         <button
           type="button"
           onClick={() => pressKey((current) => current.slice(0, -1))}
-          aria-label="ลบหนึ่งหลัก"
-          className="btn-tile py-6 text-[26px]"
+          aria-label="Delete one digit"
+          className="btn-tile py-9 text-[32px]"
         >
           ⌫
         </button>
@@ -224,7 +229,7 @@ export function PinForm({
       ) : null}
 
       <SubmitButton
-        pendingLabel="กำลังตรวจสอบ..."
+        pendingLabel="Checking..."
         disabled={!ready}
         className="btn btn-primary btn-block h-16 text-lg"
       >

@@ -99,7 +99,7 @@ export default async function StaffListPage() {
 }
 
 function formatDateTime(value: Date, timeZone: string) {
-  return new Intl.DateTimeFormat("th-TH", {
+  return new Intl.DateTimeFormat("en-GB", {
     timeZone,
     dateStyle: "short",
     timeStyle: "short",
