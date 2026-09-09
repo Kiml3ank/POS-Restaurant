@@ -14,6 +14,8 @@ import { syncOrderStatusFromItems } from "@/lib/server/order-progress";
 import { publishRealtimeEvent } from "@/lib/server/realtime";
 import type { CurrentStaff } from "@/lib/server/staff-session";
 import { REALTIME_EVENT_VERSION } from "@/lib/realtime-events";
+import type { MessageParams } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/vi";
 
 /**
  * จอครัว KDS (บทที่ 8)
@@ -175,7 +177,7 @@ export async function getKitchenTickets(
   });
 }
 
-type KitchenResult = { ok: true; changed: number } | { ok: false; error: string };
+type KitchenResult = { ok: true; changed: number } | { ok: false; errorKey: MessageKey; params?: MessageParams };
 
 /**
  * ครัวกดเปลี่ยนสถานะรายการเดียว
@@ -192,7 +194,7 @@ export async function advanceKitchenItem(
   orderItemId: string,
 ): Promise<KitchenResult> {
   if (!canCookOrderItem(staff.role)) {
-    return { ok: false, error: "This button belongs to the kitchen — your role can't press it on their behalf" };
+    return { ok: false, errorKey: "error.kitchen_only_button" as const };
   }
 
   const item = await prisma.orderItem.findFirst({
@@ -201,7 +203,7 @@ export async function advanceKitchenItem(
   });
 
   if (!item) {
-    return { ok: false, error: "Item not found in your branch" };
+    return { ok: false, errorKey: "error.item_not_found" as const };
   }
 
   if (!isKitchenActionable(item.status)) {
@@ -234,7 +236,7 @@ export async function advanceKitchenTicket(
   stationId: string | null,
 ): Promise<KitchenResult> {
   if (!canCookOrderItem(staff.role)) {
-    return { ok: false, error: "This button belongs to the kitchen — your role can't press it on their behalf" };
+    return { ok: false, errorKey: "error.kitchen_only_button" as const };
   }
 
   const order = await prisma.order.findFirst({
@@ -253,7 +255,7 @@ export async function advanceKitchenTicket(
   });
 
   if (!order) {
-    return { ok: false, error: "Bill not found in your branch" };
+    return { ok: false, errorKey: "error.bill_not_found" as const };
   }
 
   if (order.items.length === 0) {
@@ -292,7 +294,7 @@ export async function serveOrderItem(
   orderItemId: string,
 ): Promise<KitchenResult> {
   if (!canServeOrderItem(staff.role)) {
-    return { ok: false, error: "Your role can't mark items as served" };
+    return { ok: false, errorKey: "error.cannot_serve_item" as const };
   }
 
   const item = await prisma.orderItem.findFirst({
@@ -301,7 +303,7 @@ export async function serveOrderItem(
   });
 
   if (!item) {
-    return { ok: false, error: "Item not found in your branch" };
+    return { ok: false, errorKey: "error.item_not_found" as const };
   }
 
   if (item.status !== "READY") {

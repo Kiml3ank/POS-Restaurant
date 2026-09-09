@@ -7,6 +7,9 @@ import { REALTIME_EVENT_VERSION } from "@/lib/realtime-events";
 import { prisma } from "@/lib/server/db";
 import { publishRealtimeEvent } from "@/lib/server/realtime";
 import type { CurrentStaff } from "@/lib/server/staff-session";
+import type { MessageParams } from "@/lib/i18n/translate";
+import { countKey } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/vi";
 
 /**
  * จัดการเมนูจากหลังร้าน (โมดูล 04)
@@ -37,14 +40,23 @@ const MENU_ENTITIES: readonly MenuEntity[] = [
 ];
 
 /** ป้ายภาษาไทยของแต่ละชนิด ใช้ในข้อความ error และ AuditLog */
-const ENTITY_LABEL: Record<MenuEntity, string> = {
-  category: "category",
-  menuItem: "item",
-  modifierGroup: "modifier group",
-  modifier: "modifier",
+/**
+ * คีย์ข้อความ "ไม่พบ<ของ>ในสาขาของคุณ" ต่อชนิดของ entity
+ *
+ * เดิมเป็นคำนามภาษาอังกฤษที่เอาไปแทรกกลางประโยค — ทำแบบนั้นข้ามภาษาไม่ได้
+ * เพราะเวียดนามเรียงคำต่างออกไป และคำนามเองก็ต้องแปล
+ */
+const ENTITY_NOT_FOUND_KEY: Record<MenuEntity, MessageKey> = {
+  category: "error.entity_not_found.category",
+  menuItem: "error.entity_not_found.menuItem",
+  modifierGroup: "error.entity_not_found.modifierGroup",
+  modifier: "error.entity_not_found.modifier",
 };
 
-export type MenuAdminResult<T = object> = ({ ok: true } & T) | { ok: false; error: string };
+/** ความล้มเหลวหนึ่งครั้ง = คีย์ + ค่าที่ต้องแทรก (ไม่ใช่ประโยค) */
+type MenuFailure = { errorKey: MessageKey; params?: MessageParams };
+
+export type MenuAdminResult<T = object> = ({ ok: true } & T) | { ok: false; errorKey: MessageKey; params?: MessageParams };
 
 // ─────────────────────────────────────────────────────────────────────────────
 // อ่าน
@@ -154,17 +166,17 @@ export async function setAvailability(
   next: boolean,
 ): Promise<MenuAdminResult<{ available: boolean }>> {
   if (!canToggleMenuAvailability(staff.role)) {
-    return { ok: false, error: "Your role can't edit the menu" };
+    return { ok: false, errorKey: "error.cannot_edit_menu" as const };
   }
 
   if (!MENU_ENTITIES.includes(entity)) {
-    return { ok: false, error: "Unknown entity to edit" };
+    return { ok: false, errorKey: "error.unknown_entity_edit" as const };
   }
 
   const found = await findEntity(staff.branchId, entity, id);
 
   if (!found) {
-    return { ok: false, error: `This ${ENTITY_LABEL[entity]} was not found in your branch` };
+    return { ok: false, errorKey: ENTITY_NOT_FOUND_KEY[entity] };
   }
 
   await prisma.$transaction(async (tx) => {
@@ -220,13 +232,13 @@ export async function moveSortOrder(
   direction: "up" | "down",
 ): Promise<MenuAdminResult> {
   if (!canEditMenu(staff.role)) {
-    return { ok: false, error: "Your role can't reorder the menu" };
+    return { ok: false, errorKey: "error.cannot_reorder_menu" as const };
   }
 
   const siblings = await loadSiblings(staff.branchId, entity, id);
 
   if (!siblings) {
-    return { ok: false, error: `This ${ENTITY_LABEL[entity]} was not found in your branch` };
+    return { ok: false, errorKey: ENTITY_NOT_FOUND_KEY[entity] };
   }
 
   const index = siblings.findIndex((row) => row.id === id);
@@ -272,13 +284,13 @@ export async function upsertCategory(
   input: { id: string | null; name: string },
 ): Promise<MenuAdminResult<{ id: string }>> {
   if (!canEditMenu(staff.role)) {
-    return { ok: false, error: "Your role can't edit categories" };
+    return { ok: false, errorKey: "error.cannot_edit_category" as const };
   }
 
   const name = input.name.trim();
 
   if (name.length < 1) {
-    return { ok: false, error: "Enter a category name" };
+    return { ok: false, errorKey: "error.category_name_required" as const };
   }
 
   const existing = input.id
@@ -286,7 +298,7 @@ export async function upsertCategory(
     : null;
 
   if (input.id && !existing) {
-    return { ok: false, error: "Category not found in your branch" };
+    return { ok: false, errorKey: "error.category_not_found" as const };
   }
 
   const id = await prisma.$transaction(async (tx) => {
@@ -332,13 +344,13 @@ export async function upsertMenuItem(
   },
 ): Promise<MenuAdminResult<{ id: string }>> {
   if (!canEditMenu(staff.role)) {
-    return { ok: false, error: "Your role can't edit items" };
+    return { ok: false, errorKey: "error.cannot_edit_item" as const };
   }
 
   const name = input.name.trim();
 
   if (name.length < 1) {
-    return { ok: false, error: "Enter an item name" };
+    return { ok: false, errorKey: "error.item_name_required" as const };
   }
 
   /**
@@ -349,15 +361,15 @@ export async function upsertMenuItem(
   const basePrice = parseMoneyInput(input.basePriceText, staff.branch.currency);
 
   if (basePrice === null) {
-    return { ok: false, error: "Invalid price — enter a number, e.g. 120 or 120.50" };
+    return { ok: false, errorKey: "error.price_invalid" as const };
   }
 
   if (basePrice < 0) {
-    return { ok: false, error: "Item price can't be negative" };
+    return { ok: false, errorKey: "error.price_negative" as const };
   }
 
   if (input.imageUrl !== null && !isUsableImageUrl(input.imageUrl)) {
-    return { ok: false, error: "Image URL must start with https:// or /" };
+    return { ok: false, errorKey: "error.image_url_invalid" as const };
   }
 
   const category = await prisma.menuCategory.findFirst({
@@ -366,7 +378,7 @@ export async function upsertMenuItem(
   });
 
   if (!category) {
-    return { ok: false, error: "Select a category" };
+    return { ok: false, errorKey: "error.category_required" as const };
   }
 
   // สถานีต้องเป็นของสาขาเดียวกัน ไม่งั้นออร์เดอร์จะไปโผล่บนจอครัวของอีกสาขา
@@ -377,7 +389,7 @@ export async function upsertMenuItem(
     });
 
     if (!station) {
-      return { ok: false, error: "Selected kitchen station not found in your branch" };
+      return { ok: false, errorKey: "error.station_not_found" as const };
     }
   }
 
@@ -386,7 +398,7 @@ export async function upsertMenuItem(
     : null;
 
   if (input.id && !existing) {
-    return { ok: false, error: "Item not found in your branch" };
+    return { ok: false, errorKey: "error.item_not_found" as const };
   }
 
   const data = {
@@ -461,7 +473,7 @@ export async function setMenuItemModifierGroups(
   groupIds: string[],
 ): Promise<MenuAdminResult> {
   if (!canEditMenu(staff.role)) {
-    return { ok: false, error: "Your role can't edit items" };
+    return { ok: false, errorKey: "error.cannot_edit_item" as const };
   }
 
   const item = await prisma.menuItem.findFirst({
@@ -470,7 +482,7 @@ export async function setMenuItemModifierGroups(
   });
 
   if (!item) {
-    return { ok: false, error: "Item not found in your branch" };
+    return { ok: false, errorKey: "error.item_not_found" as const };
   }
 
   // ตัด id ซ้ำทิ้ง แล้วยืนยันว่าทุกกลุ่มเป็นของสาขานี้จริง (ฟอร์มยิงตรงมาได้)
@@ -481,7 +493,7 @@ export async function setMenuItemModifierGroups(
   });
 
   if (groups.length !== wanted.length) {
-    return { ok: false, error: "Some modifier groups don't belong to your branch" };
+    return { ok: false, errorKey: "error.modifier_groups_foreign" as const };
   }
 
   await prisma.$transaction(async (tx) => {
@@ -520,20 +532,20 @@ export async function upsertModifierGroup(
   },
 ): Promise<MenuAdminResult<{ id: string }>> {
   if (!canEditMenu(staff.role)) {
-    return { ok: false, error: "Your role can't edit modifier groups" };
+    return { ok: false, errorKey: "error.cannot_edit_modifier_group" as const };
   }
 
   const name = input.name.trim();
 
   if (name.length < 1) {
-    return { ok: false, error: "Enter a modifier group name" };
+    return { ok: false, errorKey: "error.modifier_group_name_required" as const };
   }
 
   // แถวที่เว้นชื่อไว้ว่างถือว่าไม่ได้ตั้งใจเพิ่ม (ฟอร์มมีช่องว่างรอไว้ให้กรอกเสมอ)
   const rows = input.modifiers.filter((modifier) => modifier.name.trim() !== "");
 
   if (rows.length === 0) {
-    return { ok: false, error: "The group needs at least one option" };
+    return { ok: false, errorKey: "error.group_needs_option" as const };
   }
 
   const parsed: { id: string | null; name: string; priceDelta: number }[] = [];
@@ -544,7 +556,8 @@ export async function upsertModifierGroup(
     if (priceDelta === null) {
       return {
         ok: false,
-        error: `Invalid price delta for "${row.name.trim()}" (negative is fine, e.g. -10)`,
+        errorKey: "error.modifier_price_delta_invalid" as const,
+        params: { name: row.name.trim() },
       };
     }
 
@@ -559,7 +572,7 @@ export async function upsertModifierGroup(
   });
 
   if (validation) {
-    return { ok: false, error: validation };
+    return { ok: false, errorKey: validation.errorKey, params: validation.params };
   }
 
   const existing = input.id
@@ -570,7 +583,7 @@ export async function upsertModifierGroup(
     : null;
 
   if (input.id && !existing) {
-    return { ok: false, error: "Modifier group not found in your branch" };
+    return { ok: false, errorKey: "error.modifier_group_not_found" as const };
   }
 
   const id = await prisma.$transaction(async (tx) => {
@@ -677,31 +690,34 @@ function validateSelectionRules(input: {
   minSelect: number;
   maxSelect: number;
   optionCount: number;
-}): string | null {
+}): MenuFailure | null {
   const { required, minSelect, maxSelect, optionCount } = input;
 
   if (!Number.isInteger(minSelect) || !Number.isInteger(maxSelect)) {
-    return "Selection counts must be whole numbers";
+    return { errorKey: "error.selection_counts_integer" as const };
   }
 
   if (minSelect < 0) {
-    return "Minimum selection can't be negative";
+    return { errorKey: "error.selection_min_negative" as const };
   }
 
   if (maxSelect < 1) {
-    return "Maximum selection must be at least 1 (a group with nothing selectable shouldn't exist)";
+    return { errorKey: "error.selection_max_min1" as const };
   }
 
   if (maxSelect < minSelect) {
-    return "Maximum selection can't be less than the minimum";
+    return { errorKey: "error.selection_max_lt_min" as const };
   }
 
   if (required && minSelect < 1) {
-    return 'A group marked "required" must have a minimum of at least 1';
+    return { errorKey: "error.selection_required_min1" as const };
   }
 
   if (minSelect > optionCount) {
-    return `Minimum is ${minSelect} but the group only has ${optionCount} option(s) — customers could never satisfy it`;
+    return {
+      errorKey: "error.selection_min_gt_options" as const,
+      params: { min: minSelect, count: optionCount },
+    };
   }
 
   return null;
@@ -729,23 +745,23 @@ export async function deleteMenuEntity(
   id: string,
 ): Promise<MenuAdminResult> {
   if (!canEditMenu(staff.role)) {
-    return { ok: false, error: "Your role can't delete" };
+    return { ok: false, errorKey: "error.cannot_delete" as const };
   }
 
   if (!MENU_ENTITIES.includes(entity)) {
-    return { ok: false, error: "Unknown entity to delete" };
+    return { ok: false, errorKey: "error.unknown_entity_delete" as const };
   }
 
   const found = await findEntity(staff.branchId, entity, id);
 
   if (!found) {
-    return { ok: false, error: `This ${ENTITY_LABEL[entity]} was not found in your branch` };
+    return { ok: false, errorKey: ENTITY_NOT_FOUND_KEY[entity] };
   }
 
   const blocked = await reasonCannotDelete(entity, id);
 
   if (blocked) {
-    return { ok: false, error: blocked };
+    return { ok: false, errorKey: blocked.errorKey, params: blocked.params };
   }
 
   await prisma.$transaction(async (tx) => {
@@ -777,13 +793,16 @@ export async function deleteMenuEntity(
 }
 
 /** คืนข้อความเหตุผลถ้าลบไม่ได้ · คืน null ถ้าลบได้ */
-async function reasonCannotDelete(entity: MenuEntity, id: string): Promise<string | null> {
+async function reasonCannotDelete(entity: MenuEntity, id: string): Promise<MenuFailure | null> {
   switch (entity) {
     case "category": {
       const items = await prisma.menuItem.count({ where: { categoryId: id } });
 
       return items > 0
-        ? `This category still has ${items} item(s) — move or delete them first`
+        ? {
+            errorKey: countKey("error.delete_category_has_items", items),
+            params: { count: items },
+          }
         : null;
     }
 
@@ -791,7 +810,10 @@ async function reasonCannotDelete(entity: MenuEntity, id: string): Promise<strin
       const ordered = await prisma.orderItem.count({ where: { menuItemId: id } });
 
       return ordered > 0
-        ? `This item has been ordered ${ordered} time(s) — can't delete because past bills reference it. Use "Disable" instead`
+        ? {
+            errorKey: countKey("error.delete_item_ordered", ordered),
+            params: { count: ordered },
+          }
         : null;
     }
 
@@ -799,7 +821,10 @@ async function reasonCannotDelete(entity: MenuEntity, id: string): Promise<strin
       const linked = await prisma.menuItemModifierGroup.count({ where: { modifierGroupId: id } });
 
       if (linked > 0) {
-        return `This group is still linked to ${linked} item(s) — remove it from those items first`;
+        return {
+          errorKey: countKey("error.delete_group_linked", linked),
+          params: { count: linked },
+        };
       }
 
       // ลบกลุ่ม = ตัวเลือกข้างในถูก Cascade ตามไปด้วย จึงต้องเช็คแทนมันทั้งกลุ่ม
@@ -807,16 +832,17 @@ async function reasonCannotDelete(entity: MenuEntity, id: string): Promise<strin
         where: { modifier: { modifierGroupId: id } },
       });
 
-      return ordered > 0
-        ? `Options in this group have been ordered before — can't delete. Use "Disable" instead`
-        : null;
+      return ordered > 0 ? { errorKey: "error.delete_group_options_ordered" as const } : null;
     }
 
     case "modifier": {
       const ordered = await prisma.orderItemModifier.count({ where: { modifierId: id } });
 
       return ordered > 0
-        ? `This option has been ordered ${ordered} time(s) — can't delete. Use "Disable" instead`
+        ? {
+            errorKey: countKey("error.delete_modifier_ordered", ordered),
+            params: { count: ordered },
+          }
         : null;
     }
   }

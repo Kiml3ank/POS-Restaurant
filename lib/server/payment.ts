@@ -11,6 +11,8 @@ import { publishRealtimeEvent } from "@/lib/server/realtime";
 import { issueReceipt } from "@/lib/server/receipt-issue";
 import { staffMealDiscountAmount } from "@/lib/server/staff-meal";
 import type { CurrentStaff } from "@/lib/server/staff-session";
+import type { MessageParams } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/vi";
 
 /**
  * รับเงินและปิดบิล (บทที่ 11)
@@ -56,7 +58,7 @@ export type TakePaymentInput = {
 
 export type TakePaymentResult =
   | { ok: true; paymentId: string; alreadyPaid: boolean }
-  | { ok: false; error: string };
+  | { ok: false; errorKey: MessageKey; params?: MessageParams };
 
 /** วิธีจ่ายที่เปิดใช้จริงในก้อนนี้ — CARD มีใน enum แต่ยังไม่มีเครื่อง EDC/gateway */
 const ENABLED_METHODS: readonly PaymentMethod[] = ["CASH", "QR"];
@@ -76,11 +78,11 @@ export async function takePayment(
 ): Promise<TakePaymentResult> {
   // การซ่อนปุ่มบนหน้าจอไม่ใช่การกันสิทธิ์ — action ถูกยิงตรงด้วย POST ได้
   if (!canTakePayment(staff.role)) {
-    return { ok: false, error: "Your role can't take payments — please call a cashier or manager" };
+    return { ok: false, errorKey: "error.cannot_take_payment" as const };
   }
 
   if (!ENABLED_METHODS.includes(input.method)) {
-    return { ok: false, error: "This payment method isn't supported yet (card needs a real EDC terminal)" };
+    return { ok: false, errorKey: "error.payment_method_unsupported" as const };
   }
 
   const table = await prisma.restaurantTable.findFirst({
@@ -94,7 +96,7 @@ export async function takePayment(
   });
 
   if (!table) {
-    return { ok: false, error: "Table not found in your branch" };
+    return { ok: false, errorKey: "error.table_not_found" as const };
   }
 
   /**
@@ -121,7 +123,7 @@ export async function takePayment(
   if (!input.sessionId && openSessions.length > 1) {
     return {
       ok: false,
-      error: "This sale point has multiple open bills — please specify which one to pay",
+      errorKey: "error.sale_point_many_bills" as const,
     };
   }
 
@@ -155,7 +157,7 @@ export async function takePayment(
       return { ok: true, paymentId: recent.id, alreadyPaid: true };
     }
 
-    return { ok: false, error: "This table has no open session — it may already be paid" };
+    return { ok: false, errorKey: "error.table_no_session_maybe_paid" as const };
   }
 
   const branch = table.branch;
@@ -215,7 +217,7 @@ export async function takePayment(
 
       return existing
         ? ({ kind: "already" as const, paymentId: existing.id })
-        : ({ kind: "error" as const, error: "This table session was closed without a payment" });
+        : ({ kind: "error" as const, errorKey: "error.session_closed_unpaid" as const });
     }
 
     const orders = await tx.order.findMany({
@@ -244,11 +246,11 @@ export async function takePayment(
     });
 
     if (draft.some((order) => order._count.items > 0)) {
-      throw new PaymentAbort("This table still has items in the cart that haven't been sent to the kitchen — send or remove them before taking payment");
+      throw new PaymentAbort("error.cart_not_sent");
     }
 
     if (orders.length === 0) {
-      throw new PaymentAbort("This bill has no items to charge");
+      throw new PaymentAbort("error.bill_no_items");
     }
 
     // ── คิดยอดใหม่จากของจริงใน DB ตรงนี้ ห้ามใช้ยอดที่อ่านไว้ก่อนเข้า transaction ──
@@ -258,7 +260,7 @@ export async function takePayment(
     const subtotal = orderSubtotals.reduce((sum, amount) => sum + amount, 0);
 
     if (subtotal === 0 && orders.every((order) => order.items.length === 0)) {
-      throw new PaymentAbort("This bill has no items to charge (everything was cancelled)");
+      throw new PaymentAbort("error.bill_all_cancelled");
     }
 
     /**
@@ -277,16 +279,14 @@ export async function takePayment(
       Number.isFinite(input.expectedTotal) &&
       input.expectedTotal !== bill.grandTotal
     ) {
-      throw new PaymentAbort(
-        "The bill total just changed (an item was added or cancelled) — please re-read the total to the customer before confirming",
-      );
+      throw new PaymentAbort("error.bill_total_changed");
     }
 
     const isCash = input.method === "CASH";
     const received = isCash ? Math.trunc(input.receivedAmount ?? 0) : null;
 
     if (isCash && received !== null && received < bill.grandTotal) {
-      throw new PaymentAbort("Amount received is less than the total due");
+      throw new PaymentAbort("error.received_less_than_due");
     }
 
     // เงินทอนเป็นการลบจำนวนเต็มล้วน ไม่มีการหาร/ปัดเศษที่ไหนเลย
@@ -423,14 +423,14 @@ export async function takePayment(
     return { kind: "paid" as const, paymentId: payment.id };
   }).catch((error: unknown) => {
     if (error instanceof PaymentAbort) {
-      return { kind: "error" as const, error: error.message };
+      return { kind: "error" as const, errorKey: error.errorKey, params: error.params };
     }
 
     throw error;
   });
 
   if (outcome.kind === "error") {
-    return { ok: false, error: outcome.error };
+    return { ok: false, errorKey: outcome.errorKey, params: "params" in outcome ? outcome.params : undefined };
   }
 
   /**
@@ -458,7 +458,20 @@ export async function takePayment(
  * (คำสั่งแรกใน transaction) — ถ้า return เฉย ๆ รอบโต๊ะจะถูกปิดทิ้งโดยไม่ได้รับเงิน
  * การ throw คือสิ่งที่ทำให้ Prisma rollback ทุกอย่างกลับไปเหมือนไม่มีอะไรเกิดขึ้น
  */
-class PaymentAbort extends Error {}
+/**
+ * ⚠ ต้อง throw เพื่อให้ transaction rollback — return เฉย ๆ จะปิดรอบโต๊ะ
+ * ไปแล้วโดยไม่ได้รับเงิน (กฎบทที่ 11)
+ *
+ * แบก **คีย์** ไม่ใช่ประโยค ด้วยเหตุผลเดียวกับที่อื่นทั้งไฟล์
+ */
+class PaymentAbort extends Error {
+  constructor(
+    readonly errorKey: MessageKey,
+    readonly params?: MessageParams,
+  ) {
+    super(errorKey);
+  }
+}
 
 /** ยอดของแต่ละบิลที่แบ่งมาจากยอดรวมของรอบโต๊ะ */
 type OrderShare = {

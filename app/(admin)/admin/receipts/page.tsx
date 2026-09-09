@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getT } from "@/lib/server/locale";
 import { redirect } from "next/navigation";
 
 import { LiveRefresh } from "@/components/live-refresh";
@@ -29,6 +30,7 @@ export default async function AdminReceiptsPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string; method?: string; q?: string; page?: string }>;
 }) {
+  const { t } = await getT();
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -63,7 +65,7 @@ export default async function AdminReceiptsPage({
         <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
           <div className="panel mx-auto mt-8 flex max-w-[520px] flex-col gap-2 p-6">
             <span className="display text-[20px]">ดูใบเสร็จย้อนหลังไม่ได้</span>
-            <p className="text-[var(--color-neutral-700)]">{result.error}</p>
+            <p className="text-[var(--color-neutral-700)]">{t(result.errorKey, result.params)}</p>
             <p className="kicker mt-2">
               พิมพ์ใบให้ลูกค้าที่ยืนอยู่ตรงหน้าได้จากหน้าคิดเงินที่จอ POS
             </p>

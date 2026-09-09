@@ -3,7 +3,7 @@
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 
-import type { FormState } from "@/lib/form-state";
+import { formError, type FormState } from "@/lib/form-state";
 import { canAccessScreen } from "@/lib/rbac";
 import { salePointBasePath, showsInTableMap } from "@/lib/sale-point";
 import type { SalePointKind } from "@/lib/generated/prisma/enums";
@@ -23,6 +23,8 @@ import { recordReceiptPrint } from "@/lib/server/receipt";
 import { clearStaffMeal, setStaffMeal } from "@/lib/server/staff-meal";
 import { mergeTableSessions, moveTableSession } from "@/lib/server/table-move";
 import { getCurrentStaff, loginStaff, logoutStaff } from "@/lib/server/staff-session";
+import type { MessageParams } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/vi";
 
 /**
  * Server Action ของเครื่องพนักงาน (บทที่ 9 + ล็อกอิน PIN จากบทที่ 13)
@@ -33,7 +35,7 @@ import { getCurrentStaff, loginStaff, logoutStaff } from "@/lib/server/staff-ses
 
 const NOT_SIGNED_IN: FormState = {
   status: "error",
-  message: "Session expired — please enter your PIN again",
+  messageKey: "error.session_expired",
 };
 
 async function requirePosStaff() {
@@ -103,12 +105,12 @@ export async function loginAction(_prevState: FormState, formData: FormData): Pr
   );
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   if (!canAccessScreen(result.staff.role, "pos")) {
     await logoutStaff("pos");
-    return { status: "error", message: "Your role can't access the POS screen" };
+    return { status: "error", messageKey: "error.no_access_pos" };
   }
 
   redirect("/pos");
@@ -138,7 +140,7 @@ export async function openTableAction(
   );
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   redirect(`/pos/table/${tableId}`);
@@ -162,7 +164,7 @@ export async function closeTableAction(
   );
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   redirect("/pos");
@@ -192,12 +194,12 @@ export async function posServeItemAction(
   const result = await serveOrderItem(staff, String(formData.get("orderItemId") ?? ""));
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
-  return { status: "success", message: "Served" };
+  return { status: "success", messageKey: "msg.served" };
 }
 
 /**
@@ -226,7 +228,7 @@ export async function takePaymentAction(
   const method = String(formData.get("method") ?? "");
 
   if (method !== "CASH" && method !== "QR") {
-    return { status: "error", message: "Please choose a payment method" };
+    return { status: "error", messageKey: "error.choose_payment_method" };
   }
 
   const sessionId = sessionIdOf(formData);
@@ -252,7 +254,7 @@ export async function takePaymentAction(
   });
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   redirect(`${base}/bill?paid=${result.paymentId}`);
@@ -293,12 +295,12 @@ export async function cancelItemAction(
   );
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
-  return { status: "success", message: "Item cancelled" };
+  return { status: "success", messageKey: "msg.item_cancelled" };
 }
 
 /**
@@ -319,7 +321,7 @@ export async function posAddToCartAction(
   const target = await resolveOpenTarget(staff.branchId, tableId, sessionIdOf(formData));
 
   if (!target) {
-    return { status: "error", message: "No open bill found — please open one first" };
+    return { status: "error", messageKey: "error.no_open_bill_open_first" };
   }
 
   const result = await addToCart({
@@ -335,7 +337,7 @@ export async function posAddToCartAction(
   });
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   // กลับไปจอสั่งอาหารของโต๊ะต่อ เพราะพนักงานมักรับออร์เดอร์รวดเดียวหลายอย่าง
@@ -360,7 +362,7 @@ export async function posSetLineQuantityAction(
   );
 
   if (!target) {
-    return { status: "error", message: "No open bill found" };
+    return { status: "error", messageKey: "error.no_open_bill" };
   }
 
   const result = await setCartLineQuantity(
@@ -370,12 +372,12 @@ export async function posSetLineQuantityAction(
   );
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
-  return { status: "success", message: "Cart updated" };
+  return { status: "success", messageKey: "msg.cart_updated" };
 }
 
 /** ส่งตะกร้าของโต๊ะเข้าครัว โดยบันทึกว่าพนักงานคนไหนเป็นคนกด */
@@ -396,13 +398,13 @@ export async function posPlaceOrderAction(
   );
 
   if (!target) {
-    return { status: "error", message: "No open bill found" };
+    return { status: "error", messageKey: "error.no_open_bill" };
   }
 
   const result = await placeOrder(target.session.id, { placedByStaffId: staff.id });
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   redirect(salePointBase(target));
@@ -422,7 +424,7 @@ export async function openSalePointAction(
   const result = await openSalePointSession(staff, String(formData.get("tableId") ?? ""));
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   redirect(`/pos/counter/${result.session.id}`);
@@ -451,14 +453,15 @@ export async function setCustomerNameAction(
   );
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
   return {
     status: "success",
-    message: result.customerName ? `Saved name "${result.customerName}"` : "Customer name cleared",
+    messageKey: result.customerName ? "msg.customer_name_saved" : "msg.customer_name_cleared",
+    params: { name: result.customerName ?? "" },
   };
 }
 
@@ -475,17 +478,17 @@ export async function setCustomerNameAction(
  */
 export async function posPrintReceiptAction(
   receiptId: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; errorKey?: MessageKey; params?: MessageParams }> {
   const staff = await requirePosStaff();
 
   if (!staff) {
-    return { ok: false, error: "Session expired — please enter your PIN again" };
+    return { ok: false, errorKey: "error.session_expired" };
   }
 
   const result = await recordReceiptPrint(staff, receiptId);
 
   if (!result.ok) {
-    return { ok: false, error: result.error };
+    return { ok: false, errorKey: result.errorKey };
   }
 
   // ป้าย "สำเนา" กับตัวเลข "พิมพ์ครั้งที่ N" บนใบต้องอัปเดตก่อนกล่องพิมพ์เปิด
@@ -519,12 +522,12 @@ export async function setStaffMealAction(
   );
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
-  return { status: "success", message: "Staff meal discount flagged" };
+  return { status: "success", messageKey: "msg.staff_meal_flagged" };
 }
 
 /**
@@ -553,7 +556,7 @@ export async function moveTableAction(
   });
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   // URL เดิมชี้โต๊ะที่ว่างไปแล้ว ถ้าไม่พาไปโต๊ะใหม่พนักงานจะเห็นจอ "เปิดโต๊ะ" ว่าง ๆ
@@ -577,7 +580,7 @@ export async function mergeTableAction(
   });
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   // รอบของโต๊ะนี้ถูกกลืนไปแล้ว หน้าเดิมจึงไม่มีบิลให้ดูอีก — พาไปบิลที่รวมแล้ว
@@ -602,10 +605,10 @@ export async function clearStaffMealAction(
   );
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
-  return { status: "success", message: "Staff meal discount cleared" };
+  return { status: "success", messageKey: "msg.staff_meal_cleared" };
 }

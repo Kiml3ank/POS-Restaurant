@@ -1,6 +1,9 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import { useT } from "@/components/i18n-provider";
+import type { MessageParams } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/vi";
 
 /**
  * ปุ่มพิมพ์ใบเสร็จ (บทที่ 12)
@@ -22,9 +25,10 @@ export function ReceiptPrintButton({
   className = "",
 }: {
   /** Server Action ที่ bind receiptId ไว้แล้ว — คนละตัวระหว่างจอ POS กับหลังร้าน */
-  action: () => Promise<{ ok: boolean; error?: string }>;
+  action: () => Promise<{ ok: boolean; errorKey?: MessageKey; params?: MessageParams }>;
   className?: string;
 }) {
+  const { t } = useT();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState<string | null>(null);
 
@@ -41,7 +45,7 @@ export function ReceiptPrintButton({
             const result = await action();
 
             if (!result.ok) {
-              setError(result.error ?? "บันทึกการพิมพ์ไม่สำเร็จ");
+              setError(t(result.errorKey ?? "error.print_record_failed", result.params));
               return;
             }
 

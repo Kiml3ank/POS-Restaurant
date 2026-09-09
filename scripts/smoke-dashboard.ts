@@ -82,7 +82,7 @@ async function main() {
       include: { branch: true },
     })) as CurrentStaff;
     const refused = await getDashboard(cashier);
-    check("getDashboard() ปฏิเสธแคชเชียร์", refused.ok === false, refused.ok ? "" : refused.error);
+    check("getDashboard() ปฏิเสธแคชเชียร์", refused.ok === false, refused.ok ? "" : refused.errorKey);
 
     console.log("\n── 2. ช่วง 'วันนี้' ของสาขา ──────────────────────────────────────\n");
 
@@ -108,7 +108,7 @@ async function main() {
 
     // บิลที่ 1 — โต๊ะนั่ง จ่ายเงินสด
     const opened = await openTableByStaff(owner, table.id, 2);
-    if (!opened.ok) throw new Error(opened.error);
+    if (!opened.ok) throw new Error(opened.errorKey);
     const addOne = await addToCart({
       tableSessionId: opened.session.id,
       branchId,
@@ -120,7 +120,7 @@ async function main() {
       note: null,
       channel: "POS",
     });
-    if (!addOne.ok) throw new Error(addOne.error);
+    if (!addOne.ok) throw new Error(addOne.errorKey);
     await placeOrder(opened.session.id);
 
     const bill1 = await getTableBill(branchId, table.id);
@@ -128,12 +128,12 @@ async function main() {
       method: "CASH",
       receivedAmount: bill1 && !bill1.isEmpty ? bill1.bill.grandTotal : 0,
     });
-    if (!paid1.ok) throw new Error(paid1.error);
+    if (!paid1.ok) throw new Error(paid1.errorKey);
     const payment1 = await prisma.payment.findUniqueOrThrow({ where: { id: paid1.paymentId } });
 
     // บิลที่ 2 — ซื้อกลับ จ่าย QR
     const queue = await openSalePointSession(owner, counter.id);
-    if (!queue.ok) throw new Error(queue.error);
+    if (!queue.ok) throw new Error(queue.errorKey);
     await addToCart({
       tableSessionId: queue.session.id,
       branchId,
@@ -153,11 +153,11 @@ async function main() {
       sessionId: queue.session.id,
       receivedAmount: bill2 && !bill2.isEmpty ? bill2.bill.grandTotal : 0,
     });
-    if (!paid2.ok) throw new Error(paid2.error);
+    if (!paid2.ok) throw new Error(paid2.errorKey);
     const payment2 = await prisma.payment.findUniqueOrThrow({ where: { id: paid2.paymentId } });
 
     const after = await getDashboard(owner);
-    if (!after.ok) throw new Error(after.error);
+    if (!after.ok) throw new Error(after.errorKey);
     const data = after.data;
 
     check(
@@ -217,7 +217,7 @@ async function main() {
     });
 
     const afterBackdate = await getDashboard(owner);
-    if (!afterBackdate.ok) throw new Error(afterBackdate.error);
+    if (!afterBackdate.ok) throw new Error(afterBackdate.errorKey);
 
     check(
       "ย้ายบิลไปเมื่อวานแล้วยอดวันนี้ลดลงเท่ากับบิลนั้นพอดี",
@@ -234,7 +234,7 @@ async function main() {
     console.log("\n── 5. สถานะหน้าร้านตอนนี้ ────────────────────────────────────────\n");
 
     const openTable = await openTableByStaff(owner, table.id, 4);
-    if (!openTable.ok) throw new Error(openTable.error);
+    if (!openTable.ok) throw new Error(openTable.errorKey);
     await addToCart({
       tableSessionId: openTable.session.id,
       branchId,
@@ -249,7 +249,7 @@ async function main() {
     await placeOrder(openTable.session.id);
 
     const live = await getDashboard(owner);
-    if (!live.ok) throw new Error(live.error);
+    if (!live.ok) throw new Error(live.errorKey);
 
     check("นับบิลที่เปิดอยู่ตอนนี้", live.data.now.openBills >= 1, `${live.data.now.openBills} ใบ`);
     check("แยกโต๊ะนั่งกับซื้อกลับที่เปิดอยู่", live.data.now.openDineIn >= 1, `นั่ง ${live.data.now.openDineIn} · ซื้อกลับ ${live.data.now.openTakeaway}`);

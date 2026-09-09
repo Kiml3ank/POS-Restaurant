@@ -214,11 +214,11 @@ async function main() {
   await seedOrder(OTHER_TABLE_ID, branch.id, branch.timezone, 1);
 
   const clash = await setStaffMeal(owner, OTHER_TABLE_ID, kitchen.id);
-  check("เอาชื่อคนเดิมไปแปะอีกโต๊ะพร้อมกันไม่ได้", !clash.ok, clash.ok ? "" : clash.error);
+  check("เอาชื่อคนเดิมไปแปะอีกโต๊ะพร้อมกันไม่ได้", !clash.ok, clash.ok ? "" : clash.errorKey);
   check(
     "ข้อความบอกด้วยว่าติดค้างอยู่โต๊ะไหน",
-    !clash.ok && clash.error.includes("B1"),
-    clash.ok ? "" : clash.error,
+    !clash.ok && clash.errorKey.includes("B1"),
+    clash.ok ? "" : clash.errorKey,
   );
 
   const otherPerson = await setStaffMeal(owner, OTHER_TABLE_ID, server.id);
@@ -259,7 +259,7 @@ async function main() {
   if (!toPay) throw new Error("อ่านบิลไม่ได้");
 
   const paid = await takePayment(cashier, TABLE_ID, { method: "QR" });
-  check("รับเงินบิลที่มีส่วนลดพนักงานได้", paid.ok, paid.ok ? "" : paid.error);
+  check("รับเงินบิลที่มีส่วนลดพนักงานได้", paid.ok, paid.ok ? "" : paid.errorKey);
   if (!paid.ok) throw new Error("รับเงินไม่สำเร็จ");
 
   const payment = await prisma.payment.findUniqueOrThrow({ where: { id: paid.paymentId } });
@@ -284,7 +284,7 @@ async function main() {
 
   // ── 10. บิลที่ปิดแล้วต้องแตะไม่ได้ ──────────────────────────────────────
   const afterPaid = await setStaffMeal(owner, TABLE_ID, kitchen.id);
-  check("ติดธงบนโต๊ะที่ปิดบิลไปแล้วไม่ได้", !afterPaid.ok, afterPaid.ok ? "" : afterPaid.error);
+  check("ติดธงบนโต๊ะที่ปิดบิลไปแล้วไม่ได้", !afterPaid.ok, afterPaid.ok ? "" : afterPaid.errorKey);
 
   // ── 11. AuditLog ต้องบันทึกครบทั้งติดและปลด ─────────────────────────────
   const logs = await prisma.auditLog.findMany({

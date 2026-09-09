@@ -5,6 +5,8 @@ import { canReadAuditLog } from "@/lib/rbac";
 import { branchDayRangeUtc } from "@/lib/server/branch-time";
 import { prisma } from "@/lib/server/db";
 import type { CurrentStaff } from "@/lib/server/staff-session";
+import type { MessageParams } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/vi";
 
 /**
  * อ่าน AuditLog (บทที่ 13)
@@ -42,7 +44,7 @@ export type AuditLogRow = {
 };
 
 export type ListAuditLogsResult =
-  | { ok: false; error: string }
+  | { ok: false; errorKey: MessageKey; params?: MessageParams }
   | {
       ok: true;
       rows: AuditLogRow[];
@@ -59,7 +61,7 @@ export async function listAuditLogs(
   filters: AuditLogFilters = {},
 ): Promise<ListAuditLogsResult> {
   if (!canReadAuditLog(staff.role)) {
-    return { ok: false, error: "Your role can't read the audit log" };
+    return { ok: false, errorKey: "error.cannot_read_audit_log" as const };
   }
 
   const where: Prisma.AuditLogWhereInput = { branchId: staff.branchId };

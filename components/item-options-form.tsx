@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/i18n-provider";
 import { useActionState, useState } from "react";
 
 import { SubmitButton } from "@/components/submit-button";
@@ -56,6 +57,7 @@ export function ItemOptionsForm({
   submitLabel?: string;
   skin?: "default" | "pos";
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(action, IDLE_FORM_STATE);
   const [quantity, setQuantity] = useState(1);
   const [selected, setSelected] = useState<Record<string, string[]>>({});
@@ -259,7 +261,7 @@ export function ItemOptionsForm({
           role="alert"
           className={isPos ? "alert" : "rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"}
         >
-          {state.message}
+          {t(state.messageKey, state.params)}
         </p>
       ) : null}
 

@@ -8,6 +8,8 @@ import { canEditSettings, canEditTaxSettings } from "@/lib/rbac";
 import { clientIp } from "@/lib/server/client-ip";
 import { prisma } from "@/lib/server/db";
 import type { CurrentStaff } from "@/lib/server/staff-session";
+import { countKey, type MessageParams } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/vi";
 
 /**
  * ตั้งค่าสาขา / ข้อมูลร้าน / สถานีครัว (spec §22 §23 §24)
@@ -31,32 +33,45 @@ import type { CurrentStaff } from "@/lib/server/staff-session";
  *    (กติกาเดียวกับราคาเมนูในโมดูล 04)
  */
 
-export type SettingsResult = { ok: false; error: string } | { ok: true; changed: boolean };
+export type SettingsResult = { ok: false; errorKey: MessageKey; params?: MessageParams } | { ok: true; changed: boolean };
 
-function fail(error: string) {
-  return { ok: false as const, error };
+/**
+ * คืน **คีย์** ไม่ใช่ประโยค — ชั้นธุรกิจไม่รู้จักภาษาที่ผู้ใช้เลือก
+ * (กฎหัวข้อ 5 ของ spec i18n) หน้าจอเป็นคนแปลตอน render
+ */
+function fail(errorKey: MessageKey, params?: MessageParams) {
+  return { ok: false as const, errorKey, params };
 }
 
-/** 0-10000 basis point = 0-100% · ต้องเป็นจำนวนเต็มเสมอ */
-function invalidRate(value: number, label: string): string | null {
+/**
+ * 0-10000 basis point = 0-100% · ต้องเป็นจำนวนเต็มเสมอ
+ *
+ * รับ "คีย์ของแต่ละฟิลด์" เข้ามาแทนที่จะแทรกชื่อฟิลด์เป็น `{label}`
+ * เพราะชื่อฟิลด์เองก็ต้องแปล และไฟล์นี้แปลไม่ได้ตามกฎข้างบน
+ * แลกด้วยคีย์เยอะขึ้นหกตัว แต่ tsc ตรวจให้ครบทุกตัวว่ามีอยู่จริง
+ */
+function invalidRate(
+  value: number,
+  keys: { notInteger: MessageKey; outOfRange: MessageKey },
+): MessageKey | null {
   if (!Number.isInteger(value)) {
-    return `${label} must be a whole number (in basis points)`;
+    return keys.notInteger;
   }
 
   if (value < 0 || value > 10000) {
-    return `${label} must be between 0 and 10000 (0-100%)`;
+    return keys.outOfRange;
   }
 
   return null;
 }
 
 /** ตรวจว่า timezone ที่ส่งมา Node รู้จักจริง — ผิดแล้วทั้งระบบคิดวันผิด */
-function invalidTimezone(timezone: string): string | null {
+function invalidTimezone(timezone: string): boolean {
   try {
     new Intl.DateTimeFormat("en-US", { timeZone: timezone });
-    return null;
+    return false;
   } catch {
-    return `Unknown timezone "${timezone}"`;
+    return true;
   }
 }
 
@@ -164,25 +179,33 @@ export async function updateTaxSettings(
   },
 ): Promise<SettingsResult> {
   if (!canEditTaxSettings(actor.role)) {
-    return fail("Only the owner can edit tax and service charge rates");
+    return fail("error.owner_only_tax");
   }
 
   const rateError =
-    invalidRate(input.vatRateBp, "VAT rate") ??
-    invalidRate(input.serviceChargeBp, "Service charge") ??
-    invalidRate(input.staffMealDiscountBp, "Staff meal discount");
+    invalidRate(input.vatRateBp, {
+      notInteger: "error.vat_rate_not_integer",
+      outOfRange: "error.vat_rate_range",
+    }) ??
+    invalidRate(input.serviceChargeBp, {
+      notInteger: "error.service_charge_not_integer",
+      outOfRange: "error.service_charge_range",
+    }) ??
+    invalidRate(input.staffMealDiscountBp, {
+      notInteger: "error.staff_meal_not_integer",
+      outOfRange: "error.staff_meal_range",
+    });
 
   if (rateError) {
     return fail(rateError);
   }
 
   if (!(input.currency in CURRENCIES)) {
-    return fail(`Unknown currency "${input.currency}"`);
+    return fail("error.currency_unknown", { currency: input.currency });
   }
 
-  const timezoneError = invalidTimezone(input.timezone);
-  if (timezoneError) {
-    return fail(timezoneError);
+  if (invalidTimezone(input.timezone)) {
+    return fail("error.timezone_unknown", { timezone: input.timezone });
   }
 
   const branch = await prisma.branch.findUniqueOrThrow({ where: { id: actor.branchId } });
@@ -198,9 +221,7 @@ export async function updateTaxSettings(
     const payments = await prisma.payment.count({ where: { branchId: actor.branchId } });
 
     if (payments > 0) {
-      return fail(
-        `This branch has already taken ${payments} payment(s), so the currency can't change — every stored amount is in units of the current currency`,
-      );
+      return fail(countKey("error.currency_locked", payments), { count: payments });
     }
   }
 
@@ -243,14 +264,14 @@ export async function updateBusinessInfo(
   },
 ): Promise<SettingsResult> {
   if (!canEditSettings(actor.role)) {
-    return fail("Your role can't edit business info");
+    return fail("error.cannot_edit_business_info");
   }
 
   const tenantName = input.tenantName.trim();
   const branchName = input.branchName.trim();
 
   if (!tenantName || !branchName) {
-    return fail("Enter both the business name and branch name");
+    return fail("error.business_names_required");
   }
 
   const taxId = input.taxId.replace(/\s|-/g, "").trim();
@@ -261,7 +282,7 @@ export async function updateBusinessInfo(
    * และจะไม่มีใครรู้จนกว่าสรรพากรจะทัก
    */
   if (taxId && !/^\d{13}$/.test(taxId)) {
-    return fail("Tax ID must be 13 digits");
+    return fail("error.tax_id_invalid");
   }
 
   const branch = await prisma.branch.findUniqueOrThrow({
@@ -332,18 +353,18 @@ export async function upsertStation(
   input: { code: string; name: string; sortOrder: number; isActive: boolean },
 ): Promise<SettingsResult & { stationId?: string }> {
   if (!canEditSettings(actor.role)) {
-    return fail("Your role can't edit kitchen stations");
+    return fail("error.cannot_edit_stations");
   }
 
   const code = input.code.trim().toUpperCase();
   const name = input.name.trim();
 
   if (!code || !name) {
-    return fail("Enter a station code and name");
+    return fail("error.station_code_name_required");
   }
 
   if (!Number.isInteger(input.sortOrder)) {
-    return fail("Sort order must be a whole number");
+    return fail("error.sort_order_invalid");
   }
 
   const existing = stationId
@@ -351,7 +372,7 @@ export async function upsertStation(
     : null;
 
   if (stationId && !existing) {
-    return fail("Station not found in your branch");
+    return fail("error.station_not_found");
   }
 
   const duplicate = await prisma.station.findFirst({
@@ -360,7 +381,7 @@ export async function upsertStation(
   });
 
   if (duplicate) {
-    return fail(`Station code ${code} already exists in this branch`);
+    return fail("error.station_code_duplicate", { code });
   }
 
   const saved = existing
@@ -410,7 +431,7 @@ export async function deleteStation(
   stationId: string,
 ): Promise<SettingsResult> {
   if (!canEditSettings(actor.role)) {
-    return fail("Your role can't edit kitchen stations");
+    return fail("error.cannot_edit_stations");
   }
 
   const station = await prisma.station.findFirst({
@@ -418,7 +439,7 @@ export async function deleteStation(
   });
 
   if (!station) {
-    return fail("Station not found in your branch");
+    return fail("error.station_not_found");
   }
 
   const [orderItems, menuItems] = await Promise.all([
@@ -427,13 +448,11 @@ export async function deleteStation(
   ]);
 
   if (orderItems > 0) {
-    return fail(
-      `This station has handled ${orderItems} order item(s) — can't delete. Disable it instead`,
-    );
+    return fail(countKey("error.station_has_orders", orderItems), { count: orderItems });
   }
 
   if (menuItems > 0) {
-    return fail(`${menuItems} item(s) are still linked to this station — move them first`);
+    return fail(countKey("error.station_has_items", menuItems), { count: menuItems });
   }
 
   await prisma.station.delete({ where: { id: station.id } });
@@ -503,21 +522,21 @@ export async function upsertTable(
   input: { name: string; seats: number; sortOrder: number; kind: SalePointKind; isActive: boolean },
 ): Promise<SettingsResult & { tableId?: string; tableCode?: string }> {
   if (!canEditSettings(actor.role)) {
-    return fail("Your role can't edit tables");
+    return fail("error.cannot_edit_tables");
   }
 
   const name = input.name.trim();
 
   if (!name) {
-    return fail("Enter a table name");
+    return fail("error.table_name_required");
   }
 
   if (!Number.isInteger(input.seats) || input.seats < 0) {
-    return fail("Seats must be a whole number of 0 or more");
+    return fail("error.seats_invalid");
   }
 
   if (!Number.isInteger(input.sortOrder)) {
-    return fail("Sort order must be a whole number");
+    return fail("error.sort_order_invalid");
   }
 
   const existing = tableId
@@ -531,7 +550,7 @@ export async function upsertTable(
     : null;
 
   if (tableId && !existing) {
-    return fail("Table not found in your branch");
+    return fail("error.table_not_found");
   }
 
   // ชื่อซ้ำในสาขาเดียวกันไม่ได้ (@@unique([branchId, name])) — ตรวจเองก่อนเพื่อคืน
@@ -542,7 +561,7 @@ export async function upsertTable(
   });
 
   if (duplicate) {
-    return fail(`A sale point named "${name}" already exists in this branch`);
+    return fail("error.sale_point_name_duplicate", { name });
   }
 
   /**
@@ -556,9 +575,7 @@ export async function upsertTable(
    * จากผังโต๊ะไปโผล่ในแถบคิวโดยไม่มีเลขคิว
    */
   if (existing && existing.kind !== input.kind && existing._count.sessions > 0) {
-    return fail(
-      "This sale point already has sales history — its type can't be changed. Create a new one instead",
-    );
+    return fail("error.sale_point_kind_locked");
   }
 
   /**
@@ -570,7 +587,7 @@ export async function upsertTable(
    * (ดู archive/report/2026-08-25-expired-session-billable.md)
    */
   if (existing && existing.isActive && !input.isActive && existing.sessions.length > 0) {
-    return fail("This sale point has an open bill — take payment or close it before disabling");
+    return fail("error.sale_point_has_open_bill");
   }
 
   const saved = existing
@@ -639,7 +656,7 @@ export async function rotateTableCode(
   tableId: string,
 ): Promise<SettingsResult & { tableCode?: string }> {
   if (!canEditSettings(actor.role)) {
-    return fail("Your role can't reissue QR codes");
+    return fail("error.cannot_reissue_qr");
   }
 
   const table = await prisma.restaurantTable.findFirst({
@@ -647,7 +664,7 @@ export async function rotateTableCode(
   });
 
   if (!table) {
-    return fail("Table not found in your branch");
+    return fail("error.table_not_found");
   }
 
   const tableCode = await generateTableCode();
@@ -680,7 +697,7 @@ export async function rotateTableCode(
  */
 export async function deleteTable(actor: CurrentStaff, tableId: string): Promise<SettingsResult> {
   if (!canEditSettings(actor.role)) {
-    return fail("Your role can't delete tables");
+    return fail("error.cannot_delete_tables");
   }
 
   const table = await prisma.restaurantTable.findFirst({
@@ -688,7 +705,7 @@ export async function deleteTable(actor: CurrentStaff, tableId: string): Promise
   });
 
   if (!table) {
-    return fail("Table not found in your branch");
+    return fail("error.table_not_found");
   }
 
   const [orders, sessions] = await Promise.all([
@@ -697,7 +714,7 @@ export async function deleteTable(actor: CurrentStaff, tableId: string): Promise
   ]);
 
   if (orders > 0 || sessions > 0) {
-    return fail(`"${table.name}" already has sales history — can't delete. Disable it instead`);
+    return fail("error.sale_point_has_history", { name: table.name });
   }
 
   await prisma.restaurantTable.delete({ where: { id: table.id } });

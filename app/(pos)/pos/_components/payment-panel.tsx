@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/i18n-provider";
 import { useActionState, useId, useState } from "react";
 
 import { SubmitButton } from "@/components/submit-button";
@@ -37,6 +38,7 @@ export function PaymentPanel({
   /** false = ตำแหน่งนี้กดรับเงินไม่ได้ (ตัวกันจริงอยู่ฝั่ง server อีกชั้น) */
   canTake: boolean;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     takePaymentAction,
     IDLE_FORM_STATE,
@@ -136,7 +138,7 @@ export function PaymentPanel({
 
       {state.status === "error" ? (
         <p role="alert" className="alert">
-          {state.message}
+          {t(state.messageKey, state.params)}
         </p>
       ) : null}
 

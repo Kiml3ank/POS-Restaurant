@@ -130,7 +130,7 @@ async function openSessionWithOrders(
   const opened = await openTableByStaff(staff, tableId, pax);
 
   if (!opened.ok) {
-    throw new Error(`เปิดโต๊ะไม่สำเร็จ: ${opened.error}`);
+    throw new Error(`เปิดโต๊ะไม่สำเร็จ: ${opened.errorKey}`);
   }
 
   const session = await prisma.tableSession.findFirstOrThrow({
@@ -174,7 +174,7 @@ async function main() {
 
   const moved = await moveTableSession(manager, { sessionId: session.id, targetTableId: dst.id });
 
-  check("ย้ายสำเร็จ", moved.ok === true, moved.ok ? "" : moved.error);
+  check("ย้ายสำเร็จ", moved.ok === true, moved.ok ? "" : moved.errorKey);
   check(
     "ย้ายออร์เดอร์ครบทุกใบ รวมตะกร้า DRAFT",
     moved.ok && moved.movedOrders === 2,
@@ -243,7 +243,7 @@ async function main() {
     sessionId: session.id,
     targetTableId: dst.id,
   });
-  check("ย้ายไปโต๊ะเดิม = error", backToSame.ok === false, backToSame.ok ? "" : backToSame.error);
+  check("ย้ายไปโต๊ะเดิม = error", backToSame.ok === false, backToSame.ok ? "" : backToSame.errorKey);
 
   const secondSession = await openSessionWithOrders(manager, src.id, 3, timezone);
   const intoOccupied = await moveTableSession(manager, {
@@ -253,7 +253,7 @@ async function main() {
   check(
     "ย้ายไปโต๊ะที่มีบิลเปิดอยู่ = error (ไม่ใช่กลายเป็นรวมเงียบ ๆ)",
     intoOccupied.ok === false,
-    intoOccupied.ok ? "" : intoOccupied.error,
+    intoOccupied.ok ? "" : intoOccupied.errorKey,
   );
 
   const kitchen = await loadStaff("seed-staff-kitchen");
@@ -261,7 +261,7 @@ async function main() {
     sessionId: secondSession.id,
     targetTableId: dst.id,
   });
-  check("ครัวย้ายโต๊ะไม่ได้", noRight.ok === false, noRight.ok ? "" : noRight.error);
+  check("ครัวย้ายโต๊ะไม่ได้", noRight.ok === false, noRight.ok ? "" : noRight.errorKey);
 
   const counter = await prisma.restaurantTable.findFirst({
     where: { branchId, kind: { not: "DINE_IN" } },
@@ -275,7 +275,7 @@ async function main() {
     check(
       "ย้ายไปจุดขายที่ไม่ใช่โต๊ะนั่ง = error (ซื้อกลับไม่คิดเซอร์วิสชาร์จ ยอดจะเปลี่ยนเงียบ ๆ)",
       crossChannel.ok === false,
-      crossChannel.ok ? "" : crossChannel.error,
+      crossChannel.ok ? "" : crossChannel.errorKey,
     );
   }
 
@@ -287,7 +287,7 @@ async function main() {
       sessionId: secondSession.id,
       targetTableId: dst.id,
     });
-    check("ย้ายข้ามสาขา = error", crossBranch.ok === false, crossBranch.ok ? "" : crossBranch.error);
+    check("ย้ายข้ามสาขา = error", crossBranch.ok === false, crossBranch.ok ? "" : crossBranch.errorKey);
   }
 
   const flagged = await prisma.tableSession.update({
@@ -301,7 +301,7 @@ async function main() {
   check(
     "รอบที่ติดธงส่วนลดพนักงาน = error (ส่วนลดจะไปกินอาหารของอีกโต๊ะ)",
     flaggedMove.ok === false,
-    flaggedMove.ok ? "" : flaggedMove.error,
+    flaggedMove.ok ? "" : flaggedMove.errorKey,
   );
 
   await prisma.tableSession.update({
@@ -320,14 +320,14 @@ async function main() {
   check(
     "รวมโต๊ะเข้ากับตัวเอง = error",
     mergeIntoItself.ok === false,
-    mergeIntoItself.ok ? "" : mergeIntoItself.error,
+    mergeIntoItself.ok ? "" : mergeIntoItself.errorKey,
   );
 
   const kitchenMerge = await mergeTableSessions(kitchen, {
     sourceSessionId: secondSession.id,
     targetSessionId: session.id,
   });
-  check("ครัวรวมโต๊ะไม่ได้", kitchenMerge.ok === false, kitchenMerge.ok ? "" : kitchenMerge.error);
+  check("ครัวรวมโต๊ะไม่ได้", kitchenMerge.ok === false, kitchenMerge.ok ? "" : kitchenMerge.errorKey);
 
   if (otherBranch) {
     const foreignStaff: CurrentStaff = { ...manager, branchId: otherBranch.id };
@@ -338,7 +338,7 @@ async function main() {
     check(
       "รวมข้ามสาขา = error",
       crossBranchMerge.ok === false,
-      crossBranchMerge.ok ? "" : crossBranchMerge.error,
+      crossBranchMerge.ok ? "" : crossBranchMerge.errorKey,
     );
   }
 
@@ -360,7 +360,7 @@ async function main() {
   check(
     "ต้นทางติดธงส่วนลดพนักงาน = error",
     flaggedSource.ok === false,
-    flaggedSource.ok ? "" : flaggedSource.error,
+    flaggedSource.ok ? "" : flaggedSource.errorKey,
   );
 
   const flaggedTarget = await mergeTableSessions(manager, {
@@ -370,7 +370,7 @@ async function main() {
   check(
     "ปลายทางติดธงส่วนลดพนักงาน = error (ส่วนลดจะไปกินค่าอาหารของอีกโต๊ะ)",
     flaggedTarget.ok === false,
-    flaggedTarget.ok ? "" : flaggedTarget.error,
+    flaggedTarget.ok ? "" : flaggedTarget.errorKey,
   );
 
   await prisma.tableSession.update({
@@ -393,7 +393,7 @@ async function main() {
   const openedCounter = await openSalePointSession(manager, counterTable.id);
 
   if (!openedCounter.ok) {
-    throw new Error(`เปิดบิลเคาน์เตอร์ไม่สำเร็จ: ${openedCounter.error}`);
+    throw new Error(`เปิดบิลเคาน์เตอร์ไม่สำเร็จ: ${openedCounter.errorKey}`);
   }
 
   const crossChannelSource = await mergeTableSessions(manager, {
@@ -403,7 +403,7 @@ async function main() {
   check(
     "รวมบิลซื้อกลับเข้าโต๊ะนั่ง = error",
     crossChannelSource.ok === false,
-    crossChannelSource.ok ? "" : crossChannelSource.error,
+    crossChannelSource.ok ? "" : crossChannelSource.errorKey,
   );
 
   const crossChannelTarget = await mergeTableSessions(manager, {
@@ -413,7 +413,7 @@ async function main() {
   check(
     "รวมโต๊ะนั่งเข้าบิลซื้อกลับ = error (ซื้อกลับไม่คิดเซอร์วิสชาร์จ ยอดจะเปลี่ยนเงียบ ๆ)",
     crossChannelTarget.ok === false,
-    crossChannelTarget.ok ? "" : crossChannelTarget.error,
+    crossChannelTarget.ok ? "" : crossChannelTarget.errorKey,
   );
 
   // ── รวมจริง ──────────────────────────────────────────────────────────
@@ -440,7 +440,7 @@ async function main() {
     targetSessionId: session.id,
   });
 
-  check("รวมสำเร็จ", merged.ok === true, merged.ok ? "" : merged.error);
+  check("รวมสำเร็จ", merged.ok === true, merged.ok ? "" : merged.errorKey);
   check(
     "ย้ายออร์เดอร์ครบทุกใบ รวมตะกร้า DRAFT",
     merged.ok && merged.movedOrders === srcOrderCount,
@@ -569,7 +569,7 @@ async function main() {
   check(
     "ส่งตะกร้าที่ยุบแล้วเข้าครัวได้",
     placedRest.ok === true,
-    placedRest.ok ? "" : placedRest.error,
+    placedRest.ok ? "" : placedRest.errorKey,
   );
 
   const finalBill = await getSessionBill(branchId, session.id);
@@ -587,7 +587,7 @@ async function main() {
     sessionId: session.id,
   });
 
-  check("รวมแล้วรับเงินได้จนจบ", payment.ok === true, payment.ok ? "" : payment.error);
+  check("รวมแล้วรับเงินได้จนจบ", payment.ok === true, payment.ok ? "" : payment.errorKey);
   check(
     "ออกใบเสร็จให้บิลรวมแล้วหนึ่งใบ",
     (await prisma.receipt.count({
@@ -599,14 +599,14 @@ async function main() {
   const reopened = await openTableByStaff(manager, src.id, 2);
 
   if (!reopened.ok) {
-    throw new Error(`เปิดโต๊ะใหม่ไม่สำเร็จ: ${reopened.error}`);
+    throw new Error(`เปิดโต๊ะใหม่ไม่สำเร็จ: ${reopened.errorKey}`);
   }
 
   const paidMerge = await mergeTableSessions(manager, {
     sourceSessionId: session.id,
     targetSessionId: reopened.session.id,
   });
-  check("รวมรอบที่จ่ายเงินแล้ว = error", paidMerge.ok === false, paidMerge.ok ? "" : paidMerge.error);
+  check("รวมรอบที่จ่ายเงินแล้ว = error", paidMerge.ok === false, paidMerge.ok ? "" : paidMerge.errorKey);
 
   const mergedAgain = await mergeTableSessions(manager, {
     sourceSessionId: secondSession.id,
@@ -615,7 +615,7 @@ async function main() {
   check(
     "รวมรอบที่ถูกกลืนไปแล้วซ้ำอีกรอบ = error",
     mergedAgain.ok === false,
-    mergedAgain.ok ? "" : mergedAgain.error,
+    mergedAgain.ok ? "" : mergedAgain.errorKey,
   );
 
   console.log("\n── มือถือลูกค้าเดินตามโซ่ ───────────────────────────────────────\n");
@@ -629,7 +629,7 @@ async function main() {
   const openedB = await openTableByStaff(manager, dst.id, 2);
 
   if (!openedB.ok) {
-    throw new Error(`เปิดโต๊ะปลายทางไม่สำเร็จ: ${openedB.error}`);
+    throw new Error(`เปิดโต๊ะปลายทางไม่สำเร็จ: ${openedB.errorKey}`);
   }
 
   const hopB = openedB.session;
@@ -637,7 +637,7 @@ async function main() {
     sourceSessionId: hopA.id,
     targetSessionId: hopB.id,
   });
-  check("รวมรอบเปล่าสองรอบได้", mergeAtoB.ok === true, mergeAtoB.ok ? "" : mergeAtoB.error);
+  check("รวมรอบเปล่าสองรอบได้", mergeAtoB.ok === true, mergeAtoB.ok ? "" : mergeAtoB.errorKey);
 
   const followedOneHop = await resolveSessionByToken(branchId, hopA.token);
   check(
@@ -654,7 +654,7 @@ async function main() {
   const openedC = await openTableByStaff(manager, src.id, 1);
 
   if (!openedC.ok) {
-    throw new Error(`เปิดโต๊ะชั้นที่สามไม่สำเร็จ: ${openedC.error}`);
+    throw new Error(`เปิดโต๊ะชั้นที่สามไม่สำเร็จ: ${openedC.errorKey}`);
   }
 
   const hopC = openedC.session;
@@ -662,7 +662,7 @@ async function main() {
     sourceSessionId: hopB.id,
     targetSessionId: hopC.id,
   });
-  check("รวมต่ออีกชั้นได้", mergeBtoC.ok === true, mergeBtoC.ok ? "" : mergeBtoC.error);
+  check("รวมต่ออีกชั้นได้", mergeBtoC.ok === true, mergeBtoC.ok ? "" : mergeBtoC.errorKey);
 
   const followedTwoHops = await resolveSessionByToken(branchId, hopA.token);
   check(

@@ -9,6 +9,9 @@ import { ORDER_TYPE_FOR_SALE_POINT } from "@/lib/sale-point";
 import { prisma } from "@/lib/server/db";
 import { syncOrderStatusFromItems } from "@/lib/server/order-progress";
 import { publishRealtimeEvent } from "@/lib/server/realtime";
+import type { MessageParams } from "@/lib/i18n/translate";
+import { countKey } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/vi";
 
 /**
  * ตะกร้าและการส่งออร์เดอร์ (บทที่ 7)
@@ -25,7 +28,7 @@ import { publishRealtimeEvent } from "@/lib/server/realtime";
 
 export type CartResult<T = undefined> =
   | { ok: true; data: T }
-  | { ok: false; error: string };
+  | { ok: false; errorKey: MessageKey; params?: MessageParams };
 
 export type Cart = NonNullable<Awaited<ReturnType<typeof getCart>>>;
 export type CartLine = Cart["items"][number];
@@ -120,7 +123,7 @@ export async function addToCart(input: AddToCartInput): Promise<CartResult<undef
   const quantity = Math.trunc(input.quantity);
 
   if (!Number.isFinite(quantity) || quantity < 1 || quantity > 99) {
-    return { ok: false, error: "Quantity must be between 1 and 99" };
+    return { ok: false, errorKey: "error.quantity_range_1_99" as const };
   }
 
   const menuItem = await prisma.menuItem.findFirst({
@@ -143,7 +146,7 @@ export async function addToCart(input: AddToCartInput): Promise<CartResult<undef
   });
 
   if (!menuItem) {
-    return { ok: false, error: "This item is no longer available — please choose something else" };
+    return { ok: false, errorKey: "error.item_unavailable" as const };
   }
 
   const remaining = new Set(input.modifierIds);
@@ -154,15 +157,23 @@ export async function addToCart(input: AddToCartInput): Promise<CartResult<undef
     const picked = group.modifiers.filter((modifier) => remaining.has(modifier.id));
 
     if (group.required && picked.length < Math.max(group.minSelect, 1)) {
-      return { ok: false, error: `Please choose "${group.name}" first` };
+      return { ok: false, errorKey: "error.modifier_group_required" as const, params: { group: group.name } };
     }
 
     if (picked.length < group.minSelect) {
-      return { ok: false, error: `"${group.name}" needs at least ${group.minSelect} option(s)` };
+      return {
+        ok: false,
+        errorKey: countKey("error.modifier_group_min", group.minSelect),
+        params: { group: group.name, count: group.minSelect },
+      };
     }
 
     if (picked.length > group.maxSelect) {
-      return { ok: false, error: `"${group.name}" allows at most ${group.maxSelect} option(s)` };
+      return {
+        ok: false,
+        errorKey: countKey("error.modifier_group_max", group.maxSelect),
+        params: { group: group.name, count: group.maxSelect },
+      };
     }
 
     for (const modifier of picked) {
@@ -173,7 +184,7 @@ export async function addToCart(input: AddToCartInput): Promise<CartResult<undef
 
   // ยังเหลือค้างใน set = ส่ง id ที่ไม่ใช่ตัวเลือกของเมนูนี้ (หรือของหมดไปแล้ว) เข้ามา
   if (remaining.size > 0) {
-    return { ok: false, error: "The selected options don't match this item — please try again" };
+    return { ok: false, errorKey: "error.modifiers_mismatch" as const };
   }
 
   const note = normalizeNote(input.note);
@@ -262,7 +273,7 @@ export async function setCartLineQuantity(
   const next = Math.trunc(quantity);
 
   if (!Number.isFinite(next) || next < 0 || next > 99) {
-    return { ok: false, error: "Quantity must be between 0 and 99" };
+    return { ok: false, errorKey: "error.quantity_range_0_99" as const };
   }
 
   const line = await prisma.orderItem.findFirst({
@@ -275,7 +286,7 @@ export async function setCartLineQuantity(
   });
 
   if (!line) {
-    return { ok: false, error: "Item not found in the cart — it may already have been sent to the kitchen" };
+    return { ok: false, errorKey: "error.cart_item_missing" as const };
   }
 
   await prisma.$transaction(async (tx) => {
@@ -326,7 +337,7 @@ export async function placeOrder(
   }
 
   if (cart.items.length === 0) {
-    return { ok: false, error: "Cart is empty — please choose an item first" };
+    return { ok: false, errorKey: "error.cart_empty" as const };
   }
 
   const placedAt = new Date();

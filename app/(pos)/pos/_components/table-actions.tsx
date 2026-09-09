@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/i18n-provider";
 import { useActionState } from "react";
 
 import { SubmitButton } from "@/components/submit-button";
@@ -45,6 +46,7 @@ import {
  * จะกลายเป็นของที่พนักงานกรอกมั่ว ๆ ให้ผ่าน ๆ ไป (ชื่อลูกค้าเติมทีหลังได้)
  */
 export function OpenSalePointForm({ tableId, label }: { tableId: string; label: string }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     openSalePointAction,
     IDLE_FORM_STATE,
@@ -56,7 +58,7 @@ export function OpenSalePointForm({ tableId, label }: { tableId: string; label: 
 
       {state.status === "error" ? (
         <p role="alert" className="alert">
-          {state.message}
+          {t(state.messageKey, state.params)}
         </p>
       ) : null}
 
@@ -69,6 +71,7 @@ export function OpenSalePointForm({ tableId, label }: { tableId: string; label: 
 
 /** เปิดโต๊ะ — ถามจำนวนลูกค้าเพื่อเอาไปทำยอดขายต่อหัวในบทที่ 15 */
 export function OpenTableForm({ tableId, seats }: { tableId: string; seats: number }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     openTableAction,
     IDLE_FORM_STATE,
@@ -96,7 +99,7 @@ export function OpenTableForm({ tableId, seats }: { tableId: string; seats: numb
 
       {state.status === "error" ? (
         <p role="alert" className="alert">
-          {state.message}
+          {t(state.messageKey, state.params)}
         </p>
       ) : null}
 
@@ -115,6 +118,7 @@ export function OpenTableForm({ tableId, seats }: { tableId: string; seats: numb
  * ซ่อนไว้ใน <details> เพราะเป็นปุ่มที่ไม่ควรกดพลาด และบังคับกรอกเหตุผลก่อนเสมอ
  */
 export function CloseTableForm({ sessionId }: { sessionId: string }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     closeTableAction,
     IDLE_FORM_STATE,
@@ -140,7 +144,7 @@ export function CloseTableForm({ sessionId }: { sessionId: string }) {
 
         {state.status === "error" ? (
           <p role="alert" className="alert">
-            {state.message}
+            {t(state.messageKey, state.params)}
           </p>
         ) : null}
 
@@ -171,6 +175,7 @@ export function CustomerNameForm({
   customerName: string | null;
   maxLength: number;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     setCustomerNameAction,
     IDLE_FORM_STATE,
@@ -194,10 +199,10 @@ export function CustomerNameForm({
 
       {state.status === "error" ? (
         <p role="alert" className="alert">
-          {state.message}
+          {t(state.messageKey, state.params)}
         </p>
       ) : null}
-      {state.status === "success" ? <p className="kicker">{state.message}</p> : null}
+      {state.status === "success" ? <p className="kicker">{t(state.messageKey, state.params)}</p> : null}
 
       <SubmitButton pendingLabel="Saving..." className="btn btn-secondary h-12">
         Save name
@@ -235,6 +240,7 @@ export function MoveTableForm({
   free: { id: string; name: string }[];
   occupied: { id: string; name: string; sessionId: string; total: number }[];
 }) {
+  const { t } = useT();
   const [moveState, moveAction] = useActionState<FormState, FormData>(
     moveTableAction,
     IDLE_FORM_STATE,
@@ -251,12 +257,12 @@ export function MoveTableForm({
       <div className="flex flex-col gap-4 pt-4">
         {moveState.status === "error" ? (
           <p role="alert" className="alert">
-            {moveState.message}
+            {t(moveState.messageKey, moveState.params)}
           </p>
         ) : null}
         {mergeState.status === "error" ? (
           <p role="alert" className="alert">
-            {mergeState.message}
+            {t(mergeState.messageKey, mergeState.params)}
           </p>
         ) : null}
 
@@ -338,6 +344,7 @@ export function MoveTableForm({
  * ของที่หยิบเอง (น้ำเปล่า) ไม่เคยขึ้นจอครัวเลย จึงต้องปิดจากหน้านี้เท่านั้น
  */
 export function ServeItemForm({ orderItemId }: { orderItemId: string }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     posServeItemAction,
     IDLE_FORM_STATE,
@@ -353,7 +360,7 @@ export function ServeItemForm({ orderItemId }: { orderItemId: string }) {
 
       {state.status === "error" ? (
         <span role="alert" className="alert text-[12px]">
-          {state.message}
+          {t(state.messageKey, state.params)}
         </span>
       ) : null}
     </form>
@@ -361,6 +368,7 @@ export function ServeItemForm({ orderItemId }: { orderItemId: string }) {
 }
 
 export function CancelItemForm({ orderItemId }: { orderItemId: string }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     cancelItemAction,
     IDLE_FORM_STATE,
@@ -384,7 +392,7 @@ export function CancelItemForm({ orderItemId }: { orderItemId: string }) {
 
         {state.status === "error" ? (
           <p role="alert" className="alert">
-            {state.message}
+            {t(state.messageKey, state.params)}
           </p>
         ) : null}
 
@@ -461,6 +469,7 @@ export function PosPlaceOrderForm({
   itemCount: number;
   label: string;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     posPlaceOrderAction,
     IDLE_FORM_STATE,
@@ -473,7 +482,7 @@ export function PosPlaceOrderForm({
 
       {state.status === "error" ? (
         <p role="alert" className="alert">
-          {state.message}
+          {t(state.messageKey, state.params)}
         </p>
       ) : null}
 

@@ -10,6 +10,7 @@ import {
   lastStaffCookieName,
   type LastStaffOnDevice,
 } from "@/lib/last-staff-cookie";
+import { countKey } from "@/lib/i18n/translate";
 import type { StaffScreen } from "@/lib/rbac";
 import { ALL_STAFF_SESSION_COOKIES, STAFF_SESSION_COOKIES } from "@/lib/staff-session-cookie";
 import { clientIp } from "@/lib/server/client-ip";
@@ -129,7 +130,7 @@ export async function loginStaff(staffCode: string, pin: string, screen: StaffSc
   const code = staffCode.trim();
 
   if (!code || !pin) {
-    return { ok: false as const, error: "Enter both staff code and PIN" };
+    return { ok: false as const, errorKey: "error.pin_fields_required" as const };
   }
 
   const staff = await prisma.staff.findFirst({
@@ -139,7 +140,7 @@ export async function loginStaff(staffCode: string, pin: string, screen: StaffSc
 
   // ข้อความเดียวกันทั้งกรณีไม่มีรหัสนี้และกรณี PIN ผิด เพื่อไม่ให้ใช้หน้าล็อกอิน
   // ไล่เดาว่ารหัสพนักงานไหนมีอยู่จริง
-  const invalid = { ok: false as const, error: "Incorrect staff code or PIN" };
+  const invalid = { ok: false as const, errorKey: "error.bad_pin" as const };
 
   if (!staff) {
     return invalid;
@@ -150,7 +151,8 @@ export async function loginStaff(staffCode: string, pin: string, screen: StaffSc
   if (throttle.locked) {
     return {
       ok: false as const,
-      error: `Too many failed attempts — try again in ${throttle.minutesLeft} minute(s)`,
+      errorKey: countKey("error.locked_out", throttle.minutesLeft),
+      params: { count: throttle.minutesLeft },
     };
   }
 

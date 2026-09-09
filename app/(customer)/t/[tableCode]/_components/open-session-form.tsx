@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/i18n-provider";
 import { useActionState } from "react";
 
 import { openTableSessionAction } from "../actions";
@@ -24,6 +25,7 @@ export function OpenSessionForm({
   tableName: string;
   defaultPax: number;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     openTableSessionAction,
     IDLE_FORM_STATE,
@@ -56,7 +58,7 @@ export function OpenSessionForm({
 
       {state.status === "error" ? (
         <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {state.message}
+          {t(state.messageKey, state.params)}
         </p>
       ) : null}
 

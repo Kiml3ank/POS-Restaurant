@@ -49,7 +49,17 @@ export function tCount(
   n: number,
   params?: MessageParams,
 ): string {
-  const key = (n === 1 ? `${base}.one` : `${base}.other`) as MessageKey;
+  return translate(dict, countKey(base, n), { count: n, ...params });
+}
 
-  return translate(dict, key, { count: n, ...params });
+/**
+ * เลือกคีย์เอกพจน์/พหูพจน์โดยไม่แปล — สำหรับ **ชั้นธุรกิจ**
+ *
+ * `lib/server/*` คืนคีย์ ไม่ได้คืนประโยค แต่มันเป็นฝ่ายที่ "รู้จำนวน" อยู่แล้ว
+ * จึงเลือกรูปที่ถูกให้เลย แล้วหน้าจอเรียก `t(key, params)` แบบเดิมได้โดยไม่ต้อง
+ * รู้ว่าคีย์นี้มีพหูพจน์หรือเปล่า — ไม่งั้น FormState ต้องแบกข้อมูลเพิ่มว่า
+ * "คีย์นี้ต้องเรียก tc() นะ" ซึ่งเป็นสถานะที่ลืมส่งได้
+ */
+export function countKey(base: CountKey, n: number): MessageKey {
+  return (n === 1 ? `${base}.one` : `${base}.other`) as MessageKey;
 }

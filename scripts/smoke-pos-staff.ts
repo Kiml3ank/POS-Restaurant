@@ -107,17 +107,17 @@ async function main() {
 
   // ── 3. เปิดโต๊ะ ───────────────────────────────────────────────────────────
   const tooFew = await openTableByStaff(owner, MAIN_TABLE_ID, 0);
-  check("pax = 0 => error", !tooFew.ok, tooFew.ok ? "" : tooFew.error);
+  check("pax = 0 => error", !tooFew.ok, tooFew.ok ? "" : tooFew.errorKey);
 
   const tooMany = await openTableByStaff(owner, MAIN_TABLE_ID, 51);
-  check("pax = 51 => error", !tooMany.ok, tooMany.ok ? "" : tooMany.error);
+  check("pax = 51 => error", !tooMany.ok, tooMany.ok ? "" : tooMany.errorKey);
 
   const foreignStaff: CurrentStaff = { ...owner, branchId: OTHER_BRANCH_ID };
   const foreignTable = await openTableByStaff(foreignStaff, MAIN_TABLE_ID, 2);
-  check("เปิดโต๊ะข้ามสาขา => error", !foreignTable.ok, foreignTable.ok ? "" : foreignTable.error);
+  check("เปิดโต๊ะข้ามสาขา => error", !foreignTable.ok, foreignTable.ok ? "" : foreignTable.errorKey);
 
   const opened = await openTableByStaff(owner, MAIN_TABLE_ID, 4);
-  check("เปิดโต๊ะถูกกฎ => ok", opened.ok, opened.ok ? opened.session.id : opened.error);
+  check("เปิดโต๊ะถูกกฎ => ok", opened.ok, opened.ok ? opened.session.id : opened.errorKey);
   if (!opened.ok) throw new Error("เปิดโต๊ะไม่สำเร็จ ทดสอบต่อไม่ได้");
   const sessionId = opened.session.id;
 
@@ -167,7 +167,7 @@ async function main() {
     modifierIds: [],
     note: null,
   });
-  check("พนักงานสั่งแทนลูกค้าลงตะกร้าเดียวกัน => ok", added.ok, added.ok ? "" : added.error);
+  check("พนักงานสั่งแทนลูกค้าลงตะกร้าเดียวกัน => ok", added.ok, added.ok ? "" : added.errorKey);
 
   // ชาเย็นผูกกับ "บาร์น้ำ" ส่วนน้ำเปล่าไม่ผูกสถานี — คู่นี้คือของที่ KDS บทที่ 8
   // ต้องแยกให้ถูก โดยอ่านจาก stationId ที่ snapshot ไว้ตอนสั่ง ไม่ใช่ join เมนูสด
@@ -178,7 +178,7 @@ async function main() {
     modifierIds: ["seed-mod-sweet-50", "seed-mod-size-regular"],
     note: null,
   });
-  check("สั่งเมนูที่มีตัวเลือกบังคับ => ok", addedTea.ok, addedTea.ok ? "" : addedTea.error);
+  check("สั่งเมนูที่มีตัวเลือกบังคับ => ok", addedTea.ok, addedTea.ok ? "" : addedTea.errorKey);
 
   const tablesWithDraft = await getPosTables(branchId);
   const cardDraft = tablesWithDraft.find((row) => row.id === MAIN_TABLE_ID);
@@ -187,7 +187,7 @@ async function main() {
   check("runningTotal = 8500", cardDraft?.runningTotal === 8500, `ได้ ${cardDraft?.runningTotal}`);
 
   const placed = await placeOrder(sessionId);
-  check("ส่งเข้าครัว => ok", placed.ok, placed.ok ? String(placed.data.orderNumber) : placed.error);
+  check("ส่งเข้าครัว => ok", placed.ok, placed.ok ? String(placed.data.orderNumber) : placed.errorKey);
   check("ตะกร้าว่างหลังส่ง", (await getCart(sessionId)) === null);
 
   const tablesPlaced = await getPosTables(branchId);
@@ -227,16 +227,16 @@ async function main() {
 
   // ── 6. ยกเลิกรายการ ───────────────────────────────────────────────────────
   const byServer = await cancelOrderItemByStaff(server, orderItemId, "ลูกค้าเปลี่ยนใจ");
-  check("เสิร์ฟกดยกเลิกเอง => error", !byServer.ok, byServer.ok ? "" : byServer.error);
+  check("เสิร์ฟกดยกเลิกเอง => error", !byServer.ok, byServer.ok ? "" : byServer.errorKey);
 
   const noReason = await cancelOrderItemByStaff(owner, orderItemId, "  x  ");
-  check("ยกเลิกโดยไม่กรอกเหตุผล => error", !noReason.ok, noReason.ok ? "" : noReason.error);
+  check("ยกเลิกโดยไม่กรอกเหตุผล => error", !noReason.ok, noReason.ok ? "" : noReason.errorKey);
 
   const crossBranch = await cancelOrderItemByStaff(foreignStaff, orderItemId, "ลองข้ามสาขา");
-  check("ยกเลิกรายการข้ามสาขา => error", !crossBranch.ok, crossBranch.ok ? "" : crossBranch.error);
+  check("ยกเลิกรายการข้ามสาขา => error", !crossBranch.ok, crossBranch.ok ? "" : crossBranch.errorKey);
 
   const cancelled = await cancelOrderItemByStaff(owner, orderItemId, "  ครัวทำน้ำหก  ");
-  check("ผู้จัดการ/เจ้าของยกเลิกได้ => ok", cancelled.ok, cancelled.ok ? "" : cancelled.error);
+  check("ผู้จัดการ/เจ้าของยกเลิกได้ => ok", cancelled.ok, cancelled.ok ? "" : cancelled.errorKey);
   auditedEntityIds.push(orderItemId);
 
   const cancelledItem = await prisma.orderItem.findUniqueOrThrow({ where: { id: orderItemId } });
@@ -258,17 +258,17 @@ async function main() {
   );
 
   const again = await cancelOrderItemByStaff(owner, orderItemId, "กดซ้ำ");
-  check("ยกเลิกรายการเดิมซ้ำ => error", !again.ok, again.ok ? "" : again.error);
+  check("ยกเลิกรายการเดิมซ้ำ => error", !again.ok, again.ok ? "" : again.errorKey);
 
   // ── 7. ปิดรอบโต๊ะ ─────────────────────────────────────────────────────────
   const shortReason = await closeTableSession(owner, sessionId, "x");
-  check("ปิดรอบโดยไม่กรอกเหตุผล => error", !shortReason.ok, shortReason.ok ? "" : shortReason.error);
+  check("ปิดรอบโดยไม่กรอกเหตุผล => error", !shortReason.ok, shortReason.ok ? "" : shortReason.errorKey);
 
   const hasKitchenBill = await closeTableSession(owner, sessionId, "ลูกค้าลุกไปแล้ว");
   check(
     "ปิดรอบที่มีบิลส่งเข้าครัวแล้ว => error (ต้องคิดเงินก่อน)",
     !hasKitchenBill.ok,
-    hasKitchenBill.ok ? "" : hasKitchenBill.error,
+    hasKitchenBill.ok ? "" : hasKitchenBill.errorKey,
   );
 
   // โต๊ะอีกใบ: เปิดแล้วมีแค่ตะกร้าที่ยังไม่ส่ง — เคสเดียวที่ปิดรอบทิ้งได้
@@ -288,10 +288,10 @@ async function main() {
   });
 
   const foreignClose = await closeTableSession(foreignStaff, spareSessionId, "ลองข้ามสาขา");
-  check("ปิดรอบข้ามสาขา => error", !foreignClose.ok, foreignClose.ok ? "" : foreignClose.error);
+  check("ปิดรอบข้ามสาขา => error", !foreignClose.ok, foreignClose.ok ? "" : foreignClose.errorKey);
 
   const closed = await closeTableSession(owner, spareSessionId, "  เปิดโต๊ะผิดใบ  ");
-  check("ปิดรอบที่มีแค่ตะกร้า => ok", closed.ok, closed.ok ? "" : closed.error);
+  check("ปิดรอบที่มีแค่ตะกร้า => ok", closed.ok, closed.ok ? "" : closed.errorKey);
   auditedEntityIds.push(spareSessionId);
 
   const closedSession = await prisma.tableSession.findUniqueOrThrow({ where: { id: spareSessionId } });
@@ -314,7 +314,7 @@ async function main() {
   );
 
   const closeTwice = await closeTableSession(owner, spareSessionId, "กดซ้ำ");
-  check("ปิดรอบเดิมซ้ำ => error", !closeTwice.ok, closeTwice.ok ? "" : closeTwice.error);
+  check("ปิดรอบเดิมซ้ำ => error", !closeTwice.ok, closeTwice.ok ? "" : closeTwice.errorKey);
 
   // ── ล้างข้อมูลที่สร้างระหว่างทดสอบ ────────────────────────────────────────
   // AuditLog ห้าม update/delete จาก "โค้ดแอป" — สคริปต์ทดสอบเก็บกวาดของตัวเอง

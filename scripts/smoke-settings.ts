@@ -96,7 +96,7 @@ async function main() {
       currency: original.currency,
       timezone: original.timezone,
     });
-    check("แคชเชียร์แก้อัตราไม่ได้", byCashier.ok === false, byCashier.ok ? "" : byCashier.error);
+    check("แคชเชียร์แก้อัตราไม่ได้", byCashier.ok === false, byCashier.ok ? "" : byCashier.errorKey);
 
     const badRate = await updateTaxSettings(owner, {
       vatRateBp: 12000,
@@ -106,7 +106,7 @@ async function main() {
       currency: original.currency,
       timezone: original.timezone,
     });
-    check("อัตราเกิน 100% = ปฏิเสธ", badRate.ok === false, badRate.ok ? "" : badRate.error);
+    check("อัตราเกิน 100% = ปฏิเสธ", badRate.ok === false, badRate.ok ? "" : badRate.errorKey);
 
     const floatRate = await updateTaxSettings(owner, {
       vatRateBp: 700.5,
@@ -126,7 +126,7 @@ async function main() {
       currency: original.currency,
       timezone: "Mars/Olympus",
     });
-    check("timezone ที่ Node ไม่รู้จัก = ปฏิเสธ", badTimezone.ok === false, badTimezone.ok ? "" : badTimezone.error);
+    check("timezone ที่ Node ไม่รู้จัก = ปฏิเสธ", badTimezone.ok === false, badTimezone.ok ? "" : badTimezone.errorKey);
 
     console.log("\n── 4. บิลที่ปิดไปแล้วต้องไม่ขยับตามอัตราใหม่ ────────────────────\n");
 
@@ -146,7 +146,7 @@ async function main() {
     await prisma.tableSession.deleteMany({ where: { tableId: table.id } });
 
     const opened = await openTableByStaff(owner, table.id, 2);
-    if (!opened.ok) throw new Error(opened.error);
+    if (!opened.ok) throw new Error(opened.errorKey);
 
     const added = await addToCart({
       tableSessionId: opened.session.id,
@@ -159,7 +159,7 @@ async function main() {
       note: null,
       channel: "POS",
     });
-    if (!added.ok) throw new Error(added.error);
+    if (!added.ok) throw new Error(added.errorKey);
     await placeOrder(opened.session.id);
 
     const beforeBill = await getTableBill(branchId, table.id);
@@ -167,7 +167,7 @@ async function main() {
       method: "CASH",
       receivedAmount: beforeBill && !beforeBill.isEmpty ? beforeBill.bill.grandTotal : 0,
     });
-    if (!paid.ok) throw new Error(paid.error);
+    if (!paid.ok) throw new Error(paid.errorKey);
 
     const payment = await prisma.payment.findUniqueOrThrow({ where: { id: paid.paymentId } });
 
@@ -180,7 +180,7 @@ async function main() {
       currency: original.currency,
       timezone: original.timezone,
     });
-    check("เจ้าของร้านขึ้นอัตราได้", raised.ok === true, raised.ok ? "" : raised.error);
+    check("เจ้าของร้านขึ้นอัตราได้", raised.ok === true, raised.ok ? "" : raised.errorKey);
 
     const afterPayment = await prisma.payment.findUniqueOrThrow({ where: { id: paid.paymentId } });
     check(
@@ -204,7 +204,7 @@ async function main() {
 
     /** บิลใบถัดไปต้องใช้อัตราใหม่ — ไม่งั้นการตั้งค่าไม่มีผลอะไรเลย */
     const opened2 = await openTableByStaff(owner, table.id, 2);
-    if (!opened2.ok) throw new Error(opened2.error);
+    if (!opened2.ok) throw new Error(opened2.errorKey);
     await addToCart({
       tableSessionId: opened2.session.id,
       branchId,
@@ -243,7 +243,7 @@ async function main() {
     check(
       "สลับสกุลเงินหลังเคยรับเงินแล้ว = ปฏิเสธ",
       switchCurrency.ok === false,
-      switchCurrency.ok ? "เปลี่ยนได้ ซึ่งไม่ควรได้" : switchCurrency.error,
+      switchCurrency.ok ? "เปลี่ยนได้ ซึ่งไม่ควรได้" : switchCurrency.errorKey,
     );
     check(
       "สกุลเงินของสาขายังเป็นค่าเดิม",
@@ -261,7 +261,7 @@ async function main() {
       phone: original.phone ?? "",
       receiptFooter: "",
     });
-    check("เลขผู้เสียภาษีไม่ครบ 13 หลัก = ปฏิเสธ", badTaxId.ok === false, badTaxId.ok ? "" : badTaxId.error);
+    check("เลขผู้เสียภาษีไม่ครบ 13 หลัก = ปฏิเสธ", badTaxId.ok === false, badTaxId.ok ? "" : badTaxId.errorKey);
 
     const emptyName = await updateBusinessInfo(owner, {
       tenantName: "   ",
@@ -271,7 +271,7 @@ async function main() {
       phone: "",
       receiptFooter: "",
     });
-    check("ชื่อกิจการว่าง = ปฏิเสธ", emptyName.ok === false, emptyName.ok ? "" : emptyName.error);
+    check("ชื่อกิจการว่าง = ปฏิเสธ", emptyName.ok === false, emptyName.ok ? "" : emptyName.errorKey);
 
     const updatedInfo = await updateBusinessInfo(owner, {
       tenantName: "ร้านทดสอบตั้งค่า",
@@ -281,7 +281,7 @@ async function main() {
       phone: "02-111-2222",
       receiptFooter: "ขอบคุณครับ · Wi-Fi: posdemo",
     });
-    check("แก้ข้อมูลร้านได้", updatedInfo.ok === true, updatedInfo.ok ? "" : updatedInfo.error);
+    check("แก้ข้อมูลร้านได้", updatedInfo.ok === true, updatedInfo.ok ? "" : updatedInfo.errorKey);
 
     const afterInfo = await prisma.branch.findUniqueOrThrow({
       where: { id: branchId },
@@ -305,7 +305,7 @@ async function main() {
       method: "CASH",
       receivedAmount: bill2 && !bill2.isEmpty ? bill2.bill.grandTotal : 0,
     });
-    if (!paid2.ok) throw new Error(paid2.error);
+    if (!paid2.ok) throw new Error(paid2.errorKey);
 
     const receipt2 = await prisma.receipt.findFirstOrThrow({ where: { paymentId: paid2.paymentId } });
     check(
@@ -328,7 +328,7 @@ async function main() {
       sortOrder: 99,
       isActive: true,
     });
-    check("สร้างสถานีใหม่ได้", created.ok === true, created.ok ? "" : created.error);
+    check("สร้างสถานีใหม่ได้", created.ok === true, created.ok ? "" : created.errorKey);
 
     const stationRow = await prisma.station.findFirstOrThrow({
       where: { branchId, code: STATION_CODE },
@@ -341,7 +341,7 @@ async function main() {
       sortOrder: 1,
       isActive: true,
     });
-    check("รหัสสถานีซ้ำในสาขาเดียวกัน = ปฏิเสธ", duplicate.ok === false, duplicate.ok ? "" : duplicate.error);
+    check("รหัสสถานีซ้ำในสาขาเดียวกัน = ปฏิเสธ", duplicate.ok === false, duplicate.ok ? "" : duplicate.errorKey);
 
     const renamed = await upsertStation(owner, stationRow.id, {
       code: STATION_CODE,
@@ -349,7 +349,7 @@ async function main() {
       sortOrder: 5,
       isActive: false,
     });
-    check("แก้ชื่อ/ลำดับ/ปิดใช้งานสถานีได้", renamed.ok === true, renamed.ok ? "" : renamed.error);
+    check("แก้ชื่อ/ลำดับ/ปิดใช้งานสถานีได้", renamed.ok === true, renamed.ok ? "" : renamed.errorKey);
 
     const byCashierStation = await upsertStation(cashier, null, {
       code: "T9XX",
@@ -360,7 +360,7 @@ async function main() {
     check("แคชเชียร์แก้สถานีไม่ได้", byCashierStation.ok === false);
 
     const removed = await deleteStation(owner, stationRow.id);
-    check("ลบสถานีที่ไม่เคยถูกใช้ได้", removed.ok === true, removed.ok ? "" : removed.error);
+    check("ลบสถานีที่ไม่เคยถูกใช้ได้", removed.ok === true, removed.ok ? "" : removed.errorKey);
 
     const usedStation = await prisma.station.findFirstOrThrow({
       where: { branchId, code: { not: STATION_CODE } },
@@ -369,7 +369,7 @@ async function main() {
     check(
       "ลบสถานีที่มีเมนู/ออร์เดอร์ผูกอยู่ไม่ได้ (ให้ปิดใช้งานแทน)",
       blocked.ok === false,
-      blocked.ok ? "ลบได้ ซึ่งไม่ควรได้" : blocked.error,
+      blocked.ok ? "ลบได้ ซึ่งไม่ควรได้" : blocked.errorKey,
     );
 
     console.log("\n── 8. AuditLog ───────────────────────────────────────────────────\n");

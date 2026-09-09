@@ -294,11 +294,11 @@ export async function openSalePointSession(staff: CurrentStaff, tableId: string)
   });
 
   if (!table) {
-    return { ok: false as const, error: "Sale point not found in your branch" };
+    return { ok: false as const, errorKey: "error.sale_point_not_found" as const };
   }
 
   if (table.kind === "DINE_IN") {
-    return { ok: false as const, error: "This sale point is a dine-in table — open it from the table map instead" };
+    return { ok: false as const, errorKey: "error.sale_point_is_table" as const };
   }
 
   const session = await openOrJoinTableSession({
@@ -348,11 +348,11 @@ export async function setSessionCustomerName(
   });
 
   if (!session) {
-    return { ok: false as const, error: "Open bill not found in your branch" };
+    return { ok: false as const, errorKey: "error.open_bill_not_found" as const };
   }
 
   if (!needsQueueNumber(session.table.kind)) {
-    return { ok: false as const, error: "Dine-in bills are already identified by table name" };
+    return { ok: false as const, errorKey: "error.dine_in_named_by_table" as const };
   }
 
   const name = rawName.trim();
@@ -360,7 +360,8 @@ export async function setSessionCustomerName(
   if (name.length > CUSTOMER_NAME_MAX_LENGTH) {
     return {
       ok: false as const,
-      error: `Customer name is longer than ${CUSTOMER_NAME_MAX_LENGTH} characters`,
+      errorKey: "error.customer_name_too_long" as const,
+      params: { max: CUSTOMER_NAME_MAX_LENGTH },
     };
   }
 
@@ -422,7 +423,7 @@ async function buildPosDetail(
 /** เปิดโต๊ะให้ลูกค้าจากเครื่อง POS (หรือเข้าร่วมรอบที่เปิดค้างอยู่) */
 export async function openTableByStaff(staff: CurrentStaff, tableId: string, pax: number) {
   if (!Number.isFinite(pax) || pax < 1 || pax > 50) {
-    return { ok: false as const, error: "Party size must be between 1 and 50" };
+    return { ok: false as const, errorKey: "error.pax_range_50" as const };
   }
 
   const table = await prisma.restaurantTable.findFirst({
@@ -430,7 +431,7 @@ export async function openTableByStaff(staff: CurrentStaff, tableId: string, pax
   });
 
   if (!table) {
-    return { ok: false as const, error: "Table not found in your branch" };
+    return { ok: false as const, errorKey: "error.table_not_found" as const };
   }
 
   const session = await openOrJoinTableSession({
@@ -460,7 +461,7 @@ export async function closeTableSession(staff: CurrentStaff, sessionId: string, 
   const note = reason.trim();
 
   if (note.length < 3) {
-    return { ok: false as const, error: "Enter a reason of at least 3 characters" };
+    return { ok: false as const, errorKey: "error.reason_too_short" as const };
   }
 
   const session = await prisma.tableSession.findFirst({
@@ -469,7 +470,7 @@ export async function closeTableSession(staff: CurrentStaff, sessionId: string, 
   });
 
   if (!session) {
-    return { ok: false as const, error: "No open table session found" };
+    return { ok: false as const, errorKey: "error.no_open_session" as const };
   }
 
   const sentToKitchen = session.orders.filter((order) => order.status !== "DRAFT");
@@ -477,7 +478,7 @@ export async function closeTableSession(staff: CurrentStaff, sessionId: string, 
   if (sentToKitchen.length > 0) {
     return {
       ok: false as const,
-      error: "This table has orders already sent to the kitchen — take payment on the billing screen first",
+      errorKey: "error.table_has_kitchen_orders" as const,
     };
   }
 
@@ -527,13 +528,13 @@ export async function cancelOrderItemByStaff(
   reason: string,
 ) {
   if (!canCancelOrderItem(staff.role)) {
-    return { ok: false as const, error: "Your role can't cancel items — please call a manager" };
+    return { ok: false as const, errorKey: "error.cannot_cancel_item" as const };
   }
 
   const note = reason.trim();
 
   if (note.length < 3) {
-    return { ok: false as const, error: "Enter a reason of at least 3 characters" };
+    return { ok: false as const, errorKey: "error.reason_too_short" as const };
   }
 
   const item = await prisma.orderItem.findFirst({
@@ -542,11 +543,11 @@ export async function cancelOrderItemByStaff(
   });
 
   if (!item) {
-    return { ok: false as const, error: "Item not found, or already cancelled" };
+    return { ok: false as const, errorKey: "error.item_not_found_or_cancelled" as const };
   }
 
   if (item.order.status === "PAID") {
-    return { ok: false as const, error: "This bill has already been paid — can't cancel items" };
+    return { ok: false as const, errorKey: "error.bill_already_paid" as const };
   }
 
   await prisma.$transaction(async (tx) => {

@@ -6,7 +6,7 @@ import { redirect } from "next/navigation";
 import { addToCart, placeOrder, setCartLineQuantity } from "@/lib/server/cart";
 import { openTableSession, resolveCustomerContext } from "@/lib/server/table-session";
 
-import type { FormState } from "@/lib/form-state";
+import { formError, type FormState } from "@/lib/form-state";
 
 /**
  * Server Action ของหน้าจอลูกค้า (บทที่ 5 + 7)
@@ -26,17 +26,17 @@ export async function openTableSessionAction(
   const pax = Number.parseInt(String(formData.get("pax") ?? "1"), 10);
 
   if (!tableCode) {
-    return { status: "error", message: "Table code not found — please scan the QR code again" };
+    return { status: "error", messageKey: "error.table_code_not_found" };
   }
 
   if (!Number.isFinite(pax) || pax < 1 || pax > 20) {
-    return { status: "error", message: "Party size must be between 1 and 20" };
+    return { status: "error", messageKey: "error.pax_range_20" };
   }
 
   const session = await openTableSession(tableCode, pax);
 
   if (!session) {
-    return { status: "error", message: "This table isn't available yet — please call staff" };
+    return { status: "error", messageKey: "error.table_not_available" };
   }
 
   // redirect โยน control-flow exception ของ framework โค้ดหลังบรรทัดนี้จะไม่ทำงาน
@@ -52,7 +52,7 @@ export async function addToCartAction(
   const context = await resolveCustomerContext(tableCode);
 
   if (!context?.session) {
-    return { status: "error", message: "Your table session expired — please scan the table's QR code again" };
+    return { status: "error", messageKey: "error.customer_session_expired" };
   }
 
   const result = await addToCart({
@@ -75,7 +75,7 @@ export async function addToCartAction(
   });
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   redirect(`/t/${tableCode}`);
@@ -90,7 +90,7 @@ export async function setCartLineQuantityAction(
   const context = await resolveCustomerContext(tableCode);
 
   if (!context?.session) {
-    return { status: "error", message: "Your table session expired — please scan the table's QR code again" };
+    return { status: "error", messageKey: "error.customer_session_expired" };
   }
 
   const result = await setCartLineQuantity(
@@ -100,13 +100,13 @@ export async function setCartLineQuantityAction(
   );
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   // อยู่หน้าตะกร้าต่อ แค่ให้ router ดึงข้อมูลใหม่มาแสดง
   refresh();
 
-  return { status: "success", message: "Cart updated" };
+  return { status: "success", messageKey: "msg.cart_updated" };
 }
 
 /**
@@ -125,13 +125,13 @@ export async function placeOrderAction(
   const context = await resolveCustomerContext(tableCode);
 
   if (!context?.session) {
-    return { status: "error", message: "Your table session expired — please scan the table's QR code again" };
+    return { status: "error", messageKey: "error.customer_session_expired" };
   }
 
   const result = await placeOrder(context.session.id);
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   redirect(`/t/${tableCode}/orders`);

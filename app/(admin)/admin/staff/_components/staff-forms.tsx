@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/i18n-provider";
 import { useActionState } from "react";
 
 import { SubmitButton } from "@/components/submit-button";
@@ -48,16 +49,18 @@ function RoleSelect({
 }
 
 function Message({ state }: { state: FormState }) {
+  const { t } = useT();
+
   if (state.status === "error") {
     return (
       <p role="alert" className="alert">
-        {state.message}
+        {t(state.messageKey, state.params)}
       </p>
     );
   }
 
   if (state.status === "success") {
-    return <p className="kicker">{state.message}</p>;
+    return <p className="kicker">{t(state.messageKey, state.params)}</p>;
   }
 
   return null;

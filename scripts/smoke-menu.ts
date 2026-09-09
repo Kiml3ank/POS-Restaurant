@@ -150,7 +150,7 @@ async function main() {
 
   // ── 3. สร้างหมวด + เมนู ──────────────────────────────────────────────
   const deniedCategory = await upsertCategory(cashier, { id: null, name: `${PREFIX} ห้าม` });
-  check("แคชเชียร์สร้างหมวดไม่ได้", !deniedCategory.ok, deniedCategory.ok ? "" : deniedCategory.error);
+  check("แคชเชียร์สร้างหมวดไม่ได้", !deniedCategory.ok, deniedCategory.ok ? "" : deniedCategory.errorKey);
 
   const emptyName = await upsertCategory(owner, { id: null, name: "   " });
   check("ชื่อหมวดว่าง => error", !emptyName.ok);
@@ -172,7 +172,7 @@ async function main() {
     imageUrl: null,
     basePriceText: "หนึ่งร้อย",
   });
-  check("ราคาที่พิมพ์เป็นตัวอักษร => error", !badPrice.ok, badPrice.ok ? "" : badPrice.error);
+  check("ราคาที่พิมพ์เป็นตัวอักษร => error", !badPrice.ok, badPrice.ok ? "" : badPrice.errorKey);
 
   const negativePrice = await upsertMenuItem(owner, {
     id: null,
@@ -183,7 +183,7 @@ async function main() {
     imageUrl: null,
     basePriceText: "-50",
   });
-  check("ราคาเมนูติดลบ => error", !negativePrice.ok, negativePrice.ok ? "" : negativePrice.error);
+  check("ราคาเมนูติดลบ => error", !negativePrice.ok, negativePrice.ok ? "" : negativePrice.errorKey);
 
   const badImage = await upsertMenuItem(owner, {
     id: null,
@@ -194,7 +194,7 @@ async function main() {
     imageUrl: "javascript:alert(1)",
     basePriceText: "50",
   });
-  check("ลิงก์รูปที่ไม่ใช่ https:// หรือ / => error", !badImage.ok, badImage.ok ? "" : badImage.error);
+  check("ลิงก์รูปที่ไม่ใช่ https:// หรือ / => error", !badImage.ok, badImage.ok ? "" : badImage.errorKey);
 
   const foreignCategory = await upsertMenuItem(owner, {
     id: null,
@@ -238,7 +238,7 @@ async function main() {
 
   // ── 4. ของหมด / มีของ ────────────────────────────────────────────────
   const kitchenToggle = await setAvailability(kitchen, "menuItem", item1.id, false);
-  check("ครัวกดของหมดได้", kitchenToggle.ok, kitchenToggle.ok ? "" : kitchenToggle.error);
+  check("ครัวกดของหมดได้", kitchenToggle.ok, kitchenToggle.ok ? "" : kitchenToggle.errorKey);
 
   const afterOff = await prisma.menuItem.findUniqueOrThrow({ where: { id: item1.id } });
   check("เมนูถูกปิดขายจริง", afterOff.isAvailable === false);
@@ -277,7 +277,7 @@ async function main() {
   });
 
   const moved = await moveSortOrder(owner, "menuItem", beforeMove[1].id, "up");
-  check("เลื่อนขึ้นได้", moved.ok, moved.ok ? "" : moved.error);
+  check("เลื่อนขึ้นได้", moved.ok, moved.ok ? "" : moved.errorKey);
 
   const afterMove = await prisma.menuItem.findMany({
     where: { categoryId: categoryA.id },
@@ -324,7 +324,7 @@ async function main() {
     maxSelect: 1,
     modifiers: [],
   });
-  check("กลุ่มที่ไม่มีตัวเลือกเลย => error", !noOptions.ok, noOptions.ok ? "" : noOptions.error);
+  check("กลุ่มที่ไม่มีตัวเลือกเลย => error", !noOptions.ok, noOptions.ok ? "" : noOptions.errorKey);
 
   const badRange = await upsertModifierGroup(owner, {
     id: null,
@@ -334,7 +334,7 @@ async function main() {
     maxSelect: 1,
     modifiers: [{ id: null, name: "ก", priceDeltaText: "0" }],
   });
-  check("สูงสุดน้อยกว่าขั้นต่ำ => error", !badRange.ok, badRange.ok ? "" : badRange.error);
+  check("สูงสุดน้อยกว่าขั้นต่ำ => error", !badRange.ok, badRange.ok ? "" : badRange.errorKey);
 
   const requiredNoMin = await upsertModifierGroup(owner, {
     id: null,
@@ -344,7 +344,7 @@ async function main() {
     maxSelect: 2,
     modifiers: [{ id: null, name: "ก", priceDeltaText: "0" }],
   });
-  check('"บังคับเลือก" แต่ขั้นต่ำ 0 => error', !requiredNoMin.ok, requiredNoMin.ok ? "" : requiredNoMin.error);
+  check('"บังคับเลือก" แต่ขั้นต่ำ 0 => error', !requiredNoMin.ok, requiredNoMin.ok ? "" : requiredNoMin.errorKey);
 
   /** เคสที่พังเงียบที่สุด: ขั้นต่ำมากกว่าจำนวนตัวเลือกที่มี = ลูกค้าติดหน้าเลือกตลอดกาล */
   const impossible = await upsertModifierGroup(owner, {
@@ -361,7 +361,7 @@ async function main() {
   check(
     "ขั้นต่ำมากกว่าจำนวนตัวเลือกที่มี => error (ลูกค้าจะเลือกให้ครบไม่ได้)",
     !impossible.ok,
-    impossible.ok ? "" : impossible.error,
+    impossible.ok ? "" : impossible.errorKey,
   );
 
   const group = await upsertModifierGroup(owner, {
@@ -376,7 +376,7 @@ async function main() {
       { id: null, name: "ไม่เอาเนื้อ", priceDeltaText: "-10" },
     ],
   });
-  check("สร้างกลุ่มตัวเลือกได้", group.ok, group.ok ? "" : group.error);
+  check("สร้างกลุ่มตัวเลือกได้", group.ok, group.ok ? "" : group.errorKey);
 
   if (!group.ok) {
     throw new Error("สร้างกลุ่มไม่สำเร็จ");
@@ -407,7 +407,7 @@ async function main() {
 
   // ผูกกลุ่มเข้ากับเมนู
   const linked = await setMenuItemModifierGroups(owner, item1.id, [group.id]);
-  check("ผูกกลุ่มเข้ากับเมนูได้", linked.ok, linked.ok ? "" : linked.error);
+  check("ผูกกลุ่มเข้ากับเมนูได้", linked.ok, linked.ok ? "" : linked.errorKey);
 
   const forEdit = await getMenuItemForEdit(branch.id, item1.id);
   check("อ่านกลับมาแล้วเห็นกลุ่มที่ผูกไว้", forEdit?.item?.modifierGroups.length === 1);
@@ -443,7 +443,7 @@ async function main() {
     method: "CASH",
     receivedAmount: billBefore!.bill.grandTotal,
   });
-  check("ปิดบิลด้วยเมนูทดสอบได้", paid.ok, paid.ok ? "" : paid.error);
+  check("ปิดบิลด้วยเมนูทดสอบได้", paid.ok, paid.ok ? "" : paid.errorKey);
 
   // ขึ้นราคาเมนูเป็นสองเท่าหลังจากที่บิลปิดไปแล้ว
   await upsertMenuItem(owner, {
@@ -479,21 +479,21 @@ async function main() {
   check(
     "เมนูที่เคยถูกสั่งแล้ว ลบไม่ได้ (บอกให้ใช้ปิดขายแทน)",
     !deleteOrdered.ok,
-    deleteOrdered.ok ? "" : deleteOrdered.error,
+    deleteOrdered.ok ? "" : deleteOrdered.errorKey,
   );
 
   const deleteCategoryWithItems = await deleteMenuEntity(owner, "category", categoryA.id);
   check(
     "หมวดที่ยังมีเมนูอยู่ ลบไม่ได้",
     !deleteCategoryWithItems.ok,
-    deleteCategoryWithItems.ok ? "" : deleteCategoryWithItems.error,
+    deleteCategoryWithItems.ok ? "" : deleteCategoryWithItems.errorKey,
   );
 
   const deleteLinkedGroup = await deleteMenuEntity(owner, "modifierGroup", group.id);
   check(
     "กลุ่มที่ยังผูกกับเมนูอยู่ ลบไม่ได้",
     !deleteLinkedGroup.ok,
-    deleteLinkedGroup.ok ? "" : deleteLinkedGroup.error,
+    deleteLinkedGroup.ok ? "" : deleteLinkedGroup.errorKey,
   );
 
   const deleteByCashier = await deleteMenuEntity(cashier, "category", categoryB.id);
@@ -503,7 +503,7 @@ async function main() {
   check(
     "หมวดเปล่าที่ไม่เคยมีอะไรผูก ลบได้จริง",
     deleteEmptyCategory.ok,
-    deleteEmptyCategory.ok ? "" : deleteEmptyCategory.error,
+    deleteEmptyCategory.ok ? "" : deleteEmptyCategory.errorKey,
   );
 
   // เมนูที่ไม่เคยถูกสั่ง ลบได้
@@ -512,7 +512,7 @@ async function main() {
   check(
     "เมนูที่ไม่เคยถูกสั่ง ลบได้จริง (ไม่งั้นเมนูพิมพ์ผิดค้างตลอดกาล)",
     deleteNeverOrdered.ok,
-    deleteNeverOrdered.ok ? "" : deleteNeverOrdered.error,
+    deleteNeverOrdered.ok ? "" : deleteNeverOrdered.errorKey,
   );
 
   const auditDelete = await prisma.auditLog.findFirst({
@@ -523,7 +523,7 @@ async function main() {
   // ── 9. ข้ามสาขาไม่ได้ ────────────────────────────────────────────────
   const otherBranchStaff: CurrentStaff = { ...owner, branchId: "ไม่มีสาขานี้" };
   const crossBranch = await setAvailability(otherBranchStaff, "category", categoryA.id, false);
-  check("แก้ของสาขาอื่นไม่ได้", !crossBranch.ok, crossBranch.ok ? "" : crossBranch.error);
+  check("แก้ของสาขาอื่นไม่ได้", !crossBranch.ok, crossBranch.ok ? "" : crossBranch.errorKey);
 
   const unknownEntity = await setAvailability(owner, "ไม่มีชนิดนี้" as never, categoryA.id, false);
   check("ชนิดที่ไม่รู้จัก => error", !unknownEntity.ok);

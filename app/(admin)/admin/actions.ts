@@ -1,9 +1,10 @@
 "use server";
 
+import { countKey } from "@/lib/i18n/translate";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 
-import type { FormState } from "@/lib/form-state";
+import { formError, type FormState } from "@/lib/form-state";
 import { canAccessScreen } from "@/lib/rbac";
 import {
   deleteMenuEntity,
@@ -33,6 +34,8 @@ import {
   upsertTable,
 } from "@/lib/server/settings";
 import { getCurrentStaff, loginStaff, logoutStaff } from "@/lib/server/staff-session";
+import type { MessageParams } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/vi";
 
 /**
  * Server Action ของจอหลังร้าน (โมดูล 04)
@@ -47,7 +50,7 @@ import { getCurrentStaff, loginStaff, logoutStaff } from "@/lib/server/staff-ses
 
 const NOT_SIGNED_IN: FormState = {
   status: "error",
-  message: "Session expired — please enter your PIN again",
+  messageKey: "error.session_expired",
 };
 
 async function requireAdminStaff() {
@@ -66,14 +69,14 @@ export async function adminLoginAction(
   );
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   if (!canAccessScreen(result.staff.role, "admin")) {
     // ต้อง logout ทิ้งด้วย ไม่ใช่แค่คืน error — เหตุผลเดียวกับจอครัว: ไม่งั้น
     // cookie ที่เพิ่งออกให้จะค้างอยู่แล้วเดินไปเปิดหน้าอื่นต่อได้โดยไม่ต้องใส่ PIN
     await logoutStaff("admin");
-    return { status: "error", message: "ตำแหน่งของคุณไม่มีสิทธิ์เข้าหลังร้าน" };
+    return { status: "error", messageKey: "error.no_access_admin" };
   }
 
   redirect("/admin/menu");
@@ -109,12 +112,15 @@ export async function toggleAvailabilityAction(
   );
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
-  return { status: "success", message: result.available ? "เปิดขายแล้ว" : "ปิดขายแล้ว" };
+  return {
+    status: "success",
+    messageKey: result.available ? "msg.item_available" : "msg.item_unavailable",
+  };
 }
 
 /** เลื่อนลำดับขึ้น/ลงทีละขั้น — ไม่ใช้ drag-and-drop (ดูเหตุผลใน menu-admin.ts) */
@@ -136,12 +142,12 @@ export async function moveSortOrderAction(
   );
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
-  return { status: "success", message: "เรียงลำดับใหม่แล้ว" };
+  return { status: "success", messageKey: "msg.reordered" };
 }
 
 export async function saveCategoryAction(
@@ -160,7 +166,7 @@ export async function saveCategoryAction(
   });
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   redirect("/admin/menu");
@@ -192,7 +198,7 @@ export async function saveMenuItemAction(
   });
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   redirect("/admin/menu");
@@ -216,12 +222,12 @@ export async function saveMenuItemGroupsAction(
   );
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
-  return { status: "success", message: "บันทึกกลุ่มตัวเลือกแล้ว" };
+  return { status: "success", messageKey: "msg.modifier_group_saved" };
 }
 
 /**
@@ -255,7 +261,7 @@ export async function saveModifierGroupAction(
   });
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   redirect("/admin/modifiers");
@@ -276,7 +282,7 @@ export async function deleteEntityAction(
   const result = await deleteMenuEntity(staff, entity, String(formData.get("id") ?? ""));
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   redirect(entity === "modifierGroup" || entity === "modifier" ? "/admin/modifiers" : "/admin/menu");
@@ -296,17 +302,17 @@ function optionalText(value: FormDataEntryValue | null | undefined): string | nu
  */
 export async function adminPrintReceiptAction(
   receiptId: string,
-): Promise<{ ok: boolean; error?: string }> {
+): Promise<{ ok: boolean; errorKey?: MessageKey; params?: MessageParams }> {
   const staff = await requireAdminStaff();
 
   if (!staff) {
-    return { ok: false, error: "Session expired — please enter your PIN again" };
+    return { ok: false, errorKey: "error.session_expired" };
   }
 
   const result = await recordReceiptPrint(staff, receiptId);
 
   if (!result.ok) {
-    return { ok: false, error: result.error };
+    return { ok: false, errorKey: result.errorKey };
   }
 
   refresh();
@@ -339,7 +345,7 @@ export async function createStaffAction(
   });
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   redirect(`/admin/staff/${result.staffId}`);
@@ -363,16 +369,17 @@ export async function updateStaffAction(
   });
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
   return {
     status: "success",
-    message: result.revokedSessions
-      ? `บันทึกแล้ว · เตะออก ${result.revokedSessions} เครื่อง`
-      : "บันทึกแล้ว",
+    messageKey: result.revokedSessions
+      ? countKey("msg.saved_revoked", result.revokedSessions)
+      : "msg.saved",
+    params: { count: result.revokedSessions },
   };
 }
 
@@ -393,7 +400,7 @@ export async function resetStaffPinAction(
   );
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
@@ -405,9 +412,10 @@ export async function resetStaffPinAction(
    */
   return {
     status: "success",
-    message: result.revokedSessions
-      ? `ตั้ง PIN ใหม่แล้ว · เตะออก ${result.revokedSessions} เครื่อง`
-      : "ตั้ง PIN ใหม่แล้ว",
+    messageKey: result.revokedSessions
+      ? countKey("msg.pin_reset_revoked", result.revokedSessions)
+      : "msg.pin_reset",
+    params: { count: result.revokedSessions },
   };
 }
 
@@ -424,16 +432,17 @@ export async function revokeStaffSessionsAction(
   const result = await revokeStaffSessions(staff, String(formData.get("staffId") ?? ""));
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
   return {
     status: "success",
-    message: result.revokedSessions
-      ? `เตะออก ${result.revokedSessions} เครื่องแล้ว`
-      : "ไม่มีเครื่องที่ล็อกอินค้างอยู่",
+    messageKey: result.revokedSessions
+      ? countKey("msg.revoked", result.revokedSessions)
+      : "msg.no_active_sessions",
+    params: { count: result.revokedSessions },
   };
 }
 
@@ -465,12 +474,15 @@ export async function updateTaxSettingsAction(
   });
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
-  return { status: "success", message: result.changed ? "บันทึกอัตราใหม่แล้ว" : "ค่าเหมือนเดิม" };
+  return {
+    status: "success",
+    messageKey: result.changed ? "msg.rates_saved" : "msg.unchanged",
+  };
 }
 
 export async function updateBusinessInfoAction(
@@ -493,14 +505,14 @@ export async function updateBusinessInfoAction(
   });
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
   return {
     status: "success",
-    message: result.changed ? "บันทึกข้อมูลร้านแล้ว · ใบเสร็จใบถัดไปจะใช้ค่าใหม่" : "ค่าเหมือนเดิม",
+    messageKey: result.changed ? "msg.business_saved" : "msg.unchanged",
   };
 }
 
@@ -524,12 +536,15 @@ export async function upsertStationAction(
   });
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
-  return { status: "success", message: stationId ? "บันทึกสถานีแล้ว" : "เพิ่มสถานีแล้ว" };
+  return {
+    status: "success",
+    messageKey: stationId ? "msg.station_saved" : "msg.station_added",
+  };
 }
 
 export async function deleteStationAction(
@@ -545,12 +560,12 @@ export async function deleteStationAction(
   const result = await deleteStation(staff, String(formData.get("stationId") ?? ""));
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
-  return { status: "success", message: "ลบสถานีแล้ว" };
+  return { status: "success", messageKey: "msg.station_deleted" };
 }
 
 /**
@@ -608,7 +623,7 @@ export async function upsertTableAction(
   });
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
@@ -616,9 +631,8 @@ export async function upsertTableAction(
   return {
     status: "success",
     // ตอนสร้างใหม่ต้องบอกรหัส QR ออกมาเลย เพราะเป็นสิ่งที่คนกดต้องเอาไปพิมพ์ต่อทันที
-    message: tableId
-      ? "Sale point saved"
-      : `Sale point added — QR code /t/${result.tableCode}`,
+    messageKey: tableId ? "msg.sale_point_saved" : "msg.sale_point_added",
+    params: { code: result.tableCode ?? "" },
   };
 }
 
@@ -635,14 +649,15 @@ export async function rotateTableCodeAction(
   const result = await rotateTableCode(staff, String(formData.get("tableId") ?? ""));
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
   return {
     status: "success",
-    message: `New QR issued — /t/${result.tableCode}. The old printed QR no longer works`,
+    messageKey: "msg.qr_reissued",
+    params: { code: result.tableCode ?? "" },
   };
 }
 
@@ -659,10 +674,10 @@ export async function deleteTableAction(
   const result = await deleteTable(staff, String(formData.get("tableId") ?? ""));
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
-  return { status: "success", message: "Sale point deleted" };
+  return { status: "success", messageKey: "msg.sale_point_deleted" };
 }

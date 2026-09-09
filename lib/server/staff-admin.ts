@@ -5,6 +5,8 @@ import { canAssignRole, canManageStaff, canManageStaffMember } from "@/lib/rbac"
 import { clientIp } from "@/lib/server/client-ip";
 import { prisma } from "@/lib/server/db";
 import { hashPin } from "@/lib/server/pin";
+import type { MessageParams } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/vi";
 import type { CurrentStaff } from "@/lib/server/staff-session";
 import {
   SESSION_REVOKE_REASONS,
@@ -42,24 +44,33 @@ export const PIN_MIN_LENGTH = 4;
 export const PIN_MAX_LENGTH = 6;
 
 export type StaffAdminResult<T = undefined> =
-  | { ok: false; error: string }
+  | { ok: false; errorKey: MessageKey; params?: MessageParams }
   | ({ ok: true } & (T extends undefined ? { staffId?: string } : T));
 
-function fail(error: string) {
-  return { ok: false as const, error };
+/**
+ * คืน **คีย์** ไม่ใช่ประโยค — ชั้นธุรกิจไม่รู้จักภาษาที่ผู้ใช้เลือก
+ * (กฎหัวข้อ 5 ของ spec i18n) หน้าจอเป็นคนแปลตอน render
+ */
+function fail(errorKey: MessageKey, params?: MessageParams) {
+  return { ok: false as const, errorKey, params };
 }
 
 function normalizeCode(value: string) {
   return value.trim();
 }
 
-function validatePin(pin: string): string | null {
+type PinProblem = { errorKey: MessageKey; params?: MessageParams };
+
+function validatePin(pin: string): PinProblem | null {
   if (!/^\d+$/.test(pin)) {
-    return "PIN must be digits only";
+    return { errorKey: "error.pin_digits_only" as const };
   }
 
   if (pin.length < PIN_MIN_LENGTH || pin.length > PIN_MAX_LENGTH) {
-    return `PIN must be ${PIN_MIN_LENGTH}-${PIN_MAX_LENGTH} digits long`;
+    return {
+      errorKey: "error.pin_length" as const,
+      params: { min: PIN_MIN_LENGTH, max: PIN_MAX_LENGTH },
+    };
   }
 
   return null;
@@ -160,23 +171,23 @@ export async function createStaffMember(
   input: { code: string; name: string; role: StaffRole; pin: string },
 ) {
   if (!canManageStaff(actor.role)) {
-    return fail("Your role can't manage staff");
+    return fail("error.cannot_manage_staff");
   }
 
   if (!canAssignRole(actor.role, input.role)) {
-    return fail("You can't assign this role — only roles below your own");
+    return fail("error.cannot_assign_role");
   }
 
   const code = normalizeCode(input.code);
   const name = input.name.trim();
 
   if (!code || !name) {
-    return fail("Enter a staff code and name");
+    return fail("error.staff_code_name_required");
   }
 
   const pinError = validatePin(input.pin);
   if (pinError) {
-    return fail(pinError);
+    return fail(pinError.errorKey, pinError.params);
   }
 
   const duplicate = await prisma.staff.findFirst({
@@ -185,7 +196,7 @@ export async function createStaffMember(
   });
 
   if (duplicate) {
-    return fail(`Staff code ${code} already exists in this branch`);
+    return fail("error.staff_code_duplicate", { code });
   }
 
   const created = await prisma.staff.create({
@@ -216,7 +227,7 @@ export async function updateStaffMember(
   input: { code: string; name: string; role: StaffRole; isActive: boolean },
 ) {
   if (!canManageStaff(actor.role)) {
-    return fail("Your role can't manage staff");
+    return fail("error.cannot_manage_staff");
   }
 
   const target = await prisma.staff.findFirst({
@@ -224,15 +235,15 @@ export async function updateStaffMember(
   });
 
   if (!target) {
-    return fail("Staff member not found in your branch");
+    return fail("error.staff_not_found_branch");
   }
 
   if (!canManageStaffMember(actor.role, target.role)) {
-    return fail("You can't edit an account of this role");
+    return fail("error.cannot_edit_this_role");
   }
 
   if (!canAssignRole(actor.role, input.role)) {
-    return fail("You can't assign this role — only roles below your own");
+    return fail("error.cannot_assign_role");
   }
 
   /**
@@ -241,14 +252,14 @@ export async function updateStaffMember(
    * ส่วนการเปลี่ยนชื่อตัวเองไม่ใช่เรื่องที่ต้องรีบพอจะยอมเปิดช่องนั้น
    */
   if (target.id === actor.id) {
-    return fail("You can't edit your own account from this screen — have another authorized user do it");
+    return fail("error.cannot_edit_own_account");
   }
 
   const code = normalizeCode(input.code);
   const name = input.name.trim();
 
   if (!code || !name) {
-    return fail("Enter a staff code and name");
+    return fail("error.staff_code_name_required");
   }
 
   const duplicate = await prisma.staff.findFirst({
@@ -257,7 +268,7 @@ export async function updateStaffMember(
   });
 
   if (duplicate) {
-    return fail(`Staff code ${code} already exists in this branch`);
+    return fail("error.staff_code_duplicate", { code });
   }
 
   /**
@@ -283,7 +294,7 @@ export async function updateStaffMember(
     });
 
     if (otherOwners === 0) {
-      return fail("At least one active owner account must remain");
+      return fail("error.owner_must_remain");
     }
   }
 
@@ -332,7 +343,7 @@ export async function updateStaffMember(
  */
 export async function resetStaffPin(actor: CurrentStaff, staffId: string, pin: string) {
   if (!canManageStaff(actor.role)) {
-    return fail("Your role can't manage staff");
+    return fail("error.cannot_manage_staff");
   }
 
   const target = await prisma.staff.findFirst({
@@ -340,16 +351,16 @@ export async function resetStaffPin(actor: CurrentStaff, staffId: string, pin: s
   });
 
   if (!target) {
-    return fail("Staff member not found in your branch");
+    return fail("error.staff_not_found_branch");
   }
 
   if (!canManageStaffMember(actor.role, target.role)) {
-    return fail("You can't reset the PIN of this role");
+    return fail("error.cannot_reset_this_pin");
   }
 
   const pinError = validatePin(pin);
   if (pinError) {
-    return fail(pinError);
+    return fail(pinError.errorKey, pinError.params);
   }
 
   await prisma.staff.update({ where: { id: target.id }, data: { pinHash: hashPin(pin) } });
@@ -375,7 +386,7 @@ export async function resetStaffPin(actor: CurrentStaff, staffId: string, pin: s
 /** ปุ่ม "เตะออกทุกเครื่อง" — ใช้ตอนลืมล็อกจอทิ้งไว้ หรือสงสัยว่ามีคนอื่นใช้บัญชีอยู่ */
 export async function revokeStaffSessions(actor: CurrentStaff, staffId: string) {
   if (!canManageStaff(actor.role)) {
-    return fail("Your role can't manage staff");
+    return fail("error.cannot_manage_staff");
   }
 
   const target = await prisma.staff.findFirst({
@@ -384,7 +395,7 @@ export async function revokeStaffSessions(actor: CurrentStaff, staffId: string) 
   });
 
   if (!target) {
-    return fail("Staff member not found in your branch");
+    return fail("error.staff_not_found_branch");
   }
 
   /**
@@ -392,7 +403,7 @@ export async function revokeStaffSessions(actor: CurrentStaff, staffId: string) 
    * เมื่อรู้ตัวว่าลืมล็อกจอไว้ที่เครื่องอื่น และผลที่ตามมาแค่ต้องใส่ PIN ใหม่
    */
   if (target.id !== actor.id && !canManageStaffMember(actor.role, target.role)) {
-    return fail("You can't sign out an account of this role");
+    return fail("error.cannot_signout_this_role");
   }
 
   const revokedSessions = await revokeAllStaffSessions(target.id, {

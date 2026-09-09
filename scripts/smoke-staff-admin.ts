@@ -91,7 +91,7 @@ async function main() {
     role: "CASHIER",
     pin: "4321",
   });
-  check("เพิ่มพนักงานใหม่ได้", created.ok === true, created.ok ? "" : created.error);
+  check("เพิ่มพนักงานใหม่ได้", created.ok === true, created.ok ? "" : created.errorKey);
 
   if (!created.ok) {
     throw new Error("เพิ่มพนักงานไม่สำเร็จ ทดสอบต่อไม่ได้");
@@ -110,7 +110,7 @@ async function main() {
     role: "SERVER",
     pin: "1111",
   });
-  check("รหัสพนักงานซ้ำในสาขาเดียวกัน = ปฏิเสธ", duplicate.ok === false, duplicate.ok ? "" : duplicate.error);
+  check("รหัสพนักงานซ้ำในสาขาเดียวกัน = ปฏิเสธ", duplicate.ok === false, duplicate.ok ? "" : duplicate.errorKey);
 
   const shortPin = await createStaffMember(owner, {
     code: `${PREFIX}02`,
@@ -118,7 +118,7 @@ async function main() {
     role: "SERVER",
     pin: "12",
   });
-  check("PIN สั้นเกินไป = ปฏิเสธ", shortPin.ok === false, shortPin.ok ? "" : shortPin.error);
+  check("PIN สั้นเกินไป = ปฏิเสธ", shortPin.ok === false, shortPin.ok ? "" : shortPin.errorKey);
 
   const letterPin = await createStaffMember(owner, {
     code: `${PREFIX}02`,
@@ -126,7 +126,7 @@ async function main() {
     role: "SERVER",
     pin: "12ab",
   });
-  check("PIN ที่ไม่ใช่ตัวเลขล้วน = ปฏิเสธ", letterPin.ok === false, letterPin.ok ? "" : letterPin.error);
+  check("PIN ที่ไม่ใช่ตัวเลขล้วน = ปฏิเสธ", letterPin.ok === false, letterPin.ok ? "" : letterPin.errorKey);
 
   const managerCreated = await createStaffMember(owner, {
     code: `${PREFIX}03`,
@@ -134,7 +134,7 @@ async function main() {
     role: "MANAGER",
     pin: "5678",
   });
-  check("เจ้าของร้านตั้งผู้จัดการได้", managerCreated.ok === true, managerCreated.ok ? "" : managerCreated.error);
+  check("เจ้าของร้านตั้งผู้จัดการได้", managerCreated.ok === true, managerCreated.ok ? "" : managerCreated.errorKey);
 
   const manager = (await prisma.staff.findFirstOrThrow({
     where: { code: `${PREFIX}03` },
@@ -152,7 +152,7 @@ async function main() {
   check(
     "ผู้จัดการสร้างบัญชีตำแหน่งเจ้าของร้านไม่ได้",
     escalate.ok === false,
-    escalate.ok ? "สร้างได้ ซึ่งไม่ควรได้" : escalate.error,
+    escalate.ok ? "สร้างได้ ซึ่งไม่ควรได้" : escalate.errorKey,
   );
 
   const promoteSelf = await updateStaffMember(manager, cashierId, {
@@ -164,7 +164,7 @@ async function main() {
   check(
     "ผู้จัดการเลื่อนคนอื่นขึ้นเป็นเจ้าของร้านไม่ได้",
     promoteSelf.ok === false,
-    promoteSelf.ok ? "" : promoteSelf.error,
+    promoteSelf.ok ? "" : promoteSelf.errorKey,
   );
 
   const editOwner = await updateStaffMember(manager, owner.id, {
@@ -176,14 +176,14 @@ async function main() {
   check(
     "ผู้จัดการแก้บัญชีของเจ้าของร้านไม่ได้",
     editOwner.ok === false,
-    editOwner.ok ? "" : editOwner.error,
+    editOwner.ok ? "" : editOwner.errorKey,
   );
 
   const resetOwnerPin = await resetStaffPin(manager, owner.id, "0000");
   check(
     "ผู้จัดการรีเซ็ต PIN ของเจ้าของร้านไม่ได้ (ไม่งั้นเข้าบัญชีเจ้าของได้ทันที)",
     resetOwnerPin.ok === false,
-    resetOwnerPin.ok ? "" : resetOwnerPin.error,
+    resetOwnerPin.ok ? "" : resetOwnerPin.errorKey,
   );
 
   const editSelf = await updateStaffMember(manager, manager.id, {
@@ -192,13 +192,13 @@ async function main() {
     role: "MANAGER",
     isActive: true,
   });
-  check("แก้บัญชีตัวเองจากหน้านี้ไม่ได้", editSelf.ok === false, editSelf.ok ? "" : editSelf.error);
+  check("แก้บัญชีตัวเองจากหน้านี้ไม่ได้", editSelf.ok === false, editSelf.ok ? "" : editSelf.errorKey);
 
   const byCashier = await createStaffMember(
     { ...manager, role: "CASHIER" } as CurrentStaff,
     { code: `${PREFIX}05`, name: "โดยแคชเชียร์", role: "SERVER", pin: "2222" },
   );
-  check("แคชเชียร์เพิ่มพนักงานไม่ได้", byCashier.ok === false, byCashier.ok ? "" : byCashier.error);
+  check("แคชเชียร์เพิ่มพนักงานไม่ได้", byCashier.ok === false, byCashier.ok ? "" : byCashier.errorKey);
 
   console.log("\n── 4. รีเซ็ต PIN แล้วเครื่องที่ค้างอยู่ต้องหลุดทันที ─────────────\n");
 
@@ -207,7 +207,7 @@ async function main() {
   check("จำลองว่าคนนี้ล็อกอินค้างอยู่สองเครื่อง", (await loadActiveStaffSession(posSession.id, "pos")) !== null);
 
   const reset = await resetStaffPin(manager, cashierId, "8765");
-  check("ผู้จัดการรีเซ็ต PIN ของแคชเชียร์ได้", reset.ok === true, reset.ok ? "" : reset.error);
+  check("ผู้จัดการรีเซ็ต PIN ของแคชเชียร์ได้", reset.ok === true, reset.ok ? "" : reset.errorKey);
   check(
     "บอกจำนวนเครื่องที่ถูกเตะออกกลับมาด้วย",
     reset.ok === true && reset.revokedSessions === 2,
@@ -243,7 +243,7 @@ async function main() {
     role: "CASHIER",
     isActive: false,
   });
-  check("ปิดบัญชีได้", deactivated.ok === true, deactivated.ok ? "" : deactivated.error);
+  check("ปิดบัญชีได้", deactivated.ok === true, deactivated.ok ? "" : deactivated.errorKey);
   check(
     "ปิดบัญชีแล้วเครื่องที่ค้างอยู่หลุดทันที",
     (await loadActiveStaffSession(stillOpen.id, "pos")) === null,
@@ -278,8 +278,8 @@ async function main() {
   });
   check(
     "เจ้าของร้านปิดบัญชีตัวเองไม่ได้ (ถูกด่าน 'ห้ามแก้บัญชีตัวเอง' ปฏิเสธ)",
-    closeLastOwner.ok === false && closeLastOwner.error.includes("บัญชีของตัวเอง"),
-    closeLastOwner.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : closeLastOwner.error,
+    closeLastOwner.ok === false && closeLastOwner.errorKey.includes("บัญชีของตัวเอง"),
+    closeLastOwner.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : closeLastOwner.errorKey,
   );
 
   console.log("\n── 6. เตะออกทุกเครื่อง + ลิสต์บนหน้าจอ ──────────────────────────\n");
@@ -294,7 +294,7 @@ async function main() {
   check("ลิสต์บอกจำนวนเครื่องที่ล็อกอินค้างอยู่", listed?.activeSessions === 2, String(listed?.activeSessions));
 
   const kicked = await revokeStaffSessions(manager, cashierId);
-  check("เตะออกทุกเครื่องได้", kicked.ok === true && kicked.revokedSessions === 2, kicked.ok ? String(kicked.revokedSessions) : kicked.error);
+  check("เตะออกทุกเครื่องได้", kicked.ok === true && kicked.revokedSessions === 2, kicked.ok ? String(kicked.revokedSessions) : kicked.errorKey);
   check("เตะแล้วใช้ต่อไม่ได้", (await loadActiveStaffSession(s1.id, "pos")) === null);
 
   const detail = await getStaffMember(branchId, cashierId);

@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { useT } from "@/components/i18n-provider";
 
 import { SubmitButton } from "@/components/submit-button";
 import { IDLE_FORM_STATE } from "@/lib/form-state";
@@ -43,11 +44,13 @@ export function StaffMealPanel({
   const [setState, setAction] = useActionState(setStaffMealAction, IDLE_FORM_STATE);
   const [clearState, clearAction] = useActionState(clearStaffMealAction, IDLE_FORM_STATE);
 
+  const { t } = useT();
+
   const error =
     setState.status === "error"
-      ? setState.message
+      ? t(setState.messageKey, setState.params)
       : clearState.status === "error"
-        ? clearState.message
+        ? t(clearState.messageKey, clearState.params)
         : null;
 
   if (currentStaffCustomer) {

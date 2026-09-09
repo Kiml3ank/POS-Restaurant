@@ -113,8 +113,8 @@ async function main() {
   const blocked = await loginStaff(CASHIER_CODE, "1234", "pos");
   check(
     "loginStaff() ปฏิเสธตอนถูกล็อก แม้จะกรอก PIN มาถูกก็ตาม",
-    blocked.ok === false && blocked.error.includes("ลองใหม่ในอีก"),
-    blocked.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : blocked.error,
+    blocked.ok === false && blocked.errorKey.includes("ลองใหม่ในอีก"),
+    blocked.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : blocked.errorKey,
   );
 
   await clearLoginThrottle(branchId, CASHIER_CODE);
@@ -143,14 +143,14 @@ async function main() {
   const wrongPin = await loginStaff(SERVER_CODE, "0000", "pos");
   check(
     "PIN ผิด = ข้อความกลาง ๆ ไม่บอกว่ารหัสพนักงานมีอยู่จริงไหม",
-    wrongPin.ok === false && wrongPin.error === "รหัสพนักงานหรือ PIN ไม่ถูกต้อง",
-    wrongPin.ok ? "" : wrongPin.error,
+    wrongPin.ok === false && wrongPin.errorKey === "error.bad_pin",
+    wrongPin.ok ? "" : wrongPin.errorKey,
   );
   const unknownCode = await loginStaff("ไม่มีรหัสนี้", "0000", "pos");
   check(
     "รหัสที่ไม่มีอยู่จริง = ข้อความเดียวกันเป๊ะ",
-    unknownCode.ok === false && unknownCode.error === wrongPin.error,
-    unknownCode.ok ? "" : unknownCode.error,
+    unknownCode.ok === false && unknownCode.errorKey === wrongPin.errorKey,
+    unknownCode.ok ? "" : unknownCode.errorKey,
   );
   check(
     "PIN ผิดถูกบันทึกลง AuditLog ทุกครั้ง",

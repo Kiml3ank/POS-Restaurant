@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { getT } from "@/lib/server/locale";
 import { redirect } from "next/navigation";
 
 import type { Currency } from "@/lib/generated/prisma/enums";
@@ -32,6 +33,7 @@ export default async function AuditLogsPage({
     page?: string;
   }>;
 }) {
+  const { t } = await getT();
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -74,7 +76,7 @@ export default async function AuditLogsPage({
         <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
           <div className="panel mx-auto mt-8 flex max-w-[520px] flex-col gap-2 p-6">
             <span className="display text-[20px]">อ่านบันทึกการใช้งานไม่ได้</span>
-            <p className="text-[var(--color-neutral-700)]">{result.error}</p>
+            <p className="text-[var(--color-neutral-700)]">{t(result.errorKey, result.params)}</p>
           </div>
         </div>
       ) : (

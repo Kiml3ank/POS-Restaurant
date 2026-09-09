@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/i18n-provider";
 import { useActionState } from "react";
 
 import { SubmitButton } from "@/components/submit-button";
@@ -33,6 +34,7 @@ export function AdvanceItemButton({
   status: KitchenActionableStatus;
   disabled?: boolean;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     advanceItemAction,
     IDLE_FORM_STATE,
@@ -54,7 +56,7 @@ export function AdvanceItemButton({
 
       {state.status === "error" ? (
         <span role="alert" className="alert text-[12px]">
-          {state.message}
+          {t(state.messageKey, state.params)}
         </span>
       ) : null}
     </form>
@@ -69,6 +71,7 @@ export function ServeItemButton({
   orderItemId: string;
   disabled?: boolean;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     serveItemAction,
     IDLE_FORM_STATE,
@@ -88,7 +91,7 @@ export function ServeItemButton({
 
       {state.status === "error" ? (
         <span role="alert" className="alert text-[12px]">
-          {state.message}
+          {t(state.messageKey, state.params)}
         </span>
       ) : null}
     </form>
@@ -112,6 +115,7 @@ export function BumpTicketButton({
   label: string;
   disabled?: boolean;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     advanceTicketAction,
     IDLE_FORM_STATE,
@@ -133,7 +137,7 @@ export function BumpTicketButton({
 
       {state.status === "error" ? (
         <span role="alert" className="alert text-[12px]">
-          {state.message}
+          {t(state.messageKey, state.params)}
         </span>
       ) : null}
     </form>

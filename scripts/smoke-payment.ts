@@ -167,7 +167,7 @@ async function main() {
   check(
     "บิลว่าง (เปิดโต๊ะแล้วยังไม่ได้สั่ง) จ่ายไม่ได้",
     !emptyResult.ok,
-    emptyResult.ok ? "" : emptyResult.error,
+    emptyResult.ok ? "" : emptyResult.errorKey,
   );
 
   const stillOpen = await prisma.tableSession.findUniqueOrThrow({ where: { id: emptySession.id } });
@@ -188,14 +188,14 @@ async function main() {
   check(
     "พนักงานเสิร์ฟกดรับเงิน → ถูกปฏิเสธ",
     !serverResult.ok,
-    serverResult.ok ? "" : serverResult.error,
+    serverResult.ok ? "" : serverResult.errorKey,
   );
 
   const shortResult = await takePayment(cashier, TABLE_ID, {
     method: "CASH",
     receivedAmount: expected.grandTotal - 1,
   });
-  check("รับเงินสดมาไม่พอ → error", !shortResult.ok, shortResult.ok ? "" : shortResult.error);
+  check("รับเงินสดมาไม่พอ → error", !shortResult.ok, shortResult.ok ? "" : shortResult.errorKey);
 
   const staleResult = await takePayment(cashier, TABLE_ID, {
     method: "CASH",
@@ -205,7 +205,7 @@ async function main() {
   check(
     "ยอดบนจอไม่ตรงกับยอดจริง → ไม่ยอมปิดบิล",
     !staleResult.ok,
-    staleResult.ok ? "" : staleResult.error,
+    staleResult.ok ? "" : staleResult.errorKey,
   );
 
   // ตะกร้าที่ยังไม่ได้ส่งเข้าครัวต้องกันไว้ ไม่งั้นของหายไปพร้อมรอบโต๊ะ
@@ -226,7 +226,7 @@ async function main() {
   check(
     "มีของค้างในตะกร้าที่ยังไม่ส่งเข้าครัว → จ่ายไม่ได้",
     !draftResult.ok,
-    draftResult.ok ? "" : draftResult.error,
+    draftResult.ok ? "" : draftResult.errorKey,
   );
 
   const stillOpenAfterDraft = await prisma.tableSession.findUniqueOrThrow({
@@ -243,7 +243,7 @@ async function main() {
     expectedTotal: expected.grandTotal,
   });
 
-  check("รับเงินสดสำเร็จ", paidResult.ok, paidResult.ok ? paidResult.paymentId : paidResult.error);
+  check("รับเงินสดสำเร็จ", paidResult.ok, paidResult.ok ? paidResult.paymentId : paidResult.errorKey);
 
   if (!paidResult.ok) {
     throw new Error("จ่ายเงินไม่สำเร็จ ทดสอบต่อไม่ได้");
@@ -350,7 +350,7 @@ async function main() {
   check(
     "กดยืนยันซ้ำทันที → พากลับไปใบเดิม ไม่ใช่ error และไม่ใช่ใบที่สอง",
     repeat.ok && repeat.alreadyPaid && repeat.paymentId === payment.id,
-    repeat.ok ? repeat.paymentId : repeat.error,
+    repeat.ok ? repeat.paymentId : repeat.errorKey,
   );
   check(
     "ยังมี Payment ใบเดียวในรอบนั้น",
@@ -373,7 +373,7 @@ async function main() {
   check(
     "กดจากหน้าที่ค้างไว้นานแล้ว → error ไม่ใช่ 'สำเร็จ' ของบิลเก่า",
     !staleRepeat.ok,
-    staleRepeat.ok ? "" : staleRepeat.error,
+    staleRepeat.ok ? "" : staleRepeat.errorKey,
   );
 
   // ── 8. กดพร้อมกันสองเครื่อง ──────────────────────────────────────────
@@ -418,7 +418,7 @@ async function main() {
   const paidEvent = events.find((event) => event.type === "payment.completed");
   check("ยิง event payment.completed หลังปิดบิล", paidEvent !== undefined);
   check("event ผูกกับโต๊ะที่จ่าย (ลูกค้าโต๊ะอื่นไม่ได้รับ)", paidEvent?.tableId === TABLE_ID);
-  check("จ่ายด้วย QR สำเร็จ", qrResult.ok, qrResult.ok ? "" : qrResult.error);
+  check("จ่ายด้วย QR สำเร็จ", qrResult.ok, qrResult.ok ? "" : qrResult.errorKey);
 
   if (qrResult.ok) {
     const qrPayment = await prisma.payment.findUniqueOrThrow({ where: { id: qrResult.paymentId } });
@@ -427,7 +427,7 @@ async function main() {
   }
 
   const cardResult = await takePayment(cashier, TABLE_ID, { method: "CARD" });
-  check("บัตรยังไม่เปิดใช้ในก้อนนี้", !cardResult.ok, cardResult.ok ? "" : cardResult.error);
+  check("บัตรยังไม่เปิดใช้ในก้อนนี้", !cardResult.ok, cardResult.ok ? "" : cardResult.errorKey);
 
   // ── 10. สกุลเงินอื่น (เวียดนาม ไม่มีทศนิยม) ──────────────────────────
   await runVietnamCase(branch.id, cashier.id);
@@ -479,7 +479,7 @@ async function runVietnamCase(branchId: string, cashierId: string) {
     const bill = (await getTableBill(branch.id, TABLE_ID))!.bill;
     const result = await takePayment(cashier, TABLE_ID, { method: "QR" });
 
-    check("สาขาเวียดนาม: ปิดบิลได้", result.ok, result.ok ? "" : result.error);
+    check("สาขาเวียดนาม: ปิดบิลได้", result.ok, result.ok ? "" : result.errorKey);
 
     if (!result.ok) {
       return;

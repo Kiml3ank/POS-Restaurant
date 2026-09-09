@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/i18n-provider";
 import { useActionState, useId, useState } from "react";
 
 import { SubmitButton } from "@/components/submit-button";
@@ -35,13 +36,15 @@ import {
 
 /** ข้อความ error ใต้ฟอร์ม — คืน null เมื่อไม่มี เพื่อไม่ให้กินที่ว่างเปล่า ๆ */
 function FormError({ state }: { state: FormState }) {
+  const { t } = useT();
+
   if (state.status !== "error") {
     return null;
   }
 
   return (
     <p role="alert" className="alert">
-      {state.message}
+      {t(state.messageKey, state.params)}
     </p>
   );
 }
@@ -66,6 +69,7 @@ export function AvailabilityToggle({
   available: boolean;
   disabled?: boolean;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     toggleAvailabilityAction,
     IDLE_FORM_STATE,
@@ -89,7 +93,7 @@ export function AvailabilityToggle({
 
       {state.status === "error" ? (
         <span role="alert" className="text-xs text-[var(--color-accent-700)]">
-          {state.message}
+          {t(state.messageKey, state.params)}
         </span>
       ) : null}
     </form>
@@ -399,6 +403,7 @@ export function MenuItemGroupsForm({
   groups: { id: string; name: string; isActive: boolean; required: boolean }[];
   selectedIds: string[];
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     saveMenuItemGroupsAction,
     IDLE_FORM_STATE,
@@ -437,7 +442,7 @@ export function MenuItemGroupsForm({
 
       {state.status === "success" ? (
         <p role="status" className="kicker kicker-accent">
-          {state.message}
+          {t(state.messageKey, state.params)}
         </p>
       ) : null}
 

@@ -8,6 +8,8 @@ import { prisma } from "@/lib/server/db";
 import { publishRealtimeEvent } from "@/lib/server/realtime";
 import type { CurrentStaff } from "@/lib/server/staff-session";
 import type { Prisma } from "@/lib/generated/prisma/client";
+import type { MessageParams } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/vi";
 
 /**
  * ย้ายโต๊ะ / รวมโต๊ะ (งานค้างจากบทที่ 9)
@@ -40,7 +42,7 @@ import type { Prisma } from "@/lib/generated/prisma/client";
  */
 const MOVABLE_ORDER_STATUSES = ["DRAFT", "PLACED", "IN_PROGRESS", "READY", "SERVED"] as const;
 
-type MoveFailure = { ok: false; error: string };
+type MoveFailure = { ok: false; errorKey: MessageKey; params?: MessageParams };
 
 type LoadedSession = Prisma.TableSessionGetPayload<{
   include: { table: true; payments: { select: { id: true } } };
@@ -53,11 +55,20 @@ type LoadedSession = Prisma.TableSessionGetPayload<{
  * ข้อหนึ่งคือประตูหลังที่เปิดค้าง (บทเรียนเดียวกับ `loadActiveStaffSession()`
  * ของบทที่ 13b) และที่นี่ประตูหลังแปลว่า "ขยับเงินของบิลที่ปิดไปแล้วได้"
  */
+/**
+ * ป้ายบอกว่า "รอบไหน" ที่ติดปัญหา — เป็นส่วนหนึ่งของคีย์ข้อความ ไม่ใช่ค่าที่แทรก
+ *
+ * ตอนกดรวมบิล ผู้ใช้ต้องรู้ว่าบิล **ต้นทาง** หรือ **ปลายทาง** ที่ขยับไม่ได้
+ * ถ้าใช้ข้อความกลาง ๆ ใบเดียวจะตอบคำถามนั้นไม่ได้เลย — และการทำเป็นส่วนหนึ่ง
+ * ของคีย์ (ไม่ใช่ {label} ที่แทรกทีหลัง) แปลว่า tsc ตรวจให้ว่าคีย์ทั้งสิบสองมีจริง
+ */
+type MoveLabel = "session" | "source" | "target";
+
 async function loadMovableSession(
   tx: Prisma.TransactionClient,
   branchId: string,
   sessionId: string,
-  label: string,
+  label: MoveLabel,
 ): Promise<{ ok: true; session: LoadedSession } | MoveFailure> {
   const session = await tx.tableSession.findFirst({
     where: { id: sessionId, branchId, status: "OPEN" },
@@ -65,13 +76,13 @@ async function loadMovableSession(
   });
 
   if (!session) {
-    return { ok: false, error: `No open ${label} found` };
+    return { ok: false, errorKey: `error.move.${label}.no_open` };
   }
 
   // รับเงินแล้ว = ประวัติ ห้ามขยับ (ปกติรอบที่จ่ายแล้วจะไม่ OPEN แต่ตรวจซ้ำไว้
   // เพราะราคาของการพลาดตรงนี้คือยอดขายย้อนหลังเปลี่ยนโดยไม่มีใครเห็น)
   if (session.payments.length > 0) {
-    return { ok: false, error: `This ${label} has already been paid — can't move it` };
+    return { ok: false, errorKey: `error.move.${label}.paid` };
   }
 
   /**
@@ -85,7 +96,7 @@ async function loadMovableSession(
   if (session.staffCustomerId) {
     return {
       ok: false,
-      error: `This ${label} is flagged for the staff meal discount — clear the flag first`,
+      errorKey: `error.move.${label}.staff_meal`,
     };
   }
 
@@ -96,7 +107,7 @@ async function loadMovableSession(
    * ยอดที่ลูกค้าต้องจ่ายจะเปลี่ยนทันทีโดยไม่มีใครกดอะไรที่เกี่ยวกับเงินเลย
    */
   if (session.table.kind !== "DINE_IN") {
-    return { ok: false, error: `This ${label} isn't a dine-in table — can't do this` };
+    return { ok: false, errorKey: `error.move.${label}.not_dine_in` };
   }
 
   return { ok: true, session };
@@ -209,13 +220,13 @@ export async function moveTableSession(
 ) {
   // การซ่อนปุ่มบนหน้าจอไม่ใช่การกันสิทธิ์ — action ถูกยิงตรงด้วย POST ได้
   if (!canMoveTableSession(staff.role)) {
-    return { ok: false as const, error: "Your role can't move tables" };
+    return { ok: false as const, errorKey: "error.cannot_move_table" as const };
   }
 
   const result = await prisma.$transaction(async (tx) => {
     // อ่านสดในทรานแซกชันเสมอ — ค่าที่หน้าจอส่งมาบอกได้แค่ "ผู้ใช้ตั้งใจอะไร"
     // ไม่ใช่ "ตอนนี้ยังจริงอยู่ไหม"
-    const loaded = await loadMovableSession(tx, staff.branchId, input.sessionId, "table session");
+    const loaded = await loadMovableSession(tx, staff.branchId, input.sessionId, "session");
 
     if (!loaded.ok) {
       return loaded;
@@ -228,15 +239,15 @@ export async function moveTableSession(
     });
 
     if (!target) {
-      return { ok: false as const, error: "Target table not found" };
+      return { ok: false as const, errorKey: "error.target_table_not_found" as const };
     }
 
     if (target.kind !== "DINE_IN") {
-      return { ok: false as const, error: "Can't move to a sale point that isn't a dine-in table" };
+      return { ok: false as const, errorKey: "error.move_target_not_dine_in" as const };
     }
 
     if (target.id === session.tableId) {
-      return { ok: false as const, error: "Target table is the same as the current one" };
+      return { ok: false as const, errorKey: "error.target_table_same" as const };
     }
 
     const occupied = await tx.tableSession.count({
@@ -247,7 +258,8 @@ export async function moveTableSession(
     if (occupied > 0) {
       return {
         ok: false as const,
-        error: `Table ${target.name} already has an open bill — use "Merge tables" instead`,
+        errorKey: "error.target_has_open_bill" as const,
+        params: { name: target.name },
       };
     }
 
@@ -320,16 +332,16 @@ export async function mergeTableSessions(
   input: { sourceSessionId: string; targetSessionId: string },
 ) {
   if (!canMoveTableSession(staff.role)) {
-    return { ok: false as const, error: "Your role can't merge tables" };
+    return { ok: false as const, errorKey: "error.cannot_merge_table" as const };
   }
 
   if (input.sourceSessionId === input.targetSessionId) {
-    return { ok: false as const, error: "Pick a target bill that isn't the same one" };
+    return { ok: false as const, errorKey: "error.target_bill_same" as const };
   }
 
   const result = await prisma.$transaction(async (tx) => {
     // ด่านชุดเดียวกันทั้งสองฝั่ง — ฝั่งที่ตรวจไม่ครบคือฝั่งที่เงินขยับได้โดยไม่มีใครเห็น
-    const source = await loadMovableSession(tx, staff.branchId, input.sourceSessionId, "source bill");
+    const source = await loadMovableSession(tx, staff.branchId, input.sourceSessionId, "source");
 
     if (!source.ok) {
       return source;
@@ -339,7 +351,7 @@ export async function mergeTableSessions(
       tx,
       staff.branchId,
       input.targetSessionId,
-      "target bill",
+      "target",
     );
 
     if (!target.ok) {

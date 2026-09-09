@@ -8,6 +8,8 @@ import { branchDayRangeUtc } from "@/lib/server/branch-time";
 import { prisma } from "@/lib/server/db";
 import { getPayment } from "@/lib/server/payment";
 import type { CurrentStaff } from "@/lib/server/staff-session";
+import type { MessageParams } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/vi";
 
 /**
  * ใบเสร็จ / ใบกำกับภาษีอย่างย่อ — ฝั่งฐานข้อมูล (บทที่ 12)
@@ -79,7 +81,7 @@ export type ReceiptListRow = {
 };
 
 export type ListReceiptsResult =
-  | { ok: false; error: string }
+  | { ok: false; errorKey: MessageKey; params?: MessageParams }
   | { ok: true; rows: ReceiptListRow[]; page: number; pageCount: number; total: number };
 
 /**
@@ -94,7 +96,7 @@ export async function listReceipts(
   filters: ListReceiptsFilters = {},
 ): Promise<ListReceiptsResult> {
   if (!canBrowseReceipts(staff.role)) {
-    return { ok: false, error: "Your role can't browse the branch's receipt history" };
+    return { ok: false, errorKey: "error.cannot_browse_receipts" as const };
   }
 
   const where: Prisma.ReceiptWhereInput = { branchId: staff.branchId };
@@ -183,7 +185,7 @@ export async function listReceipts(
   };
 }
 
-export type RecordPrintResult = { ok: true; printCount: number } | { ok: false; error: string };
+export type RecordPrintResult = { ok: true; printCount: number } | { ok: false; errorKey: MessageKey; params?: MessageParams };
 
 /**
  * บันทึกว่ามีการพิมพ์ใบนี้ออกไปหนึ่งครั้ง
@@ -203,7 +205,7 @@ export async function recordReceiptPrint(
   if (!canReprintReceipt(staff.role)) {
     return {
       ok: false,
-      error: "Your role can't print receipts — please call a cashier or manager",
+      errorKey: "error.cannot_print_receipt" as const,
     };
   }
 
@@ -250,7 +252,7 @@ export async function recordReceiptPrint(
   });
 
   if (!outcome) {
-    return { ok: false, error: "Receipt not found in your branch" };
+    return { ok: false, errorKey: "error.receipt_not_found" as const };
   }
 
   return { ok: true, printCount: outcome.printCount };

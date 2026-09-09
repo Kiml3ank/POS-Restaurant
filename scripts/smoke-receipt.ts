@@ -160,7 +160,7 @@ async function main() {
   const seqBefore = await currentSeq(branch.id);
   await seedOrder(TABLE_ID, branch.id, branch.timezone);
   const paid = await takePayment(cashier, TABLE_ID, { method: "QR" });
-  check("รับเงินสำเร็จ", paid.ok, paid.ok ? paid.paymentId : paid.error);
+  check("รับเงินสำเร็จ", paid.ok, paid.ok ? paid.paymentId : paid.errorKey);
   if (!paid.ok) throw new Error("รับเงินไม่สำเร็จ ทดสอบต่อไม่ได้");
 
   const issued = await prisma.receipt.findUniqueOrThrow({
@@ -322,7 +322,7 @@ async function main() {
     await resetTable(TABLE_ID);
     await seedOrder(TABLE_ID, branch.id, branch.timezone);
     const result = await takePayment(cashier, TABLE_ID, { method: "CASH", receivedAmount: 100_000 });
-    if (!result.ok) throw new Error(`รับเงินรอบ ${round} ไม่สำเร็จ: ${result.error}`);
+    if (!result.ok) throw new Error(`รับเงินรอบ ${round} ไม่สำเร็จ: ${result.errorKey}`);
     const next = await prisma.receipt.findUniqueOrThrow({ where: { paymentId: result.paymentId } });
     seqSeries.push(next.seq);
   }

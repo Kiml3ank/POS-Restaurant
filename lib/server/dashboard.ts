@@ -6,6 +6,8 @@ import { canViewDashboard } from "@/lib/rbac";
 import { branchTodayRangeUtc } from "@/lib/server/branch-time";
 import { prisma } from "@/lib/server/db";
 import type { CurrentStaff } from "@/lib/server/staff-session";
+import type { MessageParams } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/vi";
 
 /**
  * หน้าแรกของหลังร้าน — ตัวเลขของ "วันนี้" + สถานะหน้าร้านตอนนี้ (spec §1)
@@ -29,12 +31,12 @@ import type { CurrentStaff } from "@/lib/server/staff-session";
  */
 
 export type DashboardResult =
-  | { ok: false; error: string }
+  | { ok: false; errorKey: MessageKey; params?: MessageParams }
   | { ok: true; data: Awaited<ReturnType<typeof buildDashboard>> };
 
 export async function getDashboard(staff: CurrentStaff): Promise<DashboardResult> {
   if (!canViewDashboard(staff.role)) {
-    return { ok: false, error: "Your role can't view the branch sales summary" };
+    return { ok: false, errorKey: "error.cannot_view_dashboard" as const };
   }
 
   return { ok: true, data: await buildDashboard(staff) };

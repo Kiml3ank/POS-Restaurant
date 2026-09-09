@@ -246,10 +246,10 @@ async function main() {
     note: null,
     channel: "POS",
   });
-  check("ใส่เมนูลงบิลซื้อกลับได้", added.ok === true, added.ok ? "" : added.error);
+  check("ใส่เมนูลงบิลซื้อกลับได้", added.ok === true, added.ok ? "" : added.errorKey);
 
   const placed = await placeOrder(first.id);
-  check("ส่งออร์เดอร์ซื้อกลับได้", placed.ok === true, placed.ok ? "" : placed.error);
+  check("ส่งออร์เดอร์ซื้อกลับได้", placed.ok === true, placed.ok ? "" : placed.errorKey);
 
   const counterOrder = await prisma.order.findFirstOrThrow({
     where: { tableSessionId: first.id },
@@ -483,7 +483,7 @@ async function main() {
   check(
     "รับเงินที่เคาน์เตอร์โดยไม่ระบุบิล = ปฏิเสธ ไม่ใช่เดาเอา",
     ambiguous.ok === false,
-    ambiguous.ok ? "ปิดบิลไปแล้ว ซึ่งไม่ควรเกิด" : ambiguous.error,
+    ambiguous.ok ? "ปิดบิลไปแล้ว ซึ่งไม่ควรเกิด" : ambiguous.errorKey,
   );
 
   const stillOpen = await prisma.tableSession.count({
@@ -497,7 +497,7 @@ async function main() {
     receivedAmount: counterBill?.bill.grandTotal ?? 0,
     expectedTotal: counterBill?.bill.grandTotal ?? undefined,
   });
-  check("ระบุบิลแล้วรับเงินได้", paid.ok === true, paid.ok ? "" : paid.error);
+  check("ระบุบิลแล้วรับเงินได้", paid.ok === true, paid.ok ? "" : paid.errorKey);
 
   if (paid.ok) {
     const payment = await prisma.payment.findUniqueOrThrow({ where: { id: paid.paymentId } });
@@ -557,14 +557,14 @@ async function main() {
     check(
       "ค้นใบเสร็จด้วย 'คิว N' เจอใบของบิลซื้อกลับ",
       byQueue.ok === true && byQueue.rows.some((row) => row.id === receiptRow.id),
-      byQueue.ok ? `${byQueue.rows.length} แถว` : byQueue.error,
+      byQueue.ok ? `${byQueue.rows.length} แถว` : byQueue.errorKey,
     );
 
     const byOtherQueue = await listReceipts(ownerStaff, { q: "คิว 99999" });
     check(
       "ค้นด้วยเลขคิวที่ไม่มี = ไม่เจอใบนี้ (ไม่ใช่คืนทุกแถว)",
       byOtherQueue.ok === true && !byOtherQueue.rows.some((row) => row.id === receiptRow.id),
-      byOtherQueue.ok ? `${byOtherQueue.rows.length} แถว` : byOtherQueue.error,
+      byOtherQueue.ok ? `${byOtherQueue.rows.length} แถว` : byOtherQueue.errorKey,
     );
 
     const receiptNumber = listedRow?.number ?? "";
@@ -572,7 +572,7 @@ async function main() {
     check(
       "ค้นด้วยเลขที่ใบยังทำงานเหมือนเดิม (เลขยาวต้องไม่ไปพังที่เงื่อนไขเลขคิว)",
       byNumber.ok === true && byNumber.rows.some((row) => row.id === receiptRow.id),
-      byNumber.ok ? `${receiptNumber} → ${byNumber.rows.length} แถว` : byNumber.error,
+      byNumber.ok ? `${receiptNumber} → ${byNumber.rows.length} แถว` : byNumber.errorKey,
     );
   }
 
@@ -585,7 +585,7 @@ async function main() {
   check(
     "ตั้งชื่อลูกค้าได้ และตัดช่องว่างหัวท้ายทิ้ง",
     named.ok === true && named.customerName === "คุณนัท",
-    named.ok ? String(named.customerName) : named.error,
+    named.ok ? String(named.customerName) : named.errorKey,
   );
   check(
     "ชื่อถูกเขียนลงรอบขายจริง",
@@ -602,21 +602,21 @@ async function main() {
   check(
     "ส่งค่าว่างมา = ล้างชื่อเป็น null ไม่ใช่เก็บสตริงว่าง (ไม่งั้นจอจะมีบรรทัดเปล่า)",
     cleared.ok === true && cleared.customerName === null,
-    cleared.ok ? String(cleared.customerName) : cleared.error,
+    cleared.ok ? String(cleared.customerName) : cleared.errorKey,
   );
 
   const tooLong = await setSessionCustomerName(cashierStaff, second.id, "ก".repeat(41));
   check(
     "ชื่อยาวเกินกำหนด = ปฏิเสธ",
     tooLong.ok === false,
-    tooLong.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : tooLong.error,
+    tooLong.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : tooLong.errorKey,
   );
 
   const onDineInName = await setSessionCustomerName(cashierStaff, dineFirst.id, "คุณเอ");
   check(
     "โต๊ะนั่งตั้งชื่อลูกค้าไม่ได้ (ชื่อโต๊ะทำหน้าที่นี้อยู่แล้ว)",
     onDineInName.ok === false,
-    onDineInName.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : onDineInName.error,
+    onDineInName.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : onDineInName.errorKey,
   );
 
   /**
@@ -627,7 +627,7 @@ async function main() {
   check(
     "รอบที่ปิดไปแล้ว (จ่ายเงินแล้ว) ตั้งชื่อไม่ได้",
     onClosed.ok === false,
-    onClosed.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : onClosed.error,
+    onClosed.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : onClosed.errorKey,
   );
 
   console.log("\n── 11. ทางเข้าของหน้าจอเคาน์เตอร์ ────────────────────────────────\n");
@@ -639,7 +639,7 @@ async function main() {
   check(
     "openSalePointSession ปฏิเสธโต๊ะนั่ง (กันเปิดบิลซ้อนบนโต๊ะที่ลูกค้านั่งอยู่)",
     onDineIn.ok === false,
-    onDineIn.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : onDineIn.error,
+    onDineIn.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : onDineIn.errorKey,
   );
 
   if (third.ok) {

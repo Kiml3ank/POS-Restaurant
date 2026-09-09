@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/i18n-provider";
 import { useActionState, useEffect, useRef, useState } from "react";
 
 import { SubmitButton } from "@/components/submit-button";
@@ -57,6 +58,7 @@ export function PinForm({
   /** คนที่ใช้เครื่องนี้ล่าสุด — null เมื่อเป็นเครื่องใหม่/เพิ่งล้าง cookie */
   lastStaff?: LastStaffOnDevice | null;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(action, IDLE_FORM_STATE);
   const [staffCode, setStaffCode] = useState("");
   const [pin, setPin] = useState("");
@@ -238,7 +240,7 @@ export function PinForm({
 
       {state.status === "error" ? (
         <p role="alert" className="alert">
-          {state.message}
+          {t(state.messageKey, state.params)}
         </p>
       ) : null}
 

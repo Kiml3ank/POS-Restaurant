@@ -7,6 +7,8 @@ import { clientIp } from "@/lib/server/client-ip";
 import { prisma } from "@/lib/server/db";
 import { publishRealtimeEvent } from "@/lib/server/realtime";
 import type { CurrentStaff } from "@/lib/server/staff-session";
+import type { MessageParams } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/vi";
 
 /**
  * ส่วนลดพนักงาน — "บิลนี้พนักงานกิน" (บทที่ 13)
@@ -30,7 +32,7 @@ import type { CurrentStaff } from "@/lib/server/staff-session";
  * ตอนบิลขึ้นเป็น ฿3,000 โดยไม่มีใครสังเกต
  */
 
-export type StaffMealResult = { ok: true } | { ok: false; error: string };
+export type StaffMealResult = { ok: true } | { ok: false; errorKey: MessageKey; params?: MessageParams };
 
 /**
  * ติดธง "พนักงานกิน" ให้รอบโต๊ะที่เปิดอยู่ของโต๊ะนี้
@@ -47,7 +49,7 @@ export async function setStaffMeal(
 ): Promise<StaffMealResult> {
   // การซ่อนปุ่มไม่ใช่การกันสิทธิ์ — action ถูกยิงตรงด้วย POST ได้
   if (!canSetStaffMeal(staff.role)) {
-    return { ok: false, error: "Your role can't flag the staff meal discount" };
+    return { ok: false, errorKey: "error.cannot_set_staff_meal" as const };
   }
 
   const table = await prisma.restaurantTable.findFirst({
@@ -56,7 +58,7 @@ export async function setStaffMeal(
   });
 
   if (!table) {
-    return { ok: false, error: "Table not found in your branch" };
+    return { ok: false, errorKey: "error.table_not_found" as const };
   }
 
   /**
@@ -71,7 +73,7 @@ export async function setStaffMeal(
   });
 
   if (!customer) {
-    return { ok: false, error: "Staff member not found, or the account is deactivated" };
+    return { ok: false, errorKey: "error.staff_not_found" as const };
   }
 
   const ipAddress = await clientIp();
@@ -86,7 +88,7 @@ export async function setStaffMeal(
     });
 
     if (!session) {
-      return { kind: "error" as const, error: "This table has no open session" };
+      return { kind: "error" as const, errorKey: "error.table_no_session" as const };
     }
 
     /**
@@ -113,7 +115,8 @@ export async function setStaffMeal(
     if (otherOpen) {
       return {
         kind: "error" as const,
-        error: `${customer.name} already has an open bill at table ${otherOpen.table.name} — close that one first`,
+        errorKey: "error.staff_meal_other_bill" as const,
+        params: { name: customer.name, table: otherOpen.table.name },
       };
     }
 
@@ -138,7 +141,7 @@ export async function setStaffMeal(
   });
 
   if (outcome.kind === "error") {
-    return { ok: false, error: outcome.error };
+    return { ok: false, errorKey: outcome.errorKey, params: outcome.params };
   }
 
   await writeStaffMealLog(staff, {
@@ -176,7 +179,7 @@ export async function clearStaffMeal(
   sessionId?: string,
 ): Promise<StaffMealResult> {
   if (!canSetStaffMeal(staff.role)) {
-    return { ok: false, error: "Your role can't clear the staff meal discount" };
+    return { ok: false, errorKey: "error.cannot_clear_staff_meal" as const };
   }
 
   const table = await prisma.restaurantTable.findFirst({
@@ -185,7 +188,7 @@ export async function clearStaffMeal(
   });
 
   if (!table) {
-    return { ok: false, error: "Table not found in your branch" };
+    return { ok: false, errorKey: "error.table_not_found" as const };
   }
 
   const ipAddress = await clientIp();
@@ -199,7 +202,7 @@ export async function clearStaffMeal(
   });
 
   if (!session) {
-    return { ok: false, error: "This table has no open session" };
+    return { ok: false, errorKey: "error.table_no_session" as const };
   }
 
   if (!session.staffCustomerId) {

@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/i18n-provider";
 import { useActionState } from "react";
 
 import type { Currency } from "@/lib/generated/prisma/enums";
@@ -28,6 +29,7 @@ export function PlaceOrderForm({
   itemCount: number;
   currency: Currency;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     placeOrderAction,
     IDLE_FORM_STATE,
@@ -39,7 +41,7 @@ export function PlaceOrderForm({
 
       {state.status === "error" ? (
         <p role="alert" className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {state.message}
+          {t(state.messageKey, state.params)}
         </p>
       ) : null}
 

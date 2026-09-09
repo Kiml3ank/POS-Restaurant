@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/i18n-provider";
 import { useActionState } from "react";
 
 import { setCartLineQuantityAction } from "../actions";
@@ -25,6 +26,7 @@ export function CartLineControls({
   orderItemId: string;
   quantity: number;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     setCartLineQuantityAction,
     IDLE_FORM_STATE,
@@ -62,7 +64,7 @@ export function CartLineControls({
 
       {state.status === "error" ? (
         <p role="alert" className="text-xs text-red-700">
-          {state.message}
+          {t(state.messageKey, state.params)}
         </p>
       ) : null}
     </div>

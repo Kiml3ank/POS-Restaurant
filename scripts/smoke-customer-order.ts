@@ -43,7 +43,7 @@ async function main() {
     modifierIds: [],
     note: null,
   });
-  check("required group ไม่เลือก => error", !missing.ok, missing.ok ? "" : missing.error);
+  check("required group ไม่เลือก => error", !missing.ok, missing.ok ? "" : missing.errorKey);
 
   // 2. ส่ง modifier ของเมนูอื่นเข้ามา ต้องถูกปฏิเสธ
   const foreign = await addToCart({
@@ -53,7 +53,7 @@ async function main() {
     modifierIds: ["seed-mod-spice-mild", "seed-mod-size-regular", "seed-mod-sweet-0"],
     note: null,
   });
-  check("modifier ข้ามเมนู => error", !foreign.ok, foreign.ok ? "" : foreign.error);
+  check("modifier ข้ามเมนู => error", !foreign.ok, foreign.ok ? "" : foreign.errorKey);
 
   // 3. ท็อปปิ้งเกิน maxSelect (3) ต้องถูกปฏิเสธ -> ใส่ 3 ตัวพอดีต้องผ่าน
   const ok1 = await addToCart({
@@ -63,7 +63,7 @@ async function main() {
     modifierIds: ["seed-mod-spice-hot", "seed-mod-size-large", "seed-mod-top-egg"],
     note: "  ไม่ใส่ผักชี  ",
   });
-  check("ใส่ตะกร้าถูกกฎ => ok", ok1.ok, ok1.ok ? "" : ok1.error);
+  check("ใส่ตะกร้าถูกกฎ => ok", ok1.ok, ok1.ok ? "" : ok1.errorKey);
 
   // 4. ใส่ซ้ำเป๊ะ ๆ ต้องรวมบรรทัดเดิม ไม่ใช่เพิ่มบรรทัดใหม่
   await addToCart({
@@ -106,15 +106,15 @@ async function main() {
 
   // 7. แก้บรรทัดของ session อื่นไม่ได้
   const stranger = await setCartLineQuantity("ไม่มี-session-นี้", afterEdit!.items[0].id, 5);
-  check("แก้ตะกร้าข้าม session => error", !stranger.ok, stranger.ok ? "" : stranger.error);
+  check("แก้ตะกร้าข้าม session => error", !stranger.ok, stranger.ok ? "" : stranger.errorKey);
 
   // 8. ส่งเข้าครัว แล้วกดซ้ำสองครั้งพร้อมกัน ต้องไม่เกิดบิลซ้ำ
   const [first, second] = await Promise.all([placeOrder(session.id), placeOrder(session.id)]);
-  check("placeOrder ครั้งที่ 1 ok", first.ok, first.ok ? String(first.data.orderNumber) : first.error);
+  check("placeOrder ครั้งที่ 1 ok", first.ok, first.ok ? String(first.data.orderNumber) : first.errorKey);
   check(
     "placeOrder ซ้ำพร้อมกัน ไม่ error และไม่สร้างบิลใหม่",
     second.ok && first.ok && (second.data.orderNumber === null || second.data.orderNumber === first.data.orderNumber),
-    second.ok ? String(second.data.orderNumber) : second.error,
+    second.ok ? String(second.data.orderNumber) : second.errorKey,
   );
 
   const placed = await getPlacedOrders(session.id);

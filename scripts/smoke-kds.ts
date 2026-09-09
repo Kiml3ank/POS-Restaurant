@@ -122,14 +122,14 @@ async function placeTestOrder(
     });
 
     if (!added.ok) {
-      throw new Error(`addToCart ล้มเหลว: ${added.error}`);
+      throw new Error(`addToCart ล้มเหลว: ${added.errorKey}`);
     }
   }
 
   const placed = await placeOrder(session.id);
 
   if (!placed.ok) {
-    throw new Error(`placeOrder ล้มเหลว: ${placed.error}`);
+    throw new Error(`placeOrder ล้มเหลว: ${placed.errorKey}`);
   }
 
   const order = await prisma.order.findFirstOrThrow({
@@ -237,7 +237,7 @@ async function main() {
 
   // ── 5. ครัวเดินสถานะ ─────────────────────────────────────────────────────
   const serverCooks = await advanceKitchenItem(server, krapaoItem.id);
-  check("เสิร์ฟกดปุ่มครัว => error", !serverCooks.ok, serverCooks.ok ? "" : serverCooks.error);
+  check("เสิร์ฟกดปุ่มครัว => error", !serverCooks.ok, serverCooks.ok ? "" : serverCooks.errorKey);
   check("สถานะไม่ถูกแตะ", (await itemStatusOf(krapaoItem.id)) === "PLACED");
 
   const startKrapao = await advanceKitchenItem(kitchen, krapaoItem.id);
@@ -280,7 +280,7 @@ async function main() {
 
   // ── 7. เสิร์ฟ ────────────────────────────────────────────────────────────
   const kitchenServes = await serveOrderItem(kitchen, krapaoItem.id);
-  check("ครัวกดเสิร์ฟ => error", !kitchenServes.ok, kitchenServes.ok ? "" : kitchenServes.error);
+  check("ครัวกดเสิร์ฟ => error", !kitchenServes.ok, kitchenServes.ok ? "" : kitchenServes.errorKey);
 
   const serverServes = await serveOrderItem(server, krapaoItem.id);
   check("เสิร์ฟกดยกกะเพราไปเสิร์ฟ", serverServes.ok && serverServes.changed === 1);
@@ -319,7 +319,7 @@ async function main() {
   check("บิลใหม่เริ่มที่ PLACED", (await statusOf(order2.id)) === "PLACED");
 
   const cancelled = await cancelOrderItemByStaff(owner, krapao2.id, "ของหมด");
-  check("ยกเลิกกะเพราสำเร็จ", cancelled.ok, cancelled.ok ? "" : cancelled.error);
+  check("ยกเลิกกะเพราสำเร็จ", cancelled.ok, cancelled.ok ? "" : cancelled.errorKey);
   check(
     "เหลือแต่น้ำเปล่าที่ READY อยู่แล้ว บิลกระโดดจาก PLACED ไป READY",
     (await statusOf(order2.id)) === "READY",

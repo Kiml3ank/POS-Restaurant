@@ -1,9 +1,10 @@
 "use server";
 
+import { countKey } from "@/lib/i18n/translate";
 import { refresh } from "next/cache";
 import { redirect } from "next/navigation";
 
-import type { FormState } from "@/lib/form-state";
+import { formError, type FormState } from "@/lib/form-state";
 import { canAccessScreen } from "@/lib/rbac";
 import { advanceKitchenItem, advanceKitchenTicket, serveOrderItem } from "@/lib/server/kds";
 import { getCurrentStaff, loginStaff, logoutStaff } from "@/lib/server/staff-session";
@@ -21,7 +22,7 @@ import { getCurrentStaff, loginStaff, logoutStaff } from "@/lib/server/staff-ses
 
 const NOT_SIGNED_IN: FormState = {
   status: "error",
-  message: "Session expired — please enter your PIN again",
+  messageKey: "error.session_expired",
 };
 
 async function requireKdsStaff() {
@@ -46,14 +47,14 @@ export async function kdsLoginAction(
   );
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   if (!canAccessScreen(result.staff.role, "kds")) {
     // ต้อง logout ทิ้งด้วย ไม่ใช่แค่คืน error — ไม่งั้น cookie ที่เพิ่งออกให้จะค้าง
     // อยู่แล้วคนคนนั้นเดินไปเปิด /pos ต่อได้เลยโดยไม่ต้องใส่ PIN ใหม่
     await logoutStaff("kds");
-    return { status: "error", message: "Your role can't access the kitchen display" };
+    return { status: "error", messageKey: "error.no_access_kds" };
   }
 
   redirect("/kds");
@@ -78,7 +79,7 @@ export async function advanceItemAction(
   const result = await advanceKitchenItem(staff, String(formData.get("orderItemId") ?? ""));
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   /**
@@ -91,9 +92,9 @@ export async function advanceItemAction(
   refresh();
 
   return result.changed > 0
-    ? { status: "success", message: "Updated" }
+    ? { status: "success", messageKey: "msg.updated" }
     : // changed = 0 แปลว่าอีกจอกดไปก่อนแล้ว ซึ่งคือผลลัพธ์ที่ต้องการอยู่ดี
-      { status: "success", message: "This item was already updated" };
+      { status: "success", messageKey: "error.item_already_updated" };
 }
 
 /** บั๊มทั้งใบ — ดันทุกรายการของสถานีนี้ในบิลเดียวกันไปขั้นถัดไปพร้อมกัน */
@@ -117,12 +118,16 @@ export async function advanceTicketAction(
   );
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
-  return { status: "success", message: `Updated ${result.changed} item(s)` };
+  return {
+    status: "success",
+    messageKey: countKey("msg.items_updated", result.changed),
+    params: { count: result.changed },
+  };
 }
 
 /** พนักงานเสิร์ฟกด "ยกไปเสิร์ฟแล้ว" (READY → SERVED) */
@@ -139,10 +144,10 @@ export async function serveItemAction(
   const result = await serveOrderItem(staff, String(formData.get("orderItemId") ?? ""));
 
   if (!result.ok) {
-    return { status: "error", message: result.error };
+    return formError(result);
   }
 
   refresh();
 
-  return { status: "success", message: "Served" };
+  return { status: "success", messageKey: "msg.served" };
 }
