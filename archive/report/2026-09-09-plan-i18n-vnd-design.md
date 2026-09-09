@@ -184,9 +184,9 @@ emitted CSS (`adjustFontFallback: false`, which Turbopack ignores). Same rule he
 |---|---|---|---|
 | `currency` | `THB` | `VND` | 0 decimals — `45000` means `45.000 ₫` |
 | `timezone` | `Asia/Bangkok` | `Asia/Ho_Chi_Minh` | **drives `branchDayKey()`, order numbers and the `[branchId, queueDay, queueNumber]` uniqueness** — easy to miss |
-| `vatRateBp` | `700` (Thailand 7%) | `1000` (Vietnam 10%) | |
-| `serviceChargeBp` | `1000` | `500` | 5% is the common Vietnamese sit-down rate. **Deliberately not 0** — 0 would erase the dine-in vs takeaway difference that `chargesServiceCharge()` exists to express, and silently neuter the smoke case asserting dine-in costs more than takeaway for identical items. |
-| `pricesIncludeVat` | `true` | `true` | unchanged; Vietnamese menus quote VAT-inclusive |
+| `vatRateBp` | `700` (Thailand 7%) | `800` (Vietnam 8%) | Standard Vietnamese VAT is 10%, but the reduced **8%** rate has covered F&B under successive stimulus resolutions. `scripts/smoke-bill.ts:215` already models a Vietnamese restaurant at 8% — matching it keeps one story in the repo. |
+| `serviceChargeBp` | `1000` | `500` | 5% is the common Vietnamese sit-down rate ("phí phục vụ 5%"). **Deliberately not 0** — 0 would erase the dine-in vs takeaway difference that `chargesServiceCharge()` exists to express, and silently neuter the smoke case asserting dine-in costs more than takeaway for identical items. |
+| `pricesIncludeVat` | `true` | **`false`** | Vietnamese sit-down menus quote "giá chưa bao gồm VAT và phí phục vụ". Two further reasons: it matches the existing Vietnam case in `smoke-bill.ts`, and it exercises the **add-on** branch of `calculateBill()`, which the default branch has never used — today every seeded bill takes the VAT-extraction path. Flip this one field if you would rather demo all-in prices. |
 | `name` / `addressLine` / `phone` / `receiptFooter` | Thai | Vietnamese | |
 
 ### 8.2 Menu
