@@ -22,6 +22,25 @@ smoke tests as `tsx --conditions=react-server` scripts
 **Spec:** `archive/report/2026-09-09-plan-i18n-vnd-design.md` — read both; this plan
 argues from that spec.
 
+## Progress (updated 2026-09-09)
+
+| Task | Status |
+|---|---|
+| 1 — i18n core | ✅ done · `cbb8f29` |
+| 2 — locale plumbing, switcher, fonts | ✅ done · `6143018` |
+| 3 — actions return message keys | ✅ done · `82ffb67` |
+| 4 — enum label modules | 🟡 **in progress** · `wip/i18n-task4` @ `e3134d1` — does not build, ~46 call sites left |
+| 5–8 — screen text per route group | ⬜ not started |
+| 9 — VND branch + Vietnamese menu | ⬜ not started |
+| 10 — smoke suite back to zero | ⬜ not started |
+| 11 — screen audit, report, CLAUDE.md | ⬜ not started |
+
+**Where things stand:** `feat/i18n-vi-en-vnd` tip is green (tsc 0, eslint clean,
+build passes). Smoke is 810 PASS / 11 FAIL — all 11 are assertions still comparing
+display sentences, no behavioural regression; Task 10 owns them.
+
+**Read `archive/report/2026-09-09-i18n-vnd-progress.md` before resuming.**
+
 ## Global Constraints
 
 - Money is `Int` in the branch currency's minor unit. **VND has no minor unit** —
