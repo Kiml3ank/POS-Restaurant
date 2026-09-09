@@ -36,8 +36,8 @@ const notoSansThai = Noto_Sans_Thai({
 });
 
 export const metadata: Metadata = {
-  title: "POS ร้านอาหาร",
-  description: "ระบบ POS ร้านอาหาร — ลูกค้า / พนักงาน / ครัว / หลังร้าน",
+  title: "Restaurant POS",
+  description: "Restaurant POS — customer / staff / kitchen / back office",
 };
 
 export const viewport: Viewport = {

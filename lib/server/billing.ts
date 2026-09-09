@@ -66,7 +66,9 @@ export async function getTableBill(branchId: string, tableId: string) {
   }
 
   const session = await prisma.tableSession.findFirst({
-    where: { tableId: table.id, status: "OPEN", expiresAt: { gt: new Date() } },
+    // ไม่กรอง expiresAt โดยตั้งใจ — บิลที่ยังไม่จ่ายต้องคิดเงินได้เสมอ
+    // แม้รอบจะเปิดค้างข้ามคืน (ดูกฎเต็มที่ getPosTables ใน lib/server/pos.ts)
+    where: { tableId: table.id, status: "OPEN" },
     orderBy: { openedAt: "desc" },
     /**
      * ดึงชื่อคนกินมาด้วย เพื่อให้หน้าคิดเงินและใบเสร็จเขียนได้ว่า

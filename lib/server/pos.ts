@@ -48,6 +48,22 @@ export type PosOrder = PosTableDetail["orders"][number];
  * (จำนวนโต๊ะต่อสาขาเป็นหลักสิบ ไม่ใช่หลักหมื่น การ aggregate ใน SQL แยกอีกรอบ
  * จะซับซ้อนกว่าโดยไม่ได้เร็วขึ้นจริง)
  */
+/**
+ * ⚠ กฎเรื่อง `expiresAt` ที่ใช้ทั้งไฟล์นี้ — **ฝั่งพนักงานไม่กรองอายุรอบ**
+ *
+ * `TableSession.expiresAt` เป็นด่านของ **ลูกค้า** อย่างเดียว: กันเคส
+ * "ถ่ายรูป QR ไว้แล้วสั่งจากบ้านอีกสามวันถัดมา" (ดู resolveSessionByToken())
+ *
+ * เดิมทุก query ในไฟล์นี้กรอง `expiresAt: { gt: now }` ตามไปด้วย ซึ่งแปลว่า
+ * **พอรอบโต๊ะครบ 3 ชม. บิลที่ยังไม่จ่ายจะหายไปจากสายตาพนักงานทั้งหมด**:
+ * ผังโต๊ะขึ้นว่าว่าง · หน้าคิดเงินบอกว่าไม่มีบิล · closeTableSession() ก็ปิดไม่ได้
+ * เพราะมีของเข้าครัวไปแล้ว → ของที่ทำเสร็จแล้วค้างบนจอครัวโดยไม่มีใครปิดได้เลย
+ * (เจอจริง: รอบโต๊ะ A1 หมดอายุ 04:31 โดยมีกะเพรา READY ค้างอยู่)
+ *
+ * อายุของรอบไม่ใช่เหตุผลที่จะเลิกเก็บเงิน — รอบที่ `OPEN` และยังมีของค้าง
+ * ต้องมองเห็นได้จากฝั่งพนักงานเสมอ ไม่ว่าจะเปิดมานานแค่ไหน
+ * มีเคสตรึงไว้ใน `npm run smoke:bill` ทั้งสองด้าน (พนักงานเห็น · ลูกค้าไม่เห็น)
+ */
 export async function getPosTables(branchId: string) {
   const tables = await prisma.restaurantTable.findMany({
     /**
@@ -63,7 +79,7 @@ export async function getPosTables(branchId: string) {
     orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
     include: {
       sessions: {
-        where: { status: "OPEN", expiresAt: { gt: new Date() } },
+        where: { status: "OPEN" },
         orderBy: { openedAt: "desc" },
         take: 1,
         include: {
@@ -123,7 +139,7 @@ export async function getPosTable(branchId: string, tableId: string) {
   }
 
   const session = await prisma.tableSession.findFirst({
-    where: { tableId: table.id, status: "OPEN", expiresAt: { gt: new Date() } },
+    where: { tableId: table.id, status: "OPEN" },
     orderBy: { openedAt: "desc" },
   });
 
@@ -141,7 +157,7 @@ export async function getPosTable(branchId: string, tableId: string) {
  */
 export async function getPosSession(branchId: string, sessionId: string) {
   const session = await prisma.tableSession.findFirst({
-    where: { id: sessionId, branchId, status: "OPEN", expiresAt: { gt: new Date() } },
+    where: { id: sessionId, branchId, status: "OPEN" },
   });
 
   if (!session) {
@@ -175,7 +191,6 @@ export async function getOpenSalePointSessions(branchId: string) {
     where: {
       branchId,
       status: "OPEN",
-      expiresAt: { gt: new Date() },
       table: { kind: { not: "DINE_IN" } },
     },
     orderBy: [{ queueDay: "asc" }, { queueNumber: "asc" }],
@@ -389,7 +404,7 @@ async function buildPosDetail(
    * query เองอีกรอบ (`resolveOpenSession()` ใน actions.ts ใช้ตัวนี้)
    */
   const openSessionCount = await prisma.tableSession.count({
-    where: { tableId: table.id, status: "OPEN", expiresAt: { gt: new Date() } },
+    where: { tableId: table.id, status: "OPEN" },
   });
 
   return {

@@ -38,8 +38,10 @@ export default async function AdminMenuPage() {
     <main className="flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-[58px] flex-none flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--color-text)] px-4 py-3 lg:px-6">
         <div className="flex items-baseline gap-3">
-          <span className="display text-[19px]">เมนูและสินค้า</span>
-          <span className="kicker">{categories.length} หมวด</span>
+          <span className="display text-[19px]">Menu &amp; items</span>
+          <span className="kicker">
+            {categories.length} {categories.length === 1 ? "category" : "categories"}
+          </span>
         </div>
 
         <div className="flex items-center gap-3">
@@ -47,12 +49,12 @@ export default async function AdminMenuPage() {
           <LiveRefresh src="/api/realtime" className="text-[var(--color-accent-700)]" />
           {editable ? (
             <Link href="/admin/menu/category/new" className="btn btn-secondary h-10 text-[14px]">
-              + หมวด
+              + Category
             </Link>
           ) : null}
           {editable && categories.length > 0 ? (
             <Link href="/admin/menu/item/new" className="btn btn-primary h-10 text-[14px]">
-              + เมนู
+              + Item
             </Link>
           ) : null}
         </div>
@@ -61,16 +63,16 @@ export default async function AdminMenuPage() {
       <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
         {categories.length === 0 ? (
           <div className="flex flex-col items-center gap-3 p-10 text-center">
-            <p className="display text-[24px]">ยังไม่มีหมวดเมนู</p>
+            <p className="display text-[24px]">No menu categories yet</p>
             <p className="text-[var(--color-neutral-700)]">
-              เมนูทุกรายการต้องอยู่ในหมวด จึงต้องสร้างหมวดก่อน
+              Every item has to live in a category, so create one first.
             </p>
             {editable ? (
               <Link href="/admin/menu/category/new" className="btn btn-primary mt-2 h-11">
-                สร้างหมวดแรก
+                Create the first category
               </Link>
             ) : (
-              <p className="kicker">ตำแหน่งของคุณสร้างหมวดไม่ได้ — เรียกผู้จัดการ</p>
+              <p className="kicker">Your role can&apos;t create categories — ask a manager</p>
             )}
           </div>
         ) : (
@@ -80,9 +82,11 @@ export default async function AdminMenuPage() {
                 <header className="panel-head flex flex-wrap items-center justify-between gap-3 px-4 py-3">
                   <div className="flex min-w-0 items-baseline gap-3">
                     <span className="display text-[17px]">{category.name}</span>
-                    <span className="kicker kicker-accent">{category.items.length} รายการ</span>
+                    <span className="kicker kicker-accent">
+                      {category.items.length} {category.items.length === 1 ? "item" : "items"}
+                    </span>
                     {category.isAvailable ? null : (
-                      <span className="tag tag-neutral">ปิดทั้งหมวด</span>
+                      <span className="tag tag-neutral">Whole category off</span>
                     )}
                   </div>
 
@@ -99,7 +103,7 @@ export default async function AdminMenuPage() {
                           href={`/admin/menu/category/${category.id}`}
                           className="btn btn-secondary h-9 px-3 text-[13px]"
                         >
-                          แก้
+                          Edit
                         </Link>
                       </>
                     ) : null}
@@ -107,7 +111,7 @@ export default async function AdminMenuPage() {
                 </header>
 
                 {category.items.length === 0 ? (
-                  <p className="kicker px-4 py-4">ยังไม่มีเมนูในหมวดนี้</p>
+                  <p className="kicker px-4 py-4">No items in this category yet</p>
                 ) : (
                   <ul className="flex flex-col">
                     {category.items.map((item) => (
@@ -120,9 +124,11 @@ export default async function AdminMenuPage() {
                           <span className="kicker">
                             {/* สถานีครัวต้องอ่านออกจากลิสต์ เพราะเมนูที่ตั้งสถานีผิด
                                 จะไปค้างรออยู่บนจอครัวที่ไม่มีใครดู */}
-                            {item.station?.name ?? "ไม่ผ่านครัว"}
+                            {item.station?.name ?? "No kitchen station"}
                             {item._count.modifierGroups > 0
-                              ? ` · ${item._count.modifierGroups} กลุ่มตัวเลือก`
+                              ? ` · ${item._count.modifierGroups} option ${
+                                  item._count.modifierGroups === 1 ? "group" : "groups"
+                                }`
                               : ""}
                           </span>
                         </div>
@@ -145,7 +151,7 @@ export default async function AdminMenuPage() {
                                 href={`/admin/menu/item/${item.id}`}
                                 className="btn btn-secondary h-9 px-3 text-[13px]"
                               >
-                                แก้
+                                Edit
                               </Link>
                             </>
                           ) : null}

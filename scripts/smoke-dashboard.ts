@@ -277,8 +277,8 @@ async function main() {
     );
     check(
       "นับของที่ส่งเข้าครัวแล้ว ไม่ใช่เฉพาะบิลที่จ่ายแล้ว (ไม่งั้นช่วงเย็นจะดูเหมือนขายไม่ออก)",
-      (live.data.topItems.find((item) => item.name.includes("กะเพรา"))?.quantity ?? 0) >= 6,
-      String(live.data.topItems.find((item) => item.name.includes("กะเพรา"))?.quantity),
+      (live.data.topItems.find((item) => item.name.includes("Kra Pao"))?.quantity ?? 0) >= 6,
+      String(live.data.topItems.find((item) => item.name.includes("Kra Pao"))?.quantity),
     );
 
     console.log("\n── 7. เหตุการณ์ที่ต้องจับตา ─────────────────────────────────────\n");

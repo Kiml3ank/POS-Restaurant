@@ -220,7 +220,18 @@ export async function openOrJoinTableSession(input: {
 
     if (joinsExistingSession(salePoint.kind)) {
       const existing = await tx.tableSession.findFirst({
-        where: { tableId: input.tableId, status: "OPEN", expiresAt: { gt: now } },
+        /**
+         * ⚠ ห้ามกรอง `expiresAt` ตรงนี้ — ไม่งั้นจะได้ **สองรอบที่ OPEN พร้อมกัน
+         * บนโต๊ะนั่งตัวเดียว** ซึ่งพังทั้งระบบ: ทุกที่ที่หารอบของโต๊ะใช้
+         * `findFirst(orderBy openedAt desc)` จึงเห็นแต่ใบใหม่ ส่วนใบเก่า
+         * **มองไม่เห็นแต่ยังบล็อกการคิดเงิน** (บั๊กตระกูลเดียวกับที่เคาน์เตอร์
+         * ซื้อกลับเจอตอนทำบทซื้อกลับ)
+         *
+         * รอบที่หมดอายุแต่ยัง OPEN = รอบที่พนักงานยังไม่ได้ปิด ไม่ใช่รอบที่หายไป
+         * ด่านกันลูกค้าสั่งข้ามวันอยู่ที่ `resolveSessionByToken()` ซึ่งยังกรอง
+         * `expiresAt` เหมือนเดิม — ตรงนั้นคือที่ที่ถูกต้องของด่านนั้น
+         */
+        where: { tableId: input.tableId, status: "OPEN" },
         orderBy: { openedAt: "desc" },
       });
 

@@ -18,76 +18,116 @@ const prisma = new PrismaClient({
 });
 
 const STATIONS = [
-  { id: "seed-station-hot", code: "HOT", name: "ครัวร้อน", sortOrder: 1 },
-  { id: "seed-station-bar", code: "BAR", name: "บาร์น้ำ", sortOrder: 2 },
-  { id: "seed-station-dessert", code: "DESSERT", name: "ของหวาน", sortOrder: 3 },
+  { id: "seed-station-hot", code: "HOT", name: "Hot Kitchen", sortOrder: 1 },
+  { id: "seed-station-bar", code: "BAR", name: "Beverage Bar", sortOrder: 2 },
+  { id: "seed-station-dessert", code: "DESSERT", name: "Dessert", sortOrder: 3 },
 ];
 
+/**
+ * หมวดเมนู
+ *
+ * "Appetizers" แทรกเป็นลำดับ 3 ตามที่เมนูจริงเรียง (ของทานเล่นมาก่อนเครื่องดื่ม)
+ * ทำให้ Drinks/Desserts เลื่อนไปเป็น 4/5 — ปลอดภัยเพราะ `sortOrder` เป็นแค่
+ * ลำดับแสดงผล ไม่มี unique constraint และไม่มีอะไรอ้างถึงค่าตัวเลขนี้
+ */
 const CATEGORIES = [
-  { id: "seed-cat-rice", name: "อาหารจานเดียว", sortOrder: 1 },
-  { id: "seed-cat-soup", name: "ต้ม/แกง", sortOrder: 2 },
-  { id: "seed-cat-drink", name: "เครื่องดื่ม", sortOrder: 3 },
-  { id: "seed-cat-dessert", name: "ของหวาน", sortOrder: 4 },
+  { id: "seed-cat-rice", name: "Single Dishes", sortOrder: 1 },
+  { id: "seed-cat-soup", name: "Soups & Curries", sortOrder: 2 },
+  { id: "seed-cat-appetizer", name: "Appetizers", sortOrder: 3 },
+  { id: "seed-cat-drink", name: "Drinks", sortOrder: 4 },
+  { id: "seed-cat-dessert", name: "Desserts", sortOrder: 5 },
 ];
 
-/** ราคาทุกค่าเป็น "สตางค์" — 6000 = 60.00 บาท */
+/**
+ * ราคาทุกค่าเป็น "หน่วยย่อยที่สุดของสกุลเงินสาขา" — 6000 = ฿60.00 ในสาขา THB
+ * (ดูกฎเรื่องเงินใน CLAUDE.md — ห้ามหารด้วย 100 นอก lib/money.ts)
+ *
+ * ⚠ `sortOrder` ของตัวเลือกมาจาก **ลำดับในอาร์เรย์** (loop ใช้ index)
+ * การแทรกตัวเลือกใหม่กลางอาร์เรย์จึงเลื่อนเลขของตัวที่อยู่ถัดไป — ตัวเลือกที่
+ * เพิ่มทีหลังจึงต่อท้ายเสมอ เพื่อไม่ให้ลำดับที่พนักงานคุ้นเคยสลับที่
+ */
 const MODIFIER_GROUPS = [
   {
     id: "seed-mg-spice",
-    name: "ระดับความเผ็ด",
+    name: "Spice Level",
     required: true,
     minSelect: 1,
     maxSelect: 1,
     modifiers: [
-      { id: "seed-mod-spice-none", name: "ไม่เผ็ด", priceDelta: 0 },
-      { id: "seed-mod-spice-mild", name: "เผ็ดน้อย", priceDelta: 0 },
-      { id: "seed-mod-spice-hot", name: "เผ็ดมาก", priceDelta: 0 },
+      { id: "seed-mod-spice-none", name: "No Spice", priceDelta: 0 },
+      { id: "seed-mod-spice-mild", name: "Mild", priceDelta: 0 },
+      { id: "seed-mod-spice-medium", name: "Medium", priceDelta: 0 },
+      { id: "seed-mod-spice-hot", name: "Spicy", priceDelta: 0 },
     ],
   },
   {
     id: "seed-mg-size",
-    name: "ขนาด",
+    name: "Size",
     required: true,
     minSelect: 1,
     maxSelect: 1,
     modifiers: [
-      { id: "seed-mod-size-regular", name: "ธรรมดา", priceDelta: 0 },
-      { id: "seed-mod-size-large", name: "พิเศษ", priceDelta: 2000 },
+      { id: "seed-mod-size-regular", name: "Regular", priceDelta: 0 },
+      { id: "seed-mod-size-large", name: "Large", priceDelta: 2000 },
     ],
   },
   {
     id: "seed-mg-sweetness",
-    name: "ระดับความหวาน",
+    name: "Sweetness",
     required: true,
     minSelect: 1,
     maxSelect: 1,
     modifiers: [
-      { id: "seed-mod-sweet-0", name: "ไม่หวาน", priceDelta: 0 },
-      { id: "seed-mod-sweet-50", name: "หวานน้อย", priceDelta: 0 },
-      { id: "seed-mod-sweet-100", name: "หวานปกติ", priceDelta: 0 },
+      { id: "seed-mod-sweet-0", name: "No Sugar", priceDelta: 0 },
+      { id: "seed-mod-sweet-50", name: "Less Sweet", priceDelta: 0 },
+      { id: "seed-mod-sweet-100", name: "Normal Sweet", priceDelta: 0 },
+      { id: "seed-mod-sweet-150", name: "Extra Sweet", priceDelta: 0 },
     ],
   },
   {
+    /**
+     * "No Meat" (-฿10) ไม่ได้อยู่ในสเปกรอบนี้ แต่ **เก็บไว้**
+     * เพราะเคยถูกสั่งจริงได้ และการถอดตัวเลือกออกจากกลุ่มไม่ได้ลบประวัติ
+     * แต่ทำให้เมนูที่เคยขายมีตัวเลือกน้อยลงโดยไม่มีใครสั่ง
+     */
     id: "seed-mg-topping",
-    name: "ท็อปปิ้ง",
+    name: "Toppings",
     required: false,
     minSelect: 0,
     maxSelect: 3,
     modifiers: [
-      { id: "seed-mod-top-egg", name: "ไข่ดาว", priceDelta: 1500 },
-      { id: "seed-mod-top-rice", name: "ข้าวเพิ่ม", priceDelta: 1000 },
-      { id: "seed-mod-top-nomeat", name: "ไม่ใส่เนื้อสัตว์", priceDelta: -1000 },
+      { id: "seed-mod-top-egg", name: "Fried Egg", priceDelta: 1500 },
+      { id: "seed-mod-top-rice", name: "Extra Rice", priceDelta: 1000 },
+      { id: "seed-mod-top-nomeat", name: "No Meat", priceDelta: -1000 },
+      { id: "seed-mod-top-cheese", name: "Cheese", priceDelta: 2000 },
+      { id: "seed-mod-top-chicken", name: "Extra Chicken", priceDelta: 3000 },
+      { id: "seed-mod-top-shrimp", name: "Extra Shrimp", priceDelta: 4000 },
+    ],
+  },
+  {
+    id: "seed-mg-dessert-topping",
+    name: "Dessert Toppings",
+    required: false,
+    minSelect: 0,
+    maxSelect: 3,
+    modifiers: [
+      { id: "seed-mod-dtop-whipped", name: "Whipped Cream", priceDelta: 1500 },
+      { id: "seed-mod-dtop-chocolate", name: "Chocolate Sauce", priceDelta: 1000 },
+      { id: "seed-mod-dtop-condensed", name: "Condensed Milk", priceDelta: 1000 },
+      { id: "seed-mod-dtop-banana", name: "Banana", priceDelta: 1500 },
+      { id: "seed-mod-dtop-icecream", name: "Ice Cream", priceDelta: 2500 },
     ],
   },
 ];
 
 const MENU_ITEMS = [
+  // ── Single Dishes ────────────────────────────────────────────────────────
   {
     id: "seed-item-krapao",
     categoryId: "seed-cat-rice",
     stationId: "seed-station-hot",
-    name: "ข้าวผัดกะเพราหมูสับ",
-    description: "กะเพราใบใหญ่ ผัดไฟแรง เสิร์ฟพร้อมข้าวสวย",
+    name: "Pad Kra Pao Minced Pork",
+    description: "Minced pork stir-fried over high heat with holy basil, served with steamed rice.",
     basePrice: 6000,
     sortOrder: 1,
     groupIds: ["seed-mg-spice", "seed-mg-size", "seed-mg-topping"],
@@ -96,28 +136,187 @@ const MENU_ITEMS = [
     id: "seed-item-fried-rice",
     categoryId: "seed-cat-rice",
     stationId: "seed-station-hot",
-    name: "ข้าวผัดปู",
-    description: "เนื้อปูก้อน ไข่สด",
+    name: "Crab Fried Rice",
+    description: "Fried rice with lump crab meat and fresh egg.",
     basePrice: 12000,
     sortOrder: 2,
     groupIds: ["seed-mg-size", "seed-mg-topping"],
   },
   {
+    id: "seed-item-chicken-fried-rice",
+    categoryId: "seed-cat-rice",
+    stationId: "seed-station-hot",
+    name: "Chicken Fried Rice",
+    description: "Fragrant Thai-style fried rice with tender chicken, vegetables, and egg.",
+    basePrice: 7000,
+    sortOrder: 3,
+    groupIds: ["seed-mg-size"],
+  },
+  {
+    id: "seed-item-garlic-pork-rice",
+    categoryId: "seed-cat-rice",
+    stationId: "seed-station-hot",
+    name: "Garlic Pork with Rice",
+    description:
+      "Stir-fried pork with crispy garlic and savory garlic sauce served with steamed rice.",
+    basePrice: 6500,
+    sortOrder: 4,
+    groupIds: ["seed-mg-size", "seed-mg-topping"],
+  },
+  {
+    id: "seed-item-thai-omelette-rice",
+    categoryId: "seed-cat-rice",
+    stationId: "seed-station-hot",
+    name: "Thai Omelette with Rice",
+    description: "Fluffy deep-fried Thai omelette served over steamed rice.",
+    basePrice: 5500,
+    sortOrder: 5,
+    groupIds: ["seed-mg-topping"],
+  },
+  {
+    id: "seed-item-chicken-cashew",
+    categoryId: "seed-cat-rice",
+    stationId: "seed-station-hot",
+    name: "Stir-Fried Chicken with Cashew Nuts",
+    description: "Wok-fried chicken with roasted cashew nuts, dried chili, and onion.",
+    basePrice: 9000,
+    sortOrder: 6,
+    groupIds: ["seed-mg-spice"],
+  },
+  {
+    id: "seed-item-pad-thai-shrimp",
+    categoryId: "seed-cat-rice",
+    stationId: "seed-station-hot",
+    name: "Pad Thai with Shrimp",
+    description:
+      "Classic Thai stir-fried rice noodles with shrimp, egg, bean sprouts, and crushed peanuts.",
+    basePrice: 10000,
+    sortOrder: 7,
+    groupIds: ["seed-mg-spice", "seed-mg-topping"],
+  },
+  {
+    id: "seed-item-chicken-basil-fried-rice",
+    categoryId: "seed-cat-rice",
+    stationId: "seed-station-hot",
+    name: "Chicken Basil Fried Rice",
+    description: "Fried rice tossed with chicken, holy basil, and fresh chili.",
+    basePrice: 7000,
+    sortOrder: 8,
+    groupIds: ["seed-mg-size", "seed-mg-spice"],
+  },
+
+  // ── Soups & Curries ──────────────────────────────────────────────────────
+  {
     id: "seed-item-tomyum",
     categoryId: "seed-cat-soup",
     stationId: "seed-station-hot",
-    name: "ต้มยำกุ้งน้ำข้น",
-    description: "กุ้งแม่น้ำ เห็ดฟาง",
+    name: "Creamy Tom Yum Goong",
+    description: "Rich, creamy hot and sour soup with river prawns and straw mushrooms.",
     basePrice: 18000,
     sortOrder: 1,
     groupIds: ["seed-mg-spice", "seed-mg-size"],
   },
   {
+    id: "seed-item-clear-tomyum",
+    categoryId: "seed-cat-soup",
+    stationId: "seed-station-hot",
+    name: "Clear Tom Yum Goong",
+    description: "A hot and sour Thai soup with fresh shrimp, herbs, lime, and chili.",
+    basePrice: 17000,
+    sortOrder: 2,
+    groupIds: ["seed-mg-size", "seed-mg-spice"],
+  },
+  {
+    id: "seed-item-tom-kha-gai",
+    categoryId: "seed-cat-soup",
+    stationId: "seed-station-hot",
+    name: "Tom Kha Gai",
+    description: "Creamy coconut soup with tender chicken, galangal, lemongrass, lime, and herbs.",
+    basePrice: 14000,
+    sortOrder: 3,
+    groupIds: ["seed-mg-size", "seed-mg-spice"],
+  },
+  {
+    id: "seed-item-green-curry-chicken",
+    categoryId: "seed-cat-soup",
+    stationId: "seed-station-hot",
+    name: "Green Curry with Chicken",
+    description:
+      "Rich Thai green curry with tender chicken, coconut milk, vegetables, and aromatic herbs.",
+    basePrice: 12000,
+    sortOrder: 4,
+    groupIds: ["seed-mg-spice"],
+  },
+  {
+    id: "seed-item-red-curry-chicken",
+    categoryId: "seed-cat-soup",
+    stationId: "seed-station-hot",
+    name: "Red Curry with Chicken",
+    description: "Thai red curry simmered with chicken, coconut milk, bamboo shoots, and basil.",
+    basePrice: 12000,
+    sortOrder: 5,
+    groupIds: ["seed-mg-spice"],
+  },
+
+  // ── Appetizers ───────────────────────────────────────────────────────────
+  {
+    id: "seed-item-fried-spring-rolls",
+    categoryId: "seed-cat-appetizer",
+    stationId: "seed-station-hot",
+    name: "Fried Spring Rolls",
+    description: "Crispy golden spring rolls stuffed with vegetables and glass noodles.",
+    basePrice: 7000,
+    sortOrder: 1,
+    groupIds: ["seed-mg-topping"],
+  },
+  {
+    id: "seed-item-chicken-wings",
+    categoryId: "seed-cat-appetizer",
+    stationId: "seed-station-hot",
+    name: "Chicken Wings",
+    description: "Crispy fried chicken wings served with a sweet chili dipping sauce.",
+    basePrice: 9000,
+    sortOrder: 2,
+    groupIds: ["seed-mg-spice"],
+  },
+  {
+    id: "seed-item-fried-tofu",
+    categoryId: "seed-cat-appetizer",
+    stationId: "seed-station-hot",
+    name: "Fried Tofu",
+    description: "Golden fried tofu with a crisp shell, served with peanut dipping sauce.",
+    basePrice: 6000,
+    sortOrder: 3,
+    groupIds: ["seed-mg-topping"],
+  },
+  {
+    id: "seed-item-shrimp-cakes",
+    categoryId: "seed-cat-appetizer",
+    stationId: "seed-station-hot",
+    name: "Shrimp Cakes",
+    description: "Deep-fried minced shrimp patties served with plum sauce.",
+    basePrice: 12000,
+    sortOrder: 4,
+    groupIds: ["seed-mg-topping"],
+  },
+  {
+    id: "seed-item-french-fries",
+    categoryId: "seed-cat-appetizer",
+    stationId: "seed-station-hot",
+    name: "French Fries",
+    description: "Crispy golden fries lightly salted.",
+    basePrice: 6000,
+    sortOrder: 5,
+    groupIds: ["seed-mg-size"],
+  },
+
+  // ── Drinks ───────────────────────────────────────────────────────────────
+  {
     id: "seed-item-thai-tea",
     categoryId: "seed-cat-drink",
     stationId: "seed-station-bar",
-    name: "ชาเย็น",
-    description: null,
+    name: "Thai Iced Tea",
+    description: "Sweet Thai tea poured over ice with creamy milk.",
     basePrice: 4500,
     sortOrder: 1,
     groupIds: ["seed-mg-sweetness", "seed-mg-size"],
@@ -126,22 +325,125 @@ const MENU_ITEMS = [
     id: "seed-item-water",
     categoryId: "seed-cat-drink",
     // ไม่ผูกสถานี = หยิบจากตู้เย็นหน้าร้านได้เลย ไม่ต้องขึ้นจอครัว
+    // (นี่คือ "No Kitchen Station" ของสเปก — เป็น stationId: null ไม่ใช่แถวใน Station)
     stationId: null,
-    name: "น้ำเปล่า",
+    name: "Bottled Water",
     description: null,
     basePrice: 2000,
     sortOrder: 2,
     groupIds: [],
   },
   {
+    id: "seed-item-thai-green-tea",
+    categoryId: "seed-cat-drink",
+    stationId: "seed-station-bar",
+    name: "Thai Iced Green Tea",
+    description: "Roasted green tea served iced with milk.",
+    basePrice: 4500,
+    sortOrder: 3,
+    groupIds: ["seed-mg-size", "seed-mg-sweetness"],
+  },
+  {
+    id: "seed-item-iced-coffee",
+    categoryId: "seed-cat-drink",
+    stationId: "seed-station-bar",
+    name: "Iced Coffee",
+    description: "Freshly brewed coffee served over ice.",
+    basePrice: 5000,
+    sortOrder: 4,
+    groupIds: ["seed-mg-size", "seed-mg-sweetness"],
+  },
+  {
+    id: "seed-item-lemon-tea",
+    categoryId: "seed-cat-drink",
+    stationId: "seed-station-bar",
+    name: "Lemon Tea",
+    description: "Chilled black tea with fresh lemon.",
+    basePrice: 4500,
+    sortOrder: 5,
+    groupIds: ["seed-mg-size", "seed-mg-sweetness"],
+  },
+  {
+    id: "seed-item-lime-soda",
+    categoryId: "seed-cat-drink",
+    stationId: "seed-station-bar",
+    name: "Fresh Lime Soda",
+    description: "Sparkling soda with fresh lime juice.",
+    basePrice: 5000,
+    sortOrder: 6,
+    groupIds: ["seed-mg-size", "seed-mg-sweetness"],
+  },
+  {
+    id: "seed-item-coke",
+    categoryId: "seed-cat-drink",
+    stationId: "seed-station-bar",
+    name: "Coke",
+    description: "Chilled cola served over ice.",
+    basePrice: 3000,
+    sortOrder: 7,
+    groupIds: ["seed-mg-size"],
+  },
+  {
+    id: "seed-item-orange-juice",
+    categoryId: "seed-cat-drink",
+    stationId: "seed-station-bar",
+    name: "Orange Juice",
+    description: "Freshly squeezed orange juice.",
+    basePrice: 5000,
+    sortOrder: 8,
+    groupIds: ["seed-mg-size"],
+  },
+
+  // ── Desserts ─────────────────────────────────────────────────────────────
+  {
     id: "seed-item-bingsu",
     categoryId: "seed-cat-dessert",
     stationId: "seed-station-dessert",
-    name: "บิงซูชาไทย",
-    description: "เสิร์ฟ 2-3 ที่",
+    name: "Thai Tea Bingsu",
+    description: "Shaved ice dessert with Thai tea syrup. Serves 2-3.",
     basePrice: 12900,
     sortOrder: 1,
     groupIds: ["seed-mg-sweetness"],
+  },
+  {
+    id: "seed-item-mango-sticky-rice",
+    categoryId: "seed-cat-dessert",
+    stationId: "seed-station-dessert",
+    name: "Mango Sticky Rice",
+    description: "Sweet sticky rice served with ripe mango and creamy coconut sauce.",
+    basePrice: 8900,
+    sortOrder: 2,
+    groupIds: ["seed-mg-size"],
+  },
+  {
+    id: "seed-item-coconut-ice-cream",
+    categoryId: "seed-cat-dessert",
+    stationId: "seed-station-dessert",
+    name: "Coconut Ice Cream",
+    description: "Creamy coconut ice cream with a refreshing tropical flavor.",
+    basePrice: 6900,
+    sortOrder: 3,
+    groupIds: ["seed-mg-dessert-topping"],
+  },
+  {
+    id: "seed-item-thai-tea-toast",
+    categoryId: "seed-cat-dessert",
+    stationId: "seed-station-dessert",
+    name: "Thai Tea Toast",
+    description: "Thick-cut toast soaked in Thai tea custard and toasted golden.",
+    basePrice: 7900,
+    sortOrder: 4,
+    groupIds: ["seed-mg-dessert-topping"],
+  },
+  {
+    id: "seed-item-banana-roti",
+    categoryId: "seed-cat-dessert",
+    stationId: "seed-station-dessert",
+    name: "Banana Roti",
+    description: "Crispy pan-fried roti filled with banana and drizzled with condensed milk.",
+    basePrice: 6900,
+    sortOrder: 5,
+    groupIds: ["seed-mg-dessert-topping"],
   },
 ];
 
@@ -281,7 +583,14 @@ async function main() {
 
     await prisma.menuItem.upsert({
       where: { id: itemData.id },
-      update: { name: itemData.name, basePrice: itemData.basePrice, sortOrder: itemData.sortOrder },
+      update: {
+        name: itemData.name,
+        description: itemData.description,
+        basePrice: itemData.basePrice,
+        sortOrder: itemData.sortOrder,
+        categoryId: itemData.categoryId,
+        stationId: itemData.stationId,
+      },
       create: { ...itemData, branchId: branch.id },
     });
 

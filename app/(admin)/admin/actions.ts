@@ -22,12 +22,15 @@ import {
   revokeStaffSessions,
   updateStaffMember,
 } from "@/lib/server/staff-admin";
-import type { Currency, StaffRole } from "@/lib/generated/prisma/enums";
+import type { Currency, SalePointKind, StaffRole } from "@/lib/generated/prisma/enums";
 import {
   deleteStation,
+  deleteTable,
+  rotateTableCode,
   updateBusinessInfo,
   updateTaxSettings,
   upsertStation,
+  upsertTable,
 } from "@/lib/server/settings";
 import { getCurrentStaff, loginStaff, logoutStaff } from "@/lib/server/staff-session";
 
@@ -569,4 +572,97 @@ function percentToBp(raw: FormDataEntryValue | null): number {
 
   const [whole, fraction = ""] = text.split(".");
   return Number.parseInt(whole, 10) * 100 + Number.parseInt(fraction.padEnd(2, "0") || "0", 10);
+}
+
+/**
+ * ── จุดขาย (โต๊ะ / เคาน์เตอร์ / ช่องไรเดอร์) ────────────────────────────────
+ *
+ * `kind` รับจากฟอร์มได้ที่นี่ **ที่เดียว** และเป็นข้อยกเว้นที่ตั้งใจ:
+ * ทุกที่อื่นในระบบห้ามให้หน้าจอส่ง `kind`/`Order.type` มา เพราะมันคือตัวชี้ว่า
+ * บิลคิดค่าบริการหรือไม่ (ยิง POST ตัด 10% ทิ้งได้) — แต่ตรงนี้คือหน้าที่
+ * **สร้างตัวจุดขายเอง** ค่านั้นจึงต้องมาจากคนกรอก และถูกล็อกทันทีที่มีประวัติขาย
+ * (ดู upsertTable ใน lib/server/settings.ts)
+ */
+function parseSalePointKind(value: FormDataEntryValue | null): SalePointKind {
+  return value === "COUNTER" || value === "DELIVERY" ? value : "DINE_IN";
+}
+
+export async function upsertTableAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requireAdminStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const tableId = String(formData.get("tableId") ?? "");
+
+  const result = await upsertTable(staff, tableId || null, {
+    name: String(formData.get("name") ?? ""),
+    seats: Number.parseInt(String(formData.get("seats") ?? "0"), 10) || 0,
+    sortOrder: Number.parseInt(String(formData.get("sortOrder") ?? "0"), 10) || 0,
+    kind: parseSalePointKind(formData.get("kind")),
+    isActive: formData.get("isActive") === "on",
+  });
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  refresh();
+
+  return {
+    status: "success",
+    // ตอนสร้างใหม่ต้องบอกรหัส QR ออกมาเลย เพราะเป็นสิ่งที่คนกดต้องเอาไปพิมพ์ต่อทันที
+    message: tableId
+      ? "Sale point saved"
+      : `Sale point added — QR code /t/${result.tableCode}`,
+  };
+}
+
+export async function rotateTableCodeAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requireAdminStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const result = await rotateTableCode(staff, String(formData.get("tableId") ?? ""));
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  refresh();
+
+  return {
+    status: "success",
+    message: `New QR issued — /t/${result.tableCode}. The old printed QR no longer works`,
+  };
+}
+
+export async function deleteTableAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requireAdminStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const result = await deleteTable(staff, String(formData.get("tableId") ?? ""));
+
+  if (!result.ok) {
+    return { status: "error", message: result.error };
+  }
+
+  refresh();
+
+  return { status: "success", message: "Sale point deleted" };
 }

@@ -22,12 +22,12 @@ import { usePathname } from "next/navigation";
  * ที่นี่จึงวาดเส้นด้วย utility ล้วน ๆ
  */
 const LINKS = [
-  { href: "/admin/menu", label: "เมนูและสินค้า", short: "เมนู", hint: "หมวด · เมนู · ของหมด" },
-  { href: "/admin/modifiers", label: "กลุ่มตัวเลือก", short: "ตัวเลือก", hint: "ขนาด · ความเผ็ด · ท็อปปิ้ง" },
-  { href: "/admin/receipts", label: "ใบเสร็จ", short: "ใบเสร็จ", hint: "ค้นย้อนหลัง · พิมพ์ซ้ำ" },
-  { href: "/admin/audit-logs", label: "บันทึกการใช้งาน", short: "บันทึก", hint: "ใครทำอะไร · เมื่อไหร่" },
-  { href: "/admin/staff", label: "พนักงาน", short: "พนักงาน", hint: "บัญชี · PIN · เครื่องที่ล็อกอิน" },
-  { href: "/admin/settings", label: "ตั้งค่า", short: "ตั้งค่า", hint: "ภาษี · ข้อมูลร้าน · สถานีครัว" },
+  { href: "/admin/menu", label: "Menu & items", short: "Menu", hint: "Categories · Items · Sold out" },
+  { href: "/admin/modifiers", label: "Option groups", short: "Options", hint: "Size · Spice · Toppings" },
+  { href: "/admin/receipts", label: "Receipts", short: "Receipts", hint: "Search past · Reprint" },
+  { href: "/admin/audit-logs", label: "Audit log", short: "Log", hint: "Who did what · When" },
+  { href: "/admin/staff", label: "Staff", short: "Staff", hint: "Accounts · PINs · Devices" },
+  { href: "/admin/settings", label: "Settings", short: "Settings", hint: "Tax · Store info · Stations" },
 ];
 
 export function AdminNav({
@@ -52,7 +52,7 @@ export function AdminNav({
     href === "/admin" ? pathname === "/admin" : pathname === href || pathname.startsWith(`${href}/`);
 
   const links = canViewDashboard
-    ? [{ href: "/admin", label: "สรุปวันนี้", short: "สรุป", hint: "ยอดขาย · หน้าร้านตอนนี้" }, ...LINKS]
+    ? [{ href: "/admin", label: "Today", short: "Today", hint: "Sales · Floor right now" }, ...LINKS]
     : LINKS;
 
   return (
@@ -107,7 +107,7 @@ export function AdminNav({
             className="mt-auto flex items-center gap-2 border-t-2 border-[var(--color-text)] px-4 py-3.5 transition-colors hover:bg-[var(--color-accent-100)]"
           >
             <span aria-hidden>‹</span>
-            <span className="display text-[15px]">กลับไปหน้าร้าน (POS)</span>
+            <span className="display text-[15px]">Back to POS</span>
           </Link>
         )}
 
@@ -116,8 +116,8 @@ export function AdminNav({
           จะลอยขึ้นไปติดเมนูแทนที่จะอยู่ก้นแถบ
         */}
         <div className={`flex flex-col gap-1 border-t-2 border-[var(--color-text)] p-4 ${canGoToPos ? "" : "mt-auto"}`}>
-          <span className="kicker">ยังไม่ได้ทำ</span>
-          <span className="kicker">สต็อก (บทที่ 14) · รายงาน (บทที่ 15)</span>
+          <span className="kicker">Not built yet</span>
+          <span className="kicker">Inventory (ch. 14) · Reports (ch. 15)</span>
         </div>
       </nav>
 
@@ -129,7 +129,7 @@ export function AdminNav({
         {canGoToPos && (
           <Link
             href="/pos"
-            aria-label="กลับไปหน้าร้าน (POS)"
+            aria-label="Back to POS"
             className="flex min-h-[56px] w-14 flex-none items-center justify-center bg-[var(--color-neutral-100)] text-xl leading-none"
           >
             ‹

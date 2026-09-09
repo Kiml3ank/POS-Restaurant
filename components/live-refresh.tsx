@@ -121,7 +121,7 @@ export function LiveRefresh({
   }
 
   const text =
-    status === "live" ? "สดอยู่" : status === "connecting" ? "กำลังต่อ..." : "สายหลุด";
+    status === "live" ? "Live" : status === "connecting" ? "Connecting…" : "Disconnected";
 
   return (
     <span

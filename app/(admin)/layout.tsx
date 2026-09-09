@@ -38,7 +38,7 @@ export default async function AdminLayout({
           className="flex flex-none items-center gap-2 border-r-2 border-[var(--color-text)] px-4 transition-colors hover:bg-[var(--color-accent-100)] lg:gap-3 lg:px-6"
         >
           <span className="size-3.5 flex-none bg-[var(--color-accent)]" />
-          <span className="display text-[17px]">หลังร้าน</span>
+          <span className="display text-[17px]">Back office</span>
           <span className="kicker hidden truncate sm:inline">{staff.branch.name}</span>
         </Link>
 
@@ -48,7 +48,7 @@ export default async function AdminLayout({
             — คนที่กดปุ่มไม่เจอจะได้รู้ทันทีว่าเป็นเพราะสิทธิ์ ไม่ใช่เพราะระบบเสีย
           */}
           <span className="kicker hidden whitespace-nowrap sm:inline">
-            {canEditMenu(staff.role) ? "แก้ไขได้ทุกอย่าง" : "กดของหมดได้อย่างเดียว"}
+            {canEditMenu(staff.role) ? "Full edit access" : "Sold-out toggle only"}
           </span>
           <span className="kicker hidden whitespace-nowrap lg:inline">
             {STAFF_ROLE_LABEL[staff.role]}
@@ -57,7 +57,7 @@ export default async function AdminLayout({
 
           <form action={adminLogoutAction} className="flex-none">
             <button type="submit" className="btn btn-secondary h-[38px] whitespace-nowrap">
-              ล็อกจอ
+              Lock screen
             </button>
           </form>
         </div>

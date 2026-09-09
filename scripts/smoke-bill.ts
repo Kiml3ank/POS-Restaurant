@@ -5,7 +5,8 @@ import { CURRENCIES, formatMoney, formatMoneyDelta, lineTotalOf } from "@/lib/mo
 import { addToCart, placeOrder } from "@/lib/server/cart";
 import { getTableBill } from "@/lib/server/billing";
 import { prisma } from "@/lib/server/db";
-import { openOrJoinTableSession } from "@/lib/server/table-session";
+import { getPosTable, getPosTables } from "@/lib/server/pos";
+import { openOrJoinTableSession, resolveSessionByToken } from "@/lib/server/table-session";
 import type { Currency } from "@/lib/generated/prisma/enums";
 
 /**
@@ -295,6 +296,61 @@ async function main() {
     `ได้ ${detail2?.bill.subtotal}`,
   );
   check("บรรทัดแยกตามรอบที่สั่ง ไม่ยุบรวมกัน", detail2?.lines.length === 3);
+
+  // -- 8. Expired round that still owes money -------------------------------
+  /**
+   * expiresAt is a guard for the CUSTOMER only (it stops "photograph the QR,
+   * order from home tomorrow"). It must never hide money the staff still has
+   * to collect.
+   *
+   * Real case this came from: a round expired at 04:31 with a READY item
+   * sitting on the kitchen screen. The table map showed the table free, the
+   * billing screen said there was no bill, and closeTableSession() refused
+   * because orders had already gone to the kitchen -- so the ticket was
+   * stranded on KDS with no way to ever clear it.
+   */
+  await prisma.tableSession.update({
+    where: { id: session.id },
+    data: { expiresAt: new Date(Date.now() - 60 * 60 * 1000) },
+  });
+
+  const expiredBill = await getTableBill(branch.id, BILL_TABLE_ID);
+  check(
+    "expired round is still billable",
+    expiredBill?.session?.id === session.id,
+    `got ${expiredBill?.session?.id ?? "null"}`,
+  );
+  check(
+    "expired round keeps its full amount",
+    expiredBill?.bill.subtotal === 18_000,
+    `got ${expiredBill?.bill.subtotal}`,
+  );
+
+  const expiredDetail = await getPosTable(branch.id, BILL_TABLE_ID);
+  check(
+    "expired round still opens on the POS table screen",
+    expiredDetail?.session?.id === session.id,
+    `got ${expiredDetail?.session?.id ?? "null"}`,
+  );
+
+  const map = await getPosTables(branch.id);
+  const mapRow = map.find((row) => row.id === BILL_TABLE_ID);
+  check(
+    "table map still shows the table as occupied",
+    mapRow?.session?.id === session.id,
+    `got ${mapRow?.session?.id ?? "null"}`,
+  );
+
+  /**
+   * The other half of the fix: the customer-side door must stay shut.
+   * If this ever flips to PASS-by-resolving, the QR-screenshot hole is back.
+   */
+  const customerView = await resolveSessionByToken(branch.id, session.token);
+  check(
+    "customer QR token is still rejected once expired",
+    customerView === null,
+    customerView ? "resolved when it should not" : "",
+  );
 
   await resetTable(BILL_TABLE_ID);
   console.log("cleanup done");

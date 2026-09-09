@@ -1,6 +1,8 @@
 import "server-only";
 
-import type { Currency } from "@/lib/generated/prisma/enums";
+import { randomBytes } from "node:crypto";
+
+import type { Currency, SalePointKind } from "@/lib/generated/prisma/enums";
 import { CURRENCIES } from "@/lib/money";
 import { canEditSettings, canEditTaxSettings } from "@/lib/rbac";
 import { clientIp } from "@/lib/server/client-ip";
@@ -68,11 +70,40 @@ export async function getSettings(branchId: string) {
     return null;
   }
 
-  const [stations, paymentCount] = await Promise.all([
+  const [stations, tables, paymentCount] = await Promise.all([
     prisma.station.findMany({
       where: { branchId },
       orderBy: [{ sortOrder: "asc" }, { code: "asc" }],
       select: { id: true, code: true, name: true, sortOrder: true, isActive: true },
+    }),
+    /**
+     * จุดขายทั้งหมดของสาขา (โต๊ะนั่ง + เคาน์เตอร์ + ช่องไรเดอร์)
+     *
+     * `_count` มาด้วยเพราะหน้าจอต้องรู้ก่อนกดว่า "ลบได้ไหม" — กติกาเดียวกับ
+     * สถานีครัวและเมนู: ลบจริงได้เฉพาะของที่ไม่เคยถูกใช้ ที่เหลือปิดใช้งานแทน
+     * และต้องนับ `sessions` ด้วย ไม่ใช่แค่ `orders` เพราะ
+     * `TableSession.tableId` เป็น **Cascade** — ลบโต๊ะแล้วรอบขายเก่าจะหายตามไป
+     * เงียบ ๆ ทั้งที่มันคือประวัติ (ต่างจาก `Order.tableId` ที่เป็น Restrict
+     * และฐานข้อมูลจะกันให้เอง)
+     */
+    prisma.restaurantTable.findMany({
+      where: { branchId },
+      orderBy: [{ sortOrder: "asc" }, { name: "asc" }],
+      select: {
+        id: true,
+        name: true,
+        tableCode: true,
+        seats: true,
+        kind: true,
+        sortOrder: true,
+        isActive: true,
+        _count: { select: { orders: true, sessions: true } },
+        sessions: {
+          where: { status: "OPEN" },
+          select: { id: true },
+          take: 1,
+        },
+      },
     }),
     prisma.payment.count({ where: { branchId } }),
   ]);
@@ -81,6 +112,16 @@ export async function getSettings(branchId: string) {
     branch,
     tenant: branch.tenant,
     stations,
+    tables: tables.map((table) => {
+      const { sessions, ...rest } = table;
+      return {
+        ...rest,
+        /** มีบิลเปิดค้างอยู่ไหม — ห้ามปิดใช้งาน/ลบขณะที่ยังมีเงินค้าง */
+        hasOpenSession: sessions.length > 0,
+        /** ไม่เคยถูกใช้เลย = ลบจริงได้ · เคยถูกใช้ = ปิดใช้งานได้อย่างเดียว */
+        deletable: table._count.orders === 0 && table._count.sessions === 0,
+      };
+    }),
     /**
      * เคยรับเงินไปแล้วกี่บิล — หน้าจอใช้ตัดสินว่าจะเปิดช่อง "สกุลเงิน" ให้แก้ไหม
      * (ตัวที่กันจริงคือ `updateTaxSettings()` ที่ตรวจซ้ำอีกชั้น)
@@ -403,6 +444,270 @@ export async function deleteStation(
     action: "settings.station_delete",
     entityId: station.id,
     before: { code: station.code, name: station.name },
+    after: {},
+  });
+
+  return { ok: true, changed: true };
+}
+
+/**
+ * ── จุดขาย (โต๊ะ / เคาน์เตอร์ / ช่องไรเดอร์) ────────────────────────────────
+ *
+ * ก่อนหน้านี้เพิ่มโต๊ะได้จาก `prisma/seed.ts` ที่เดียว ซึ่งแปลว่าเจ้าของร้าน
+ * ที่ซื้อโต๊ะเพิ่มต้องรอคนเขียนโค้ด — ปัญหาเดียวกับที่ทำให้ต้องมีหน้าตั้งค่า
+ *
+ * ⚠ สามฟังก์ชันข้างล่างไม่ใช่ CRUD ธรรมดา มีกฎที่ผูกกับ "เงิน" และ "QR" อยู่ด้วย
+ * อ่านคอมเมนต์ของแต่ละตัวก่อนแก้
+ */
+
+/**
+ * ตัวอักษรของ `tableCode` — ตัดตัวที่อ่านผิดกันได้ออก (0/O, 1/l/I)
+ * เพราะรหัสนี้ถูก **พิมพ์ลงกระดาษ** แล้วมีคนพิมพ์ตามด้วยมือเวลากล้องสแกนไม่ติด
+ */
+const TABLE_CODE_ALPHABET = "abcdefghjkmnpqrstuvwxyz23456789";
+const TABLE_CODE_LENGTH = 6;
+
+/**
+ * สุ่ม `tableCode` ที่ยังไม่ซ้ำ — unique **ทั้งระบบ** ไม่ใช่แค่ในสาขา
+ * (resolve จาก URL `/t/[tableCode]` ตรง ๆ โดยยังไม่รู้ว่าเป็นสาขาไหน)
+ *
+ * ใช้ `randomBytes` ไม่ใช่ `Math.random()` เพราะรหัสนี้คือสิ่งเดียวที่กันคนนอก
+ * เปิดบิลของโต๊ะที่ตัวเองไม่ได้นั่ง — เดาได้ = เปิดบิลโต๊ะอื่นได้
+ */
+async function generateTableCode(): Promise<string> {
+  for (let attempt = 0; attempt < 10; attempt += 1) {
+    const bytes = randomBytes(TABLE_CODE_LENGTH);
+    let code = "";
+
+    for (let i = 0; i < TABLE_CODE_LENGTH; i += 1) {
+      code += TABLE_CODE_ALPHABET[bytes[i] % TABLE_CODE_ALPHABET.length];
+    }
+
+    const taken = await prisma.restaurantTable.findUnique({
+      where: { tableCode: code },
+      select: { id: true },
+    });
+
+    if (!taken) {
+      return code;
+    }
+  }
+
+  // 31^6 ~ 887 ล้านค่า — ชนสิบครั้งติดแปลว่ามีอย่างอื่นผิด ไม่ใช่ดวงไม่ดี
+  throw new Error("Could not generate a unique table code after 10 attempts");
+}
+
+export async function upsertTable(
+  actor: CurrentStaff,
+  tableId: string | null,
+  input: { name: string; seats: number; sortOrder: number; kind: SalePointKind; isActive: boolean },
+): Promise<SettingsResult & { tableId?: string; tableCode?: string }> {
+  if (!canEditSettings(actor.role)) {
+    return fail("Your role can't edit tables");
+  }
+
+  const name = input.name.trim();
+
+  if (!name) {
+    return fail("Enter a table name");
+  }
+
+  if (!Number.isInteger(input.seats) || input.seats < 0) {
+    return fail("Seats must be a whole number of 0 or more");
+  }
+
+  if (!Number.isInteger(input.sortOrder)) {
+    return fail("Sort order must be a whole number");
+  }
+
+  const existing = tableId
+    ? await prisma.restaurantTable.findFirst({
+        where: { id: tableId, branchId: actor.branchId },
+        include: {
+          _count: { select: { sessions: true } },
+          sessions: { where: { status: "OPEN" }, select: { id: true }, take: 1 },
+        },
+      })
+    : null;
+
+  if (tableId && !existing) {
+    return fail("Table not found in your branch");
+  }
+
+  // ชื่อซ้ำในสาขาเดียวกันไม่ได้ (@@unique([branchId, name])) — ตรวจเองก่อนเพื่อคืน
+  // ข้อความที่คนอ่านรู้เรื่อง แทน P2002 ดิบ ๆ จาก Prisma
+  const duplicate = await prisma.restaurantTable.findFirst({
+    where: { branchId: actor.branchId, name, ...(existing ? { id: { not: existing.id } } : {}) },
+    select: { id: true },
+  });
+
+  if (duplicate) {
+    return fail(`A sale point named "${name}" already exists in this branch`);
+  }
+
+  /**
+   * ⚠ ห้ามเปลี่ยน `kind` ของจุดขายที่เคยถูกใช้แล้ว
+   *
+   * `kind` ไม่ใช่ป้ายชื่อ แต่เป็นตัวตัดสิน **สี่ข้อพร้อมกัน** (ดู lib/sale-point.ts):
+   * ขึ้นผังโต๊ะไหม · เข้าร่วมบิลเดิมไหม · ต้องมีเลขคิวไหม · **คิดเซอร์วิสชาร์จไหม**
+   *
+   * สลับ DINE_IN -> COUNTER บนโต๊ะที่มีประวัติ = ความหมายของบิลเก่าเปลี่ยนทันที
+   * (เคยคิดค่าบริการ 10% กลายเป็นช่องที่ไม่คิด) และรอบที่เปิดค้างอยู่จะหลุด
+   * จากผังโต๊ะไปโผล่ในแถบคิวโดยไม่มีเลขคิว
+   */
+  if (existing && existing.kind !== input.kind && existing._count.sessions > 0) {
+    return fail(
+      "This sale point already has sales history — its type can't be changed. Create a new one instead",
+    );
+  }
+
+  /**
+   * ⚠ ปิดใช้งานจุดขายที่มีบิลเปิดค้างไม่ได้
+   *
+   * `isActive: false` ทำให้มันหลุดจากทุก query ของหน้าร้าน (`isActive: true`
+   * อยู่ในเงื่อนไขของ `getPosTables()`/`getPosTable()`) = บิลที่ยังไม่จ่ายหายไป
+   * จากสายตาพนักงาน ซึ่งเป็นบั๊กตระกูลเดียวกับที่ `expiresAt` เคยทำไว้
+   * (ดู archive/report/2026-08-25-expired-session-billable.md)
+   */
+  if (existing && existing.isActive && !input.isActive && existing.sessions.length > 0) {
+    return fail("This sale point has an open bill — take payment or close it before disabling");
+  }
+
+  const saved = existing
+    ? await prisma.restaurantTable.update({
+        where: { id: existing.id },
+        data: {
+          name,
+          seats: input.seats,
+          sortOrder: input.sortOrder,
+          kind: input.kind,
+          isActive: input.isActive,
+        },
+        select: { id: true, tableCode: true },
+      })
+    : await prisma.restaurantTable.create({
+        data: {
+          branchId: actor.branchId,
+          name,
+          tableCode: await generateTableCode(),
+          seats: input.seats,
+          sortOrder: input.sortOrder,
+          kind: input.kind,
+          isActive: input.isActive,
+        },
+        select: { id: true, tableCode: true },
+      });
+
+  await writeSettingsAudit({
+    branchId: actor.branchId,
+    actorId: actor.id,
+    action: "settings.table_upsert",
+    entityId: saved.id,
+    before: existing
+      ? {
+          name: existing.name,
+          seats: existing.seats,
+          sortOrder: existing.sortOrder,
+          kind: existing.kind,
+          isActive: existing.isActive,
+        }
+      : {},
+    after: {
+      name,
+      seats: input.seats,
+      sortOrder: input.sortOrder,
+      kind: input.kind,
+      isActive: input.isActive,
+    },
+  });
+
+  return { ok: true, changed: true, tableId: saved.id, tableCode: saved.tableCode };
+}
+
+/**
+ * ออก `tableCode` ใหม่ = **พิมพ์ QR ใหม่แล้วใบเก่าตายทันที**
+ *
+ * แยกเป็นปุ่มของตัวเอง ไม่ใช่ช่องกรอกในฟอร์ม ด้วยเหตุผลเดียวกับปุ่มรีเซ็ต PIN
+ * ในบทที่ 13b: มันคือ **การเพิกถอนของเก่า** ไม่ใช่การแก้ข้อมูล คนกดต้องตั้งใจกด
+ *
+ * ใช้ตอน QR รั่ว (ลูกค้าถ่ายรูปไว้แล้วสั่งจากบ้าน / กระดาษหลุดไปนอกร้าน)
+ * — อีกชั้นที่กันเรื่องเดียวกันคือ `TableSession.expiresAt` แต่ตัวนั้นกันได้แค่
+ * รอบที่เปิดอยู่ ส่วนตัวนี้ตัดที่ตัว QR เลย
+ */
+export async function rotateTableCode(
+  actor: CurrentStaff,
+  tableId: string,
+): Promise<SettingsResult & { tableCode?: string }> {
+  if (!canEditSettings(actor.role)) {
+    return fail("Your role can't reissue QR codes");
+  }
+
+  const table = await prisma.restaurantTable.findFirst({
+    where: { id: tableId, branchId: actor.branchId },
+  });
+
+  if (!table) {
+    return fail("Table not found in your branch");
+  }
+
+  const tableCode = await generateTableCode();
+
+  await prisma.restaurantTable.update({
+    where: { id: table.id },
+    data: { tableCode },
+  });
+
+  await writeSettingsAudit({
+    branchId: actor.branchId,
+    actorId: actor.id,
+    action: "settings.table_rotate_qr",
+    entityId: table.id,
+    // เก็บรหัสเก่าไว้ด้วย เพื่อตอบได้ว่า QR ใบที่ลูกค้าถือมาเป็นของรอบไหน
+    before: { name: table.name, tableCode: table.tableCode },
+    after: { name: table.name, tableCode },
+  });
+
+  return { ok: true, changed: true, tableCode };
+}
+
+/**
+ * ลบจุดขาย — **ได้เฉพาะตัวที่ไม่เคยถูกใช้เลย** (กติกาเดียวกับสถานีครัวและเมนู)
+ *
+ * ⚠ ต้องนับ `sessions` เองด้วย ห้ามพึ่งฐานข้อมูลอย่างเดียว:
+ * `Order.tableId` เป็น Restrict (ฐานกันให้) แต่ `TableSession.tableId` เป็น
+ * **Cascade** — โต๊ะที่เคยเปิดรอบแต่ลูกค้ายังไม่ได้สั่งอะไร จะลบผ่านฉลุยแล้ว
+ * พารอบขายเก่าหายไปด้วยเงียบ ๆ ทั้งที่มันคือประวัติที่ AuditLog อ้างถึงอยู่
+ */
+export async function deleteTable(actor: CurrentStaff, tableId: string): Promise<SettingsResult> {
+  if (!canEditSettings(actor.role)) {
+    return fail("Your role can't delete tables");
+  }
+
+  const table = await prisma.restaurantTable.findFirst({
+    where: { id: tableId, branchId: actor.branchId },
+  });
+
+  if (!table) {
+    return fail("Table not found in your branch");
+  }
+
+  const [orders, sessions] = await Promise.all([
+    prisma.order.count({ where: { tableId: table.id } }),
+    prisma.tableSession.count({ where: { tableId: table.id } }),
+  ]);
+
+  if (orders > 0 || sessions > 0) {
+    return fail(`"${table.name}" already has sales history — can't delete. Disable it instead`);
+  }
+
+  await prisma.restaurantTable.delete({ where: { id: table.id } });
+
+  await writeSettingsAudit({
+    branchId: actor.branchId,
+    actorId: actor.id,
+    action: "settings.table_delete",
+    entityId: table.id,
+    before: { name: table.name, tableCode: table.tableCode, kind: table.kind },
     after: {},
   });
 

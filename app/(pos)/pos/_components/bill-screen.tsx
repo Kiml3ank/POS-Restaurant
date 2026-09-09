@@ -458,7 +458,7 @@ export function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; base: 
 
             {payment.method === "QR" ? (
               <p role="status" className="alert">
-                Demo mode — not confirmed with a bank. This record comes from the staff member's confirmation.
+                Demo mode — not confirmed with a bank. This record comes from the staff member&apos;s confirmation.
               </p>
             ) : null}
           </div>

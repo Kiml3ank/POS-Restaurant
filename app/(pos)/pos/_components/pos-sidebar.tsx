@@ -12,10 +12,12 @@ import type { StaffRole } from "@/lib/generated/prisma/enums";
  * เป็น client component เพราะต้องรู้ว่าตอนนี้อยู่หน้าไหนเพื่อไฮไลต์ (usePathname)
  * — ข้อมูลที่ต้องใช้มีแค่ตำแหน่งของพนักงาน จึงรับมาเป็น prop ไม่ต้องแตะ DB
  *
- * **โมดูลที่ยังไม่ได้ทำแสดงเป็นข้อความ ไม่ใช่ลิงก์** และบอกไว้เลยว่าอยู่บทไหน
- * เจตนา: แถบนี้ทำหน้าที่เป็นแผนที่ของระบบให้คนที่มาเห็นครั้งแรกรู้ว่าอะไรมีแล้ว
- * อะไรยังไม่มี — ดีกว่าซ่อนจนดูเหมือนระบบมีแค่หน้าเดียว และดีกว่าใส่ลิงก์ที่กดแล้ว
- * ไปเจอหน้าเปล่า ถ้าบทไหนทำเสร็จให้ย้ายมาใส่ `href` แล้วมันจะกดได้เอง
+ * **โมดูลที่ยังไม่ได้ทำจะไม่แสดงเลย** (ดู VISIBLE_MODULES ด้านล่าง)
+ * เดิมแสดงเป็นข้อความจางพร้อมเลขบทเพื่อให้แถบนี้เป็น "แผนที่ของระบบ" แต่สำหรับ
+ * คนที่ใช้งานจริงมันคือรายการของที่กดไม่ได้ ซึ่งกินพื้นที่และสอนให้คนเลิกมองแถบนี้
+ *
+ * **แถวใน MODULES ยังอยู่ครบ ไม่ได้ลบทิ้ง** — พอบทไหนทำเสร็จแล้วเติม `href`
+ * ให้แถวนั้น มันจะโผล่ขึ้นมาเองทันที (ยังเป็นที่เดียวที่ต้องแก้เหมือนเดิม)
  */
 type Module = {
   num: string;
@@ -77,6 +79,21 @@ const MODULES: Module[] = [
   { num: "06", label: "Reports / Shift close", todo: "Chapter 15" },
 ];
 
+/**
+ * กฎของแถบนี้: **กดไม่ได้ = ไม่ต้องอยู่บนแถบ**
+ *
+ * แสดงเฉพาะแถวที่มี `href` เท่านั้น ที่เหลือถูกซ่อนด้วยเหตุผลคนละข้อกัน
+ * แต่ให้ผลเดียวกันกับคนใช้งาน คือเป็นบรรทัดที่กดแล้วไม่มีอะไรเกิดขึ้น:
+ *
+ *   - `todo` (05, 06) — ยังไม่ได้ทำ ไม่มีหน้าให้ไป
+ *   - `hint` (03) — **ทำเสร็จแล้ว** (บทที่ 10-11) แต่ไม่มี URL ของตัวเอง
+ *     เพราะบิลผูกกับรอบโต๊ะเสมอ ต้องเลือกโต๊ะจากผังก่อน จึงเข้าจากโมดูล 01
+ *
+ * แถวทั้งหมดยังอยู่ใน MODULES ไม่ได้ลบ — เติม `href` ให้แถวไหนแล้วแถวนั้น
+ * จะโผล่ขึ้นมาเองทันที (ยังเป็นที่เดียวที่ต้องแก้เหมือนเดิม)
+ */
+const VISIBLE_MODULES = MODULES.filter((module) => module.href);
+
 export function PosSidebar({ role }: { role: StaffRole }) {
   const pathname = usePathname();
 
@@ -91,7 +108,7 @@ export function PosSidebar({ role }: { role: StaffRole }) {
    * มีจำกัดจนต้องเลือกอย่างเดียว — เลือก "ปุ่มที่กดแล้วไปไหนได้" ทิ้งของที่กดไม่ได้
    * เพราะแถบล่างที่เต็มไปด้วยของกดไม่ได้คือแถบที่คนเลิกมองภายในวันเดียว
    */
-  const barModules = MODULES.filter((module) => module.href && isAllowed(module));
+  const barModules = VISIBLE_MODULES.filter((module) => module.href && isAllowed(module));
 
   return (
     <>
@@ -100,7 +117,7 @@ export function PosSidebar({ role }: { role: StaffRole }) {
         data-print-hide
         className="hidden w-[268px] flex-none flex-col overflow-auto border-r-2 border-[var(--color-text)] bg-[var(--color-neutral-100)] lg:flex"
       >
-        {MODULES.map((module) => {
+        {VISIBLE_MODULES.map((module) => {
           const current = module.isCurrent?.(pathname) ?? false;
           // ทำเสร็จแล้ว (มี href) แต่ตำแหน่งนี้เข้าไม่ได้ → แสดงจางพร้อมบอกเหตุผล
           const allowed = isAllowed(module);

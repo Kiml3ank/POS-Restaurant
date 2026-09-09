@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 
 import { canAccessScreen, canEditSettings, canEditTaxSettings } from "@/lib/rbac";
+import { SALE_POINT_LABEL } from "@/lib/sale-point";
 import { prisma } from "@/lib/server/db";
 import { getSettings } from "@/lib/server/settings";
 import { getCurrentStaff } from "@/lib/server/staff-session";
@@ -8,7 +9,10 @@ import { getCurrentStaff } from "@/lib/server/staff-session";
 import {
   BusinessInfoForm,
   DeleteStationForm,
+  DeleteTableForm,
+  RotateQrForm,
   StationForm,
+  TableForm,
   TaxSettingsForm,
 } from "./_components/settings-forms";
 
@@ -19,6 +23,7 @@ import {
  *   1. อัตราภาษี/ค่าบริการ/สกุลเงิน — **เจ้าของร้านเท่านั้น** (เปลี่ยนยอดที่ลูกค้าจ่าย)
  *   2. ข้อมูลร้านบนใบเสร็จ — เจ้าของร้าน/ผู้จัดการ
  *   3. สถานีครัว — เจ้าของร้าน/ผู้จัดการ
+ *   4. จุดขาย (โต๊ะ/เคาน์เตอร์/ช่องไรเดอร์) — เจ้าของร้าน/ผู้จัดการ
  *
  * แผงที่กดไม่ได้ยัง **แสดงค่าปัจจุบันให้เห็น** ไม่ใช่ซ่อนทั้งแผง เพราะผู้จัดการ
  * ต้องรู้ว่าตอนนี้ร้านคิด VAT กี่เปอร์เซ็นต์เพื่อตอบลูกค้าได้ แค่แก้เองไม่ได้
@@ -34,13 +39,13 @@ export default async function SettingsPage() {
     return (
       <main className="flex min-h-0 flex-1 flex-col">
         <header className="flex items-center gap-3 border-b-2 border-[var(--color-text)] px-4 py-3 lg:px-6">
-          <span className="display text-[19px]">ตั้งค่า</span>
+          <span className="display text-[19px]">Settings</span>
         </header>
         <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
           <div className="panel mx-auto mt-8 flex max-w-[520px] flex-col gap-2 p-6">
-            <span className="display text-[20px]">ดูหน้านี้ไม่ได้</span>
+            <span className="display text-[20px]">You can&apos;t view this page</span>
             <p className="text-[var(--color-neutral-700)]">
-              เฉพาะเจ้าของร้านและผู้จัดการเท่านั้นที่แก้ค่าตั้งของสาขาได้
+              Only owners and managers can change branch settings.
             </p>
           </div>
         </div>
@@ -54,7 +59,7 @@ export default async function SettingsPage() {
     redirect("/admin/menu");
   }
 
-  const { branch, tenant, stations, paymentCount } = settings;
+  const { branch, tenant, stations, tables, paymentCount } = settings;
   const canEditRates = canEditTaxSettings(staff.role);
 
   /**
@@ -79,21 +84,21 @@ export default async function SettingsPage() {
     <main className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--color-text)] px-4 py-3 lg:px-6">
         <div className="flex items-baseline gap-3">
-          <span className="display text-[19px]">ตั้งค่า</span>
+          <span className="display text-[19px]">Settings</span>
           <span className="kicker">
             {branch.name} · {branch.currency} · {branch.timezone}
           </span>
         </div>
-        <span className="kicker">แก้แล้วมีผลกับบิลใบถัดไป ไม่ย้อนหลัง</span>
+        <span className="kicker">Changes apply to the next bill — never retroactively</span>
       </header>
 
       <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
         <div className="mx-auto flex w-full max-w-[840px] flex-col gap-5">
           <section className="panel flex flex-col gap-4 p-5">
             <div className="flex flex-col gap-1">
-              <span className="display text-[17px]">ภาษีและค่าบริการ</span>
+              <span className="display text-[17px]">Tax &amp; service charge</span>
               <span className="kicker">
-                มีผลกับบิลที่เปิดอยู่และบิลใบถัดไป · บิลที่ปิดไปแล้วเก็บอัตราของตัวเองไว้ ไม่เปลี่ยนตาม
+                Applies to open bills and the next one · closed bills keep their own rates
               </span>
             </div>
 
@@ -108,18 +113,18 @@ export default async function SettingsPage() {
               disabledReason={
                 canEditRates
                   ? undefined
-                  : `ตอนนี้ VAT ${branch.vatRateBp / 100}% · เซอร์วิสชาร์จ ${
+                  : `Currently VAT ${branch.vatRateBp / 100}% · service charge ${
                       branch.serviceChargeBp / 100
-                    }% · ส่วนลดพนักงาน ${branch.staffMealDiscountBp / 100}% — เฉพาะเจ้าของร้านเท่านั้นที่แก้ได้`
+                    }% · staff discount ${branch.staffMealDiscountBp / 100}% — owner only`
               }
             />
           </section>
 
           <section className="panel flex flex-col gap-4 p-5">
             <div className="flex flex-col gap-1">
-              <span className="display text-[17px]">ข้อมูลร้านบนใบเสร็จ</span>
+              <span className="display text-[17px]">Business details on receipts</span>
               <span className="kicker">
-                ใบที่ออกไปแล้วเก็บข้อมูล ณ วันที่ออกไว้ในตัวเอง — แก้ที่นี่ไม่กระทบใบเก่า
+                Issued receipts snapshot these values — editing here never changes an old one
               </span>
             </div>
 
@@ -135,9 +140,10 @@ export default async function SettingsPage() {
 
           <section className="panel flex flex-col gap-4 p-5">
             <div className="flex flex-col gap-1">
-              <span className="display text-[17px]">สถานีครัว</span>
+              <span className="display text-[17px]">Kitchen stations</span>
               <span className="kicker">
-                จอครัวแยกตั๋วตามสถานีที่ผูกไว้กับเมนู · เปลี่ยนชื่อได้ ตั๋วที่อยู่บนจอไม่กระทบ
+                The kitchen display splits tickets by the station linked to each item · renaming is
+                safe for tickets already on screen
               </span>
             </div>
 
@@ -150,10 +156,10 @@ export default async function SettingsPage() {
                     </span>
                     <span className="flex items-center gap-2">
                       <span className={station.isActive ? "tag tag-neutral" : "tag"}>
-                        {station.isActive ? "เปิดใช้งาน" : "ปิดใช้งาน"}
+                        {station.isActive ? "Active" : "Disabled"}
                       </span>
                       {usedStationIds.has(station.id) ? (
-                        <span className="kicker">เคยถูกใช้แล้ว ลบไม่ได้</span>
+                        <span className="kicker">Already used — can&apos;t delete</span>
                       ) : (
                         <DeleteStationForm stationId={station.id} />
                       )}
@@ -166,8 +172,81 @@ export default async function SettingsPage() {
             </ul>
 
             <div className="flex flex-col gap-2">
-              <span className="kicker">เพิ่มสถานีใหม่</span>
+              <span className="kicker">Add a station</span>
               <StationForm />
+            </div>
+          </section>
+
+          {/*
+            จุดขาย — โต๊ะนั่ง / เคาน์เตอร์ซื้อกลับ / ช่องไรเดอร์ อยู่ในตารางเดียวกัน
+            (RestaurantTable) ต่างกันที่ `kind` ซึ่งตัดสินสี่ข้อพร้อมกัน ดู lib/sale-point.ts
+
+            วางไว้ล่างสุดเพราะเป็นแผงที่ยาวที่สุดและถูกแตะน้อยที่สุด — เพิ่มโต๊ะเป็นงาน
+            ตอนจัดร้านใหม่ ไม่ใช่งานประจำวันแบบ "ของหมด"
+          */}
+          <section className="panel flex flex-col gap-4 p-5">
+            <div className="flex flex-col gap-1">
+              <span className="display text-[17px]">Tables &amp; sale points</span>
+              <span className="kicker">
+                Each dine-in table carries its own QR code · reissuing one kills the printed QR
+                immediately
+              </span>
+            </div>
+
+            <ul className="flex flex-col gap-4">
+              {tables.map((table) => (
+                <li key={table.id} className="flex flex-col gap-2">
+                  <div className="flex flex-wrap items-baseline justify-between gap-2">
+                    <span className="flex flex-wrap items-baseline gap-2">
+                      <span className="display text-[15px]">{table.name}</span>
+                      <span className="kicker">
+                        {SALE_POINT_LABEL[table.kind]}
+                        {table.kind === "DINE_IN" ? ` · ${table.seats} seats` : ""}
+                      </span>
+                      {/*
+                        โชว์รหัส QR เป็นตัวหนังสือด้วย ไม่ใช่แค่รูป — พนักงานต้องพิมพ์
+                        ตามด้วยมือได้เวลากล้องสแกนไม่ติด (เหตุผลเดียวกับที่ตัวอักษรของ
+                        รหัสตัด 0/O และ 1/l ออก)
+                      */}
+                      {table.kind === "DINE_IN" ? (
+                        <code className="kicker">/t/{table.tableCode}</code>
+                      ) : null}
+                    </span>
+
+                    <span className="flex flex-wrap items-center gap-2">
+                      {table.hasOpenSession ? <span className="tag">Open bill</span> : null}
+                      <span className={table.isActive ? "tag tag-neutral" : "tag"}>
+                        {table.isActive ? "Active" : "Disabled"}
+                      </span>
+                      {table.kind === "DINE_IN" ? (
+                        <RotateQrForm tableId={table.id} tableName={table.name} />
+                      ) : null}
+                      {table.deletable ? (
+                        <DeleteTableForm tableId={table.id} />
+                      ) : (
+                        <span className="kicker">Has history — can&apos;t delete</span>
+                      )}
+                    </span>
+                  </div>
+
+                  <TableForm
+                    table={{
+                      id: table.id,
+                      name: table.name,
+                      seats: table.seats,
+                      sortOrder: table.sortOrder,
+                      kind: table.kind,
+                      isActive: table.isActive,
+                      locked: !table.deletable,
+                    }}
+                  />
+                </li>
+              ))}
+            </ul>
+
+            <div className="flex flex-col gap-2">
+              <span className="kicker">Add a table or sale point</span>
+              <TableForm />
             </div>
           </section>
         </div>

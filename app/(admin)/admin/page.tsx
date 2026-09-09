@@ -50,7 +50,7 @@ export default async function AdminHomePage() {
     <main className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--color-text)] px-4 py-3 lg:px-6">
         <div className="flex items-baseline gap-3">
-          <span className="display text-[19px]">สรุปวันนี้</span>
+          <span className="display text-[19px]">Today&apos;s summary</span>
           <span className="kicker tabular-nums">{day}</span>
         </div>
 
@@ -67,15 +67,15 @@ export default async function AdminHomePage() {
           <section className="panel flex flex-col gap-4 p-5">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div className="flex flex-col gap-1">
-                <span className="kicker">ยอดขายวันนี้ (รับเงินแล้ว)</span>
+                <span className="kicker">Today&apos;s sales (received)</span>
                 <span className="display text-[38px] leading-none tabular-nums">
                   {money(sales.total)}
                 </span>
               </div>
 
               <div className="flex gap-6">
-                <Stat label="บิล" value={`${sales.billCount}`} />
-                <Stat label="เฉลี่ย/บิล" value={money(sales.average)} />
+                <Stat label="Bills" value={`${sales.billCount}`} />
+                <Stat label="Average/bill" value={money(sales.average)} />
               </div>
             </div>
 
@@ -83,7 +83,7 @@ export default async function AdminHomePage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Breakdown
-                title="ช่องทางรับเงิน"
+                title="Payment method"
                 rows={sales.byMethod.map((row) => ({
                   label: PAYMENT_METHOD_LABEL[row.method as PaymentMethod],
                   count: row.count,
@@ -92,7 +92,7 @@ export default async function AdminHomePage() {
                 money={money}
               />
               <Breakdown
-                title="ช่องทางขาย"
+                title="Sales channel"
                 rows={sales.byChannel.map((row) => ({
                   label: SALE_POINT_LABEL[row.kind as SalePointKind],
                   count: row.count,

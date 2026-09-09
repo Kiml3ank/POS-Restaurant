@@ -219,7 +219,7 @@ async function main() {
 
   // ฐานของ KDS บทที่ 8: สถานีถูก snapshot ลงบรรทัดตั้งแต่ตอนสั่ง
   check("ชาเย็น snapshot สถานี = บาร์น้ำ", teaLine.stationId === "seed-station-bar", `ได้ ${teaLine.stationId}`);
-  check("อ่านชื่อสถานีได้โดยไม่ต้อง join เมนูสด", teaLine.station?.name === "บาร์น้ำ", teaLine.station?.name);
+  check("อ่านชื่อสถานีได้โดยไม่ต้อง join เมนูสด", teaLine.station?.name === "Beverage Bar", teaLine.station?.name);
   check("น้ำเปล่าไม่ผูกสถานี => ไม่ขึ้นจอครัว", waterLine.stationId === null, `ได้ ${waterLine.stationId}`);
   check("บรรทัดเก็บตัวเลือกที่เลือกไว้", teaLine.modifiers.length === 2, `ได้ ${teaLine.modifiers.length}`);
 
