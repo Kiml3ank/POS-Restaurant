@@ -35,7 +35,8 @@
     "smoke:settings": "tsx --conditions=react-server scripts/smoke-settings.ts",
     "smoke:dashboard": "tsx --conditions=react-server scripts/smoke-dashboard.ts",
     "smoke:table-move": "tsx --conditions=react-server scripts/smoke-table-move.ts",
-    "smoke:tables": "tsx --conditions=react-server scripts/smoke-tables.ts"
+    "smoke:tables": "tsx --conditions=react-server scripts/smoke-tables.ts",
+    "smoke:i18n": "tsx --conditions=react-server scripts/smoke-i18n.ts"
   },
   "dependencies": {
     "@prisma/adapter-pg": "^7.9.1",
