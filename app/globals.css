@@ -38,20 +38,22 @@
   --color-accent-700: #ae1800;
   --color-accent-800: #7c1405;
 
-  /* ตัวเลข/อังกฤษได้ Archivo ส่วนตัวไทยตกไป Noto Sans Thai ทีละกลีฟ
-     (เบราว์เซอร์ไล่ font stack ต่อกลีฟ ไม่ใช่ต่อบล็อกข้อความ)
-
-     **ตรงนี้จงใจเขียน "Archivo" ตรง ๆ ไม่ใช่ var(--font-archivo)**
+  /* **ตรงนี้จงใจเขียน "Archivo" ตรง ๆ ไม่ใช่ var(--font-archivo)**
      เพราะ var ที่ next/font สร้างให้มีค่าเป็น `"Archivo", "Archivo Fallback"`
-     และ "Archivo Fallback" คือ `local(Arial)` ที่ปรับ metric แล้ว — Arial
-     **มีกลีฟไทย** ตัวไทยจึงจะไปหยุดที่ Arial ก่อนถึง Noto Sans Thai เสมอ
-     (ตั้ง adjustFontFallback:false ที่ตัว loader แล้วไม่ช่วย เพราะ Turbopack
-     ไม่ทำตาม option นั้น — ตรวจจาก @font-face ที่ออกมาจริงทั้ง dev และ build)
+     และ "Archivo Fallback" คือ `local(Arial)` ที่ปรับ metric แล้ว ซึ่งจะกิน
+     กลีฟก่อนตัวถัดไปในสแตกเสมอ (ตั้ง adjustFontFallback:false ที่ตัว loader
+     แล้วไม่ช่วย เพราะ Turbopack ไม่ทำตาม option นั้น — ตรวจจาก @font-face
+     ที่ออกมาจริงทั้ง dev และ build)
 
-     ส่วน var(--font-noto-thai) ใช้ var ได้ตามปกติ เพราะ fallback ของมัน
-     (Arial เหมือนกัน) อยู่ถูกตำแหน่งแล้วคือ "หลัง" Noto ไม่ใช่ก่อน */
-  --font-heading: "Archivo", var(--font-noto-thai), system-ui, sans-serif;
-  --font-body: "Archivo", var(--font-noto-thai), system-ui, sans-serif;
+     เดิมสแตกนี้มี var(--font-noto-thai) คั่นอยู่ เพื่อให้ตัวไทยตกไป Noto
+     ทีละกลีฟ — ตัดออกแล้วเพราะ UI เหลือสองภาษา (เวียดนาม/อังกฤษ) และ Archivo
+     ขอ subset "vietnamese" มาแล้วที่ app/layout.tsx จึงครอบตัวอักษรเวียดนาม
+     ได้เองครบ ไม่ต้องมีฟอนต์คู่แบบที่ภาษาไทยเคยต้องมี
+
+     ⚠ ถ้าวันหนึ่งเพิ่มภาษาที่ Archivo ไม่มีกลีฟ (ไทย/ญี่ปุ่น/เกาหลี) ต้องกลับมา
+     เติมฟอนต์คู่ที่นี่ **และ** ตรวจว่ามันอยู่หลัง "Archivo" ไม่ใช่หลัง var */
+  --font-heading: "Archivo", system-ui, sans-serif;
+  --font-body: "Archivo", system-ui, sans-serif;
 
   --space-1: 4px;
   --space-2: 8px;
