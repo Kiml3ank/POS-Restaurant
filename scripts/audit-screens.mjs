@@ -20,6 +20,11 @@
  *   3. ของที่ "ต้องเห็น" ถูกกล่องแม่ที่เลื่อนได้ตัดทิ้งหรือเปล่า — เทียบกับกรอบของ
  *      กล่องที่เลื่อนได้จริง ไม่ใช่เทียบกับ viewport (เคส "รวมทั้งสิ้นหายจากจอ")
  *   4. โซน overflow-auto ที่ถูก flexbox บีบจนแบน (สูงน้อยกว่า 96px ทั้งที่เนื้อในยาวกว่าเท่าตัว)
+ *   5. ของใน <header>/<nav> ที่ยื่นออกนอกกล่องแม่ — เชลล์เป็น `overflow-hidden` แถบหัวจอ
+ *      ที่ล้นจึงถูกตัดทิ้งเงียบ ๆ โดย document ไม่กว้างขึ้นเลย (ข้อ 1 มองไม่เห็น) และแถบที่
+ *      `justify-end` จะล้นไป "ทางซ้าย" ทับชื่อจอ ซึ่งไม่หลุดขอบจอด้วยซ้ำ
+ *      (เจอจริงตอนเพิ่มปุ่มสลับภาษาบนแถบจอครัว: 390px ล้น 74px ทั้งที่ข้อ 1-4 ผ่านหมด)
+ *      · ภาษาเวียดนามยาวกว่าอังกฤษ **ต้องวัดทั้งสองภาษา** ใส่ `pos_locale` ใน AUDIT_COOKIES
  */
 import { spawn } from "node:child_process";
 import { mkdtempSync } from "node:fs";
@@ -30,13 +35,16 @@ const CHROME = "C:/Program Files/Google/Chrome/Application/chrome.exe";
 const PORT = 9333;
 const ORIGIN = process.env.AUDIT_ORIGIN ?? "http://localhost:3002";
 
-const VIEWPORTS = [
-  { name: "390x844", width: 390, height: 844 },
-  { name: "768x1024", width: 768, height: 1024 },
-  { name: "1024x768", width: 1024, height: 768 },
-  { name: "1280x700", width: 1280, height: 700 },
-  { name: "1440x900", width: 1440, height: 900 },
-];
+/** `AUDIT_VIEWPORTS='[{"name":"280","width":280,"height":800}]'` ใช้ลองว่าตัววัดจับของพังได้จริง */
+const VIEWPORTS = process.env.AUDIT_VIEWPORTS
+  ? JSON.parse(process.env.AUDIT_VIEWPORTS)
+  : [
+      { name: "390x844", width: 390, height: 844 },
+      { name: "768x1024", width: 768, height: 1024 },
+      { name: "1024x768", width: 1024, height: 768 },
+      { name: "1280x700", width: 1280, height: 700 },
+      { name: "1440x900", width: 1440, height: 900 },
+    ];
 
 const pages = JSON.parse(process.env.AUDIT_PAGES ?? "[]");
 const cookies = JSON.parse(process.env.AUDIT_COOKIES ?? "[]");
@@ -190,7 +198,33 @@ const AUDIT_FN = `(mustSee) => {
     }
   }
 
-  return { horizontal, vertical, squeezed, missing, title: document.title };
+  // ข้อ 5 — ลูกที่ยื่นออกนอกกล่องแม่ในแถบหัวจอ/แถบเมนู (ข้ามแถบที่ตั้งใจให้เลื่อนแนวนอน)
+  const insideScroller = (el) => {
+    for (let p = el; p && p !== document.body; p = p.parentElement) {
+      if (/(auto|scroll)/.test(getComputedStyle(p).overflowX)) return true;
+    }
+    return false;
+  };
+  const barEscapes = [];
+  for (const bar of document.querySelectorAll("header, nav")) {
+    for (const parent of [bar, ...bar.querySelectorAll("*")]) {
+      if (insideScroller(parent)) continue;
+      const pr = parent.getBoundingClientRect();
+      if (pr.width === 0) continue;
+      for (const child of parent.children) {
+        const cs = getComputedStyle(child);
+        if (cs.position === "absolute" || cs.position === "fixed") continue;
+        const cr = child.getBoundingClientRect();
+        if (cr.width === 0 || cr.height === 0) continue;
+        const by = Math.max(pr.left - cr.left, cr.right - pr.right);
+        if (by > 1) {
+          barEscapes.push({ text: child.textContent.trim().replace(/\\s+/g, " ").slice(0, 30), by: Math.round(by) });
+        }
+      }
+    }
+  }
+
+  return { horizontal, vertical, squeezed, missing, barEscapes, title: document.title };
 }`;
 
 const results = [];
@@ -255,6 +289,7 @@ for (const r of results) {
   if (!r.scrolls && r.vertical > 0) problems.push(`ล้นแนวตั้ง ${r.vertical}px`);
   for (const s of r.squeezed) problems.push(`โซนเลื่อนถูกบีบ ${s.tag} ${s.clientHeight}/${s.scrollHeight}px`);
   for (const m of r.missing) problems.push(`"${m.text}" ${m.why}`);
+  for (const e of r.barEscapes) problems.push(`แถบหัวจอ/เมนูล้นกล่อง "${e.text}" ${e.by}px`);
 
   if (problems.length) failed++;
   console.log(

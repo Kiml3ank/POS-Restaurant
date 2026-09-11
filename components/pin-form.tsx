@@ -49,10 +49,11 @@ const normalizePin = (value: string) => value.replace(/\D/g, "").slice(0, MAX_PI
 
 export function PinForm({
   action,
-  submitLabel = "Sign in",
+  submitLabel,
   lastStaff = null,
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
+  /** ข้อความบนปุ่ม (แปลแล้ว) — ไม่ส่ง = "เข้าสู่ระบบ" ของภาษาที่เลือกอยู่ */
   submitLabel?: string;
   /** คนที่ใช้เครื่องนี้ล่าสุด — null เมื่อเป็นเครื่องใหม่/เพิ่งล้าง cookie */
   lastStaff?: LastStaffOnDevice | null;
@@ -87,7 +88,7 @@ export function PinForm({
          * ของสิ่งที่ต้องใช้ล็อกอิน (ดู lib/last-staff-cookie.ts)
          */
         <div className="flex items-baseline justify-between gap-3 border-2 border-[var(--color-neutral-400)] px-4 py-3">
-          <span className="kicker">Last used on this device</span>
+          <span className="kicker">{t("pin.lastUsed")}</span>
           <span className="flex items-baseline gap-3">
             <span className="display text-[16px]">{lastStaff.name}</span>
             <span className="kicker">
@@ -100,7 +101,7 @@ export function PinForm({
 
       <div className="flex flex-col gap-3">
         <label htmlFor="staffCode" className="kicker">
-          Staff code
+          {t("pin.staffCode")}
         </label>
         <input
           id="staffCode"
@@ -118,18 +119,18 @@ export function PinForm({
               pinInputRef.current?.focus();
             }
           }}
-          placeholder="e.g. 001"
+          placeholder={t("pin.staffCodePlaceholder")}
           className="input display h-16 text-center text-[26px] tracking-[0.3em]"
         />
       </div>
 
       <div className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between gap-3">
-          <span className="kicker">PIN</span>
+          <span className="kicker">{t("pin.pin")}</span>
           <span className="kicker">
             {pin.length < MIN_PIN_LENGTH
-              ? `At least ${MIN_PIN_LENGTH} digits`
-              : `${pin.length} digits · ready to submit`}
+              ? t("pin.atLeast", { count: MIN_PIN_LENGTH })
+              : t("pin.ready", { count: pin.length })}
           </span>
         </div>
 
@@ -148,7 +149,7 @@ export function PinForm({
             type="password"
             inputMode="numeric"
             autoComplete="off"
-            aria-label={`PIN, ${MIN_PIN_LENGTH} to ${MAX_PIN_LENGTH} digits`}
+            aria-label={t("pin.ariaLabel", { min: MIN_PIN_LENGTH, max: MAX_PIN_LENGTH })}
             value={pin}
             onChange={(event) => setPin(normalizePin(event.target.value))}
             onKeyDown={(event) => {
@@ -185,7 +186,7 @@ export function PinForm({
           </div>
         </div>
 
-        <p className="kicker">Tap the field above to type, or use the keypad below</p>
+        <p className="kicker">{t("pin.tapHint")}</p>
       </div>
 
       {/*
@@ -217,7 +218,7 @@ export function PinForm({
           className="btn-tile"
           style={{ fontSize: 20 }}
         >
-          Clear
+          {t("pin.clear")}
         </button>
         <button
           type="button"
@@ -230,7 +231,7 @@ export function PinForm({
         <button
           type="button"
           onClick={() => pressKey((current) => current.slice(0, -1))}
-          aria-label="Delete one digit"
+          aria-label={t("pin.deleteDigit")}
           style={{ fontSize: 34 }}
           className="btn-tile"
         >
@@ -245,11 +246,11 @@ export function PinForm({
       ) : null}
 
       <SubmitButton
-        pendingLabel="Checking..."
+        pendingLabel={t("pin.checking")}
         disabled={!ready}
         className="btn btn-primary btn-block h-16 text-lg"
       >
-        {submitLabel}
+        {submitLabel ?? t("pin.signIn")}
       </SubmitButton>
     </form>
   );

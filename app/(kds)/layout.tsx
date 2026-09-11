@@ -1,6 +1,7 @@
 import Link from "next/link";
 
 import { LiveRefresh } from "@/components/live-refresh";
+import { LocaleSwitcher } from "@/components/locale-switcher";
 import { canAccessScreen, staffRoleKey } from "@/lib/rbac";
 import { getT } from "@/lib/server/locale";
 import { getCurrentStaff } from "@/lib/server/staff-session";
@@ -42,7 +43,7 @@ export default async function KdsLayout({
       <header className="flex h-[58px] flex-none items-stretch border-b-2 border-[var(--color-text)] lg:h-[66px]">
         <div className="flex flex-none items-center gap-2 border-r-2 border-[var(--color-text)] px-4 lg:gap-3 lg:px-6">
           <span className="size-3.5 flex-none bg-[var(--color-accent)]" />
-          <span className="display text-[17px]">KDS</span>
+          <span className="display text-[17px] whitespace-nowrap">{t("kds.brand")}</span>
           <span className="kicker hidden truncate sm:inline">{staff.branch.name}</span>
         </div>
 
@@ -52,6 +53,15 @@ export default async function KdsLayout({
             จอที่กำลังมองอยู่เป็นของสดหรือภาพค้าง ซึ่งสำคัญกว่าชื่อคนกดเสียอีก
           */}
           <LiveRefresh src="/api/realtime" className="text-[var(--color-accent-700)]" />
+          {/*
+            ปุ่มภาษาบนแถบนี้เริ่มที่ sm — ที่ 390px แถบล้นไปทับชื่อจอ (วัดแล้ว: เวียดนาม
+            74px · อังกฤษ 53px) และสิ่งที่ห้ามหายจากแถบนี้คือไฟ "สดอยู่" ไม่ใช่ปุ่มภาษา
+            จอแคบยังสลับภาษาได้ที่หน้าล็อกจอเสมอ · ซ่อนที่ <div> ครอบ ไม่ใช่ที่ตัวปุ่ม
+            (กฎ specificity ของ .pos-skin)
+          */}
+          <div className="hidden flex-none sm:block">
+            <LocaleSwitcher />
+          </div>
           <span className="kicker hidden whitespace-nowrap lg:inline">
             {t(staffRoleKey(staff.role))}
           </span>
@@ -68,13 +78,13 @@ export default async function KdsLayout({
           */}
           {canAccessScreen(staff.role, "pos") && (
             <Link href="/pos" className="btn btn-secondary h-[38px] flex-none whitespace-nowrap">
-              POS
+              {t("nav.pos")}
             </Link>
           )}
 
           <form action={kdsLogoutAction} className="flex-none">
             <button type="submit" className="btn btn-secondary h-[38px] whitespace-nowrap">
-              Lock screen
+              {t("staff.lockScreen")}
             </button>
           </form>
         </div>

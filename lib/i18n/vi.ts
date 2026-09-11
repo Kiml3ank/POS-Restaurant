@@ -47,7 +47,8 @@ export const vi = {
   "orderItemStatus.CANCELLED": "Đã hủy",
 
   // ── ปุ่มของจอครัว (KDS) ───────────────────────────────────────────────
-  "kitchenAction.PLACED": "Bắt đầu làm",
+  // คู่กับปุ่มบั๊มทั้งใบ "Nhận tất cả" / "Xong tất cả" — คำกริยาต้องตรงกัน
+  "kitchenAction.PLACED": "Nhận món",
   "kitchenAction.IN_PROGRESS": "Xong món",
 
   // ── วิธีชำระเงิน ──────────────────────────────────────────────────────
@@ -413,6 +414,50 @@ export const vi = {
   "customer.orders.orderTotal": "Tổng lượt gọi này",
   "customer.orders.tableTotal": "Tổng bàn (chưa gồm VAT/phí phục vụ)",
   "customer.orders.orderMore": "Gọi thêm món",
+
+  // ── ร่วมกันของจอพนักงานทั้งสาม (POS · ครัว · หลังร้าน) ──────────────────
+  "staff.lockScreen": "Khóa màn hình",
+  "nav.pos": "POS",
+  "login.devHint": "Mã nhân viên / PIN dùng thử (4 chữ số)",
+
+  // ── แป้น PIN (components/pin-form.tsx · ใช้ร่วมทั้งสามจอ) ────────────────
+  "pin.lastUsed": "Người dùng gần nhất trên máy này",
+  "pin.staffCode": "Mã nhân viên",
+  "pin.staffCodePlaceholder": "VD: 001",
+  "pin.pin": "Mã PIN",
+  "pin.atLeast": "Ít nhất {count} chữ số",
+  "pin.ready": "{count} chữ số · sẵn sàng",
+  "pin.ariaLabel": "Mã PIN, từ {min} đến {max} chữ số",
+  "pin.tapHint": "Chạm vào ô phía trên để gõ, hoặc dùng bàn phím số bên dưới",
+  "pin.clear": "Xóa hết",
+  "pin.deleteDigit": "Xóa một chữ số",
+  "pin.checking": "Đang kiểm tra...",
+  "pin.signIn": "Đăng nhập",
+
+  // ── จอครัว (app/(kds)) ─────────────────────────────────────────────────
+  "kds.brand": "Bếp",
+  "kds.stations": "Khu bếp",
+  "kds.allStations": "Tất cả khu bếp",
+  "kds.empty": "Không có món đang chờ",
+  "kds.stationClear": "{station} đã xong hết",
+  "kds.allClear": "Tất cả khu bếp đã xong",
+  "kds.autoHint": "Món mới sẽ tự hiện",
+  "kds.channel.customer": "Khách tự gọi",
+  "kds.channel.staff": "Nhân viên gọi",
+  "kds.orderNote": "Ghi chú: {note}",
+  "kds.bump.acceptAll.one": "Nhận tất cả ({count} món)",
+  "kds.bump.acceptAll.other": "Nhận tất cả ({count} món)",
+  "kds.bump.doneAll.one": "Xong tất cả ({count} món)",
+  "kds.bump.doneAll.other": "Xong tất cả ({count} món)",
+  "kds.serve": "Đã phục vụ",
+  "kds.updating": "Đang cập nhật...",
+  "kds.elapsed.justNow": "Vừa xong",
+  "kds.elapsed.minutes": "{count} phút",
+  "kds.login.kicker": "Màn hình bếp · tất cả khu bếp",
+  "kds.login.hero1": "MÀN HÌNH",
+  "kds.login.hero2": "BẾP",
+  "kds.login.intro": "Nhập mã PIN để mở màn hình. Món mới sẽ tự hiện — mỗi lần bạn nhận hoặc làm xong một món, thời gian được ghi lại dưới tên bạn.",
+  "kds.login.submit": "Mở màn hình bếp",
 } as const;
 
 export type MessageKey = keyof typeof vi;

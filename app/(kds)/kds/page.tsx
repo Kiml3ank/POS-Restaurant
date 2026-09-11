@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { isKitchenActionable, orderItemStatusKey } from "@/lib/order-status";
 import { canAccessScreen, canCookOrderItem, canServeOrderItem } from "@/lib/rbac";
 import { dailyOrderNumber } from "@/lib/order-number";
-import { salePointDisplayName } from "@/lib/sale-point";
+import { salePointDisplayName, salePointKey } from "@/lib/sale-point";
 import { getKitchenStations, getKitchenTickets, type KitchenTicket } from "@/lib/server/kds";
 import { getT, type Translator } from "@/lib/server/locale";
 import { getCurrentStaff } from "@/lib/server/staff-session";
@@ -34,7 +34,7 @@ export default async function KdsPage({
 }: {
   searchParams: Promise<{ station?: string }>;
 }) {
-  const { t } = await getT();
+  const { t, tc } = await getT();
   const staff = await getCurrentStaff("kds");
 
   if (!staff || !canAccessScreen(staff.role, "kds")) {
@@ -55,12 +55,12 @@ export default async function KdsPage({
   return (
     <main className="flex min-h-0 flex-1 flex-col">
       <nav
-        aria-label="Kitchen stations"
+        aria-label={t("kds.stations")}
         className="ink-row flex-none overflow-x-auto border-x-0 border-t-0"
       >
         <StationTab
           href="/kds"
-          label="All stations"
+          label={t("kds.allStations")}
           count={stations.reduce((sum, item) => sum + item.queued + item.cooking, 0)}
           active={activeStation === null}
         />
@@ -78,12 +78,12 @@ export default async function KdsPage({
 
       {tickets.length === 0 ? (
         <div className="flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center">
-          <p className="display text-[32px]">No orders pending</p>
+          <p className="display text-[32px]">{t("kds.empty")}</p>
           <p className="text-[var(--color-neutral-700)]">
             {activeStation
-              ? `${activeStation.name} is all clear`
-              : "All stations are clear"}{" "}
-            · New orders appear automatically
+              ? t("kds.stationClear", { station: activeStation.name })
+              : t("kds.allClear")}{" "}
+            · {t("kds.autoHint")}
           </p>
         </div>
       ) : (
@@ -98,6 +98,7 @@ export default async function KdsPage({
                   canCook={canCook}
                   canServe={canServe}
                   t={t}
+                  tc={tc}
                 />
               </li>
             ))}
@@ -148,6 +149,7 @@ function TicketCard({
   canCook,
   canServe,
   t,
+  tc,
 }: {
   ticket: KitchenTicket;
   stationId: string | null;
@@ -156,6 +158,7 @@ function TicketCard({
   canServe: boolean;
   /** รับจาก page — component นี้เป็น server component ธรรมดา เรียก getT() ซ้ำทุกใบไม่คุ้ม */
   t: Translator["t"];
+  tc: Translator["tc"];
 }) {
   const queuedAt = ticket.queuedAt.getTime();
   // นาทีที่รอมาแล้วคำนวณที่ lib/server/kds.ts (นาฬิกาเดียวกันทั้งจอ) แล้วให้
@@ -191,7 +194,7 @@ function TicketCard({
           <span className="display truncate text-[22px]">
             {ticket.table
               ? salePointDisplayName(ticket.table, ticket.tableSession, t)
-              : "Delivery"}
+              : t(salePointKey("DELIVERY"))}
           </span>
           <span className="kicker truncate">#{dailyOrderNumber(ticket.orderNumber)}</span>
         </div>
@@ -201,14 +204,14 @@ function TicketCard({
             <Elapsed since={queuedAt} initialMinutes={minutes} />
           </span>
           <span className="kicker">
-            {ticket.channel === "CUSTOMER_QR" ? "Customer order" : "Staff order"}
+            {t(ticket.channel === "CUSTOMER_QR" ? "kds.channel.customer" : "kds.channel.staff")}
           </span>
         </div>
       </header>
 
       {ticket.note ? (
         <p className="flex-none border-b-2 border-[var(--color-text)] bg-[var(--color-accent-100)] px-4 py-2 text-[14px] text-[var(--color-accent-800)]">
-          Order note: {ticket.note}
+          {t("kds.orderNote", { note: ticket.note })}
         </p>
       ) : null}
 
@@ -259,11 +262,7 @@ function TicketCard({
           <BumpTicketButton
             orderId={ticket.id}
             stationId={stationId}
-            label={
-              allPlaced
-                ? `Accept all (${pending.length} items)`
-                : `Mark all done (${pending.length} items)`
-            }
+            label={tc(allPlaced ? "kds.bump.acceptAll" : "kds.bump.doneAll", pending.length)}
           />
         </footer>
       ) : null}

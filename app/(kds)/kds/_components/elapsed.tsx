@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { useT } from "@/components/i18n-provider";
+
 /**
  * นาฬิกาจับเวลาของใบสั่ง (บทที่ 8)
  *
@@ -30,6 +32,7 @@ export function Elapsed({
   since: number;
   initialMinutes: number;
 }) {
+  const { t } = useT();
   const [minutes, setMinutes] = useState(initialMinutes);
 
   useEffect(() => {
@@ -46,7 +49,7 @@ export function Elapsed({
 
   return (
     <span className={minutes >= LATE_AFTER_MINUTES ? "text-[var(--color-accent)]" : undefined}>
-      {minutes < 1 ? "Just now" : `${minutes} min`}
+      {minutes < 1 ? t("kds.elapsed.justNow") : t("kds.elapsed.minutes", { count: minutes })}
     </span>
   );
 }
