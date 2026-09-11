@@ -23,6 +23,11 @@ import { LOCALES } from "@/lib/i18n/locales";
  *
  * ชื่อภาษาบนปุ่มเขียนด้วยภาษานั้นเองเสมอ ("Tiếng Việt" ไม่ใช่ "Vietnamese")
  * — คนที่กำลังหาภาษาของตัวเองอ่านภาษาปัจจุบันไม่ออกอยู่แล้ว
+ *
+ * ── สีอิงกับ currentColor ไม่ใช่สีตายตัว ─────────────────────────────────
+ * ปุ่มนี้ไปอยู่บนพื้นสามแบบ: มือถือลูกค้า (ขาว) · POS/หลังร้าน (กระดาษ) ·
+ * จอครัว (มืด กลับสี) — ปุ่มที่ active เป็นพื้นดำตายตัวจะหายไปบนจอครัว
+ * จึงวาดด้วยกรอบสีเดียวกับตัวอักษรรอบข้าง แล้วให้ปุ่มที่ไม่ได้เลือกจางลงแทน
  */
 export function LocaleSwitcher({ className = "" }: { className?: string }) {
   const { locale, t } = useT();
@@ -47,11 +52,11 @@ export function LocaleSwitcher({ className = "" }: { className?: string }) {
             aria-pressed={active}
             disabled={pending || active}
             onClick={() => startTransition(() => setLocale(value))}
-            className={
+            className={`border-2 px-2 py-0.5 text-xs font-bold tracking-wide uppercase ${
               active
-                ? "px-2 py-1 text-xs font-bold uppercase tracking-wide bg-neutral-900 text-neutral-50"
-                : "px-2 py-1 text-xs font-bold uppercase tracking-wide text-neutral-500 hover:text-neutral-900 disabled:opacity-50"
-            }
+                ? "border-current"
+                : "border-transparent opacity-55 hover:opacity-100 disabled:opacity-40"
+            }`}
           >
             {value}
           </button>

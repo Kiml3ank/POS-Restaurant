@@ -17,6 +17,8 @@
  */
 export const vi = {
   // ── ทั่วไป ────────────────────────────────────────────────────────────
+  "app.title": "POS Nhà hàng",
+  "app.description": "POS nhà hàng — khách hàng / nhân viên / bếp / quản trị",
   "common.save": "Lưu",
   "common.cancel": "Hủy",
   "common.confirm": "Xác nhận",
@@ -360,6 +362,57 @@ export const vi = {
   "audit.field.raw": "Dữ liệu",
   "audit.field.before": "Trước",
   "audit.field.after": "Sau",
+
+  // ── ไฟสถานะสาย realtime (components/live-refresh.tsx) ─────────────────
+  "live.live": "Trực tiếp",
+  "live.connecting": "Đang kết nối…",
+  "live.offline": "Mất kết nối",
+
+  // ── ฟอร์มเลือกตัวเลือก (components/item-options-form.tsx · ลูกค้า + POS) ─
+  "item.required": "Bắt buộc",
+  "item.upTo": "Chọn tối đa {count}",
+  "item.note": "Ghi chú cho bếp",
+  "item.notePlaceholder": "VD: không ngò",
+  "item.quantity": "Số lượng",
+  "item.decrease": "Giảm số lượng",
+  "item.increase": "Tăng số lượng",
+  "item.stillNeed": "Còn phải chọn: {groups}",
+  "item.adding": "Đang thêm vào giỏ...",
+  "item.addToCart": "Thêm vào giỏ",
+
+  // ── จอลูกค้า (app/(customer)) ─────────────────────────────────────────
+  "customer.welcome": "Xin chào! Hãy bắt đầu gọi món để mở bàn này.",
+  "customer.open.guestsLabel": "Số khách",
+  "customer.open.guests.one": "{count} khách",
+  "customer.open.guests.other": "{count} khách",
+  "customer.open.joinHint": "Nếu đã có người gọi món ở bàn {name}, bạn sẽ tự động vào chung hóa đơn.",
+  "customer.open.pending": "Đang mở bàn...",
+  "customer.open.submit": "Bắt đầu gọi món",
+  "customer.menu.moved": "Phiên của bàn {from} đã được chuyển sang bàn {to}. Các món bạn gọi từ giờ sẽ vào hóa đơn đó.",
+  "customer.menu.empty": "Hiện chưa có món nào — vui lòng gọi nhân viên.",
+  "customer.menu.hasOptions": "Có tùy chọn",
+  "customer.nav.orders": "Món đã gọi",
+  "customer.nav.cartEmpty": "Giỏ hàng trống",
+  "customer.nav.viewCart": "Xem giỏ hàng ({count})",
+  "customer.header.cart": "Giỏ {count} · {total}",
+  "customer.browseMenu": "Xem thực đơn",
+  "customer.cart.title": "Giỏ hàng bàn {name}",
+  "customer.cart.empty": "Chưa có món nào trong giỏ.",
+  "customer.cart.note": "Ghi chú: {note}",
+  "customer.cart.subtotal": "Tiền món",
+  "customer.cart.taxHint": "Chưa bao gồm phí phục vụ và VAT — sẽ tính khi thanh toán",
+  "customer.cart.remove": "Xóa",
+  "customer.place.pending": "Đang gửi bếp...",
+  "customer.place.submit.one": "Gửi {count} món vào bếp · {total}",
+  "customer.place.submit.other": "Gửi {count} món vào bếp · {total}",
+  "customer.place.hint": "Bếp sẽ làm ngay sau khi gửi — bạn không thể tự hủy, vui lòng gọi nhân viên.",
+  "customer.orders.title": "Món đã gọi — bàn {name}",
+  "customer.orders.empty": "Chưa có món nào được gửi bếp.",
+  "customer.orders.sent.one": "Đã gửi bếp: {count} lượt gọi",
+  "customer.orders.sent.other": "Đã gửi bếp: {count} lượt gọi",
+  "customer.orders.orderTotal": "Tổng lượt gọi này",
+  "customer.orders.tableTotal": "Tổng bàn (chưa gồm VAT/phí phục vụ)",
+  "customer.orders.orderMore": "Gọi thêm món",
 } as const;
 
 export type MessageKey = keyof typeof vi;

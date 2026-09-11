@@ -29,7 +29,7 @@ export function PlaceOrderForm({
   itemCount: number;
   currency: Currency;
 }) {
-  const { t } = useT();
+  const { t, tc } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     placeOrderAction,
     IDLE_FORM_STATE,
@@ -46,16 +46,14 @@ export function PlaceOrderForm({
       ) : null}
 
       <SubmitButton
-        pendingLabel="Sending to kitchen..."
+        pendingLabel={t("customer.place.pending")}
         disabled={itemCount === 0}
         className="rounded-lg bg-neutral-900 px-4 py-4 text-center text-base font-medium text-white"
       >
-        Send {itemCount} item(s) to kitchen · {formatMoney(subtotal, currency)}
+        {tc("customer.place.submit", itemCount, { total: formatMoney(subtotal, currency) })}
       </SubmitButton>
 
-      <p className="text-center text-xs text-neutral-500">
-        The kitchen starts right away once sent — you can&apos;t cancel it yourself, please call staff.
-      </p>
+      <p className="text-center text-xs text-neutral-500">{t("customer.place.hint")}</p>
     </form>
   );
 }

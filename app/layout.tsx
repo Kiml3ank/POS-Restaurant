@@ -4,7 +4,7 @@ import { Archivo } from "next/font/google";
 import "./globals.css";
 
 import { I18nProvider } from "@/components/i18n-provider";
-import { getLocale } from "@/lib/server/locale";
+import { getLocale, getT } from "@/lib/server/locale";
 
 /**
  * ฟอนต์ของ design system "Modernist" (บทที่ 9 — งานทา UI หน้าพนักงาน)
@@ -37,10 +37,12 @@ const archivo = Archivo({
   adjustFontFallback: false,
 });
 
-export const metadata: Metadata = {
-  title: "Restaurant POS",
-  description: "Restaurant POS — customer / staff / kitchen / back office",
-};
+/** ชื่อบนแท็บเบราว์เซอร์ก็เป็น "กรอบ" ที่ต้องเปลี่ยนตามปุ่มภาษา ไม่ใช่ค่าคงที่ */
+export async function generateMetadata(): Promise<Metadata> {
+  const { t } = await getT();
+
+  return { title: t("app.title"), description: t("app.description") };
+}
 
 export const viewport: Viewport = {
   width: "device-width",

@@ -44,7 +44,7 @@ export function ItemOptionsForm({
   basePrice,
   groups,
   currency,
-  submitLabel = "Add to cart",
+  submitLabel,
   skin = "default",
 }: {
   action: (state: FormState, formData: FormData) => Promise<FormState>;
@@ -54,6 +54,7 @@ export function ItemOptionsForm({
   groups: OptionGroupView[];
   /** สกุลเงินของสาขา — ต้องส่งมาเสมอ ห้ามเดาเป็นบาท (ดู lib/money.ts) */
   currency: Currency;
+  /** ข้อความบนปุ่ม (แปลแล้ว) — ไม่ส่ง = "ใส่ตะกร้า" ของภาษาที่เลือกอยู่ */
   submitLabel?: string;
   skin?: "default" | "pos";
 }) {
@@ -122,8 +123,8 @@ export function ItemOptionsForm({
         const atLimit = group.maxSelect > 1 && picked.length >= group.maxSelect;
         const hint =
           group.required || group.minSelect > 0
-            ? "Required"
-            : `Choose up to ${group.maxSelect}`;
+            ? t("item.required")
+            : t("item.upTo", { count: group.maxSelect });
 
         return (
           <fieldset key={group.id} className="flex flex-col gap-3">
@@ -190,14 +191,14 @@ export function ItemOptionsForm({
 
       <div className="flex flex-col gap-3">
         <label htmlFor="note" className={isPos ? "kicker" : "font-medium"}>
-          Note to kitchen
+          {t("item.note")}
         </label>
         <input
           id="note"
           name="note"
           type="text"
           maxLength={200}
-          placeholder="e.g. no cilantro"
+          placeholder={t("item.notePlaceholder")}
           className={
             isPos
               ? "input h-12"
@@ -207,14 +208,14 @@ export function ItemOptionsForm({
       </div>
 
       <div className="flex items-center justify-between">
-        <span className={isPos ? "kicker" : "font-medium"}>Quantity</span>
+        <span className={isPos ? "kicker" : "font-medium"}>{t("item.quantity")}</span>
 
         {isPos ? (
           <div className="stepper h-12 w-40">
             <button
               type="button"
               onClick={() => setQuantity((current) => Math.max(1, current - 1))}
-              aria-label="Decrease quantity"
+              aria-label={t("item.decrease")}
               className="flex-1"
             >
               −
@@ -225,7 +226,7 @@ export function ItemOptionsForm({
             <button
               type="button"
               onClick={() => setQuantity((current) => Math.min(99, current + 1))}
-              aria-label="Increase quantity"
+              aria-label={t("item.increase")}
               className="flex-1"
             >
               +
@@ -236,7 +237,7 @@ export function ItemOptionsForm({
             <button
               type="button"
               onClick={() => setQuantity((current) => Math.max(1, current - 1))}
-              aria-label="Decrease quantity"
+              aria-label={t("item.decrease")}
               className="size-11 rounded-full border border-neutral-300 text-xl leading-none"
             >
               −
@@ -247,7 +248,7 @@ export function ItemOptionsForm({
             <button
               type="button"
               onClick={() => setQuantity((current) => Math.min(99, current + 1))}
-              aria-label="Increase quantity"
+              aria-label={t("item.increase")}
               className="size-11 rounded-full border border-neutral-300 text-xl leading-none"
             >
               +
@@ -267,12 +268,12 @@ export function ItemOptionsForm({
 
       {missingRequired.length > 0 ? (
         <p className={isPos ? "kicker" : "text-sm text-neutral-500"}>
-          ยังต้องเลือก: {missingRequired.map((group) => group.name).join(", ")}
+          {t("item.stillNeed", { groups: missingRequired.map((group) => group.name).join(", ") })}
         </p>
       ) : null}
 
       <SubmitButton
-        pendingLabel="Adding to cart..."
+        pendingLabel={t("item.adding")}
         disabled={missingRequired.length > 0}
         className={
           isPos
@@ -280,7 +281,7 @@ export function ItemOptionsForm({
             : "rounded-lg bg-neutral-900 px-4 py-3 text-center font-medium text-white"
         }
       >
-        {submitLabel} · {formatMoney(total, currency)}
+        {submitLabel ?? t("item.addToCart")} · {formatMoney(total, currency)}
       </SubmitButton>
     </form>
   );

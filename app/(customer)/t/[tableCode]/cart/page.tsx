@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { formatMoney } from "@/lib/money";
 import { getCart } from "@/lib/server/cart";
+import { getT } from "@/lib/server/locale";
 import { resolveCustomerContext } from "@/lib/server/table-session";
 
 import { CartLineControls } from "../_components/cart-line-controls";
@@ -25,6 +26,7 @@ export default async function CartPage({
 }: {
   params: Promise<{ tableCode: string }>;
 }) {
+  const { t } = await getT();
   const { tableCode } = await params;
   const context = await resolveCustomerContext(tableCode);
 
@@ -53,16 +55,16 @@ export default async function CartPage({
       />
 
       <main className="flex flex-1 flex-col gap-4 px-4 py-4 pb-40">
-        <h1 className="text-xl font-semibold">Cart for table {context.table.name}</h1>
+        <h1 className="text-xl font-semibold">{t("customer.cart.title", { name: context.table.name })}</h1>
 
         {lines.length === 0 ? (
           <div className="flex flex-col items-start gap-3 rounded-xl border border-dashed border-neutral-300 p-6">
-            <p className="text-sm text-neutral-600">No items in the cart yet.</p>
+            <p className="text-sm text-neutral-600">{t("customer.cart.empty")}</p>
             <Link
               href={`/t/${tableCode}`}
               className="rounded-lg bg-neutral-900 px-4 py-2 text-sm font-medium text-white"
             >
-              Browse menu
+              {t("customer.browseMenu")}
             </Link>
           </div>
         ) : (
@@ -82,7 +84,7 @@ export default async function CartPage({
                   ) : null}
 
                   {line.note ? (
-                    <span className="text-sm text-amber-700">Note: {line.note}</span>
+                    <span className="text-sm text-amber-700">{t("customer.cart.note", { note: line.note })}</span>
                   ) : null}
 
                   <span className="text-sm text-neutral-600">
@@ -107,12 +109,10 @@ export default async function CartPage({
       {lines.length > 0 ? (
         <div className="fixed inset-x-0 bottom-0 mx-auto w-full max-w-md border-t border-neutral-200 bg-white p-3">
           <div className="flex items-baseline justify-between pb-2 text-sm">
-            <span className="text-neutral-600">Food subtotal</span>
+            <span className="text-neutral-600">{t("customer.cart.subtotal")}</span>
             <span className="text-lg font-semibold">{formatMoney(cart?.subtotal ?? 0, currency)}</span>
           </div>
-          <p className="pb-2 text-xs text-neutral-500">
-            Service charge and VAT not included yet — calculated at checkout
-          </p>
+          <p className="pb-2 text-xs text-neutral-500">{t("customer.cart.taxHint")}</p>
 
           <PlaceOrderForm
             tableCode={tableCode}

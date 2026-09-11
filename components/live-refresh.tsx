@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
+import { useT } from "@/components/i18n-provider";
 import { REALTIME_SSE_EVENT, isRealtimeEvent } from "@/lib/realtime-events";
 
 /**
@@ -47,6 +48,7 @@ export function LiveRefresh({
   variant?: "dot" | "hidden";
   className?: string;
 }) {
+  const { t } = useT();
   const router = useRouter();
   const [status, setStatus] = useState<Status>("connecting");
 
@@ -120,8 +122,9 @@ export function LiveRefresh({
     return null;
   }
 
-  const text =
-    status === "live" ? "Live" : status === "connecting" ? "Connecting…" : "Disconnected";
+  const text = t(
+    status === "live" ? "live.live" : status === "connecting" ? "live.connecting" : "live.offline",
+  );
 
   return (
     <span

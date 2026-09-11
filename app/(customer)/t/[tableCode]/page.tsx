@@ -3,8 +3,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { LiveRefresh } from "@/components/live-refresh";
+import { LocaleSwitcher } from "@/components/locale-switcher";
 import { formatMoney } from "@/lib/money";
 import { getCart } from "@/lib/server/cart";
+import { getT } from "@/lib/server/locale";
 import { getCustomerMenu } from "@/lib/server/menu";
 import { resolveCustomerContext } from "@/lib/server/table-session";
 
@@ -28,6 +30,7 @@ export default async function CustomerMenuPage({
 }: {
   params: Promise<{ tableCode: string }>;
 }) {
+  const { t } = await getT();
   const { tableCode } = await params;
   const context = await resolveCustomerContext(tableCode);
 
@@ -44,12 +47,14 @@ export default async function CustomerMenuPage({
   if (!session) {
     return (
       <main className="flex flex-1 flex-col gap-6 p-6">
+        {/* หน้านี้คือ "หน้าล็อกอิน" ของลูกค้า — ต้องเลือกภาษาได้ก่อนกดอะไรทั้งนั้น */}
         <div className="flex flex-col gap-1">
-          <p className="text-xs tracking-wide text-neutral-500 uppercase">{branch.name}</p>
-          <h1 className="text-3xl font-semibold">Table {table.name}</h1>
-          <p className="text-sm text-neutral-600">
-            Welcome! Start ordering to open this table.
-          </p>
+          <div className="flex items-center justify-between gap-3">
+            <p className="truncate text-xs tracking-wide text-neutral-500 uppercase">{branch.name}</p>
+            <LocaleSwitcher className="shrink-0 text-neutral-700" />
+          </div>
+          <h1 className="text-3xl font-semibold">{t("salePoint.tableNamed", { name: table.name })}</h1>
+          <p className="text-sm text-neutral-600">{t("customer.welcome")}</p>
         </div>
 
         <OpenSessionForm
@@ -99,8 +104,7 @@ export default async function CustomerMenuPage({
         */}
         {context.mergedFromTableName ? (
           <p className="rounded-md border border-amber-300 bg-amber-50 px-4 py-3 text-sm text-amber-900">
-            Table <strong>{context.mergedFromTableName}</strong>&apos;s session was moved to table{" "}
-            <strong>{session.table.name}</strong>. Anything you order from now on joins that bill.
+            {t("customer.menu.moved", { from: context.mergedFromTableName, to: session.table.name })}
           </p>
         ) : null}
 
@@ -117,7 +121,7 @@ export default async function CustomerMenuPage({
         </nav>
 
         {menu.length === 0 ? (
-          <p className="text-sm text-neutral-600">No items are available right now — please call staff.</p>
+          <p className="text-sm text-neutral-600">{t("customer.menu.empty")}</p>
         ) : null}
 
         {menu.map((category) => (
@@ -149,7 +153,7 @@ export default async function CustomerMenuPage({
                         </span>
                       ) : null}
                       {item.hasOptions ? (
-                        <span className="text-xs text-neutral-400">Has options</span>
+                        <span className="text-xs text-neutral-400">{t("customer.menu.hasOptions")}</span>
                       ) : null}
                     </div>
 
@@ -167,7 +171,7 @@ export default async function CustomerMenuPage({
           href={`/t/${table.tableCode}/orders`}
           className="flex-1 rounded-lg border border-neutral-300 px-4 py-3 text-center text-sm font-medium"
         >
-          Table orders
+          {t("customer.nav.orders")}
         </Link>
         <Link
           href={`/t/${table.tableCode}/cart`}
@@ -178,7 +182,9 @@ export default async function CustomerMenuPage({
               : "bg-neutral-900 text-white"
           }`}
         >
-          {cartItemCount === 0 ? "Cart is empty" : `View cart (${cartItemCount})`}
+          {cartItemCount === 0
+            ? t("customer.nav.cartEmpty")
+            : t("customer.nav.viewCart", { count: cartItemCount })}
         </Link>
       </nav>
     </>

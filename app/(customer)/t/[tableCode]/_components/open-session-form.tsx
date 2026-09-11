@@ -25,7 +25,7 @@ export function OpenSessionForm({
   tableName: string;
   defaultPax: number;
 }) {
-  const { t } = useT();
+  const { t, tc } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     openTableSessionAction,
     IDLE_FORM_STATE,
@@ -37,7 +37,7 @@ export function OpenSessionForm({
 
       <div className="flex flex-col gap-2">
         <label htmlFor="pax" className="text-sm font-medium">
-          How many guests
+          {t("customer.open.guestsLabel")}
         </label>
         <select
           id="pax"
@@ -47,13 +47,11 @@ export function OpenSessionForm({
         >
           {PAX_OPTIONS.map((pax) => (
             <option key={pax} value={pax}>
-              {pax} guests
+              {tc("customer.open.guests", pax)}
             </option>
           ))}
         </select>
-        <p className="text-xs text-neutral-500">
-          If someone already ordered at table {tableName}, you&apos;ll automatically join their bill.
-        </p>
+        <p className="text-xs text-neutral-500">{t("customer.open.joinHint", { name: tableName })}</p>
       </div>
 
       {state.status === "error" ? (
@@ -63,10 +61,10 @@ export function OpenSessionForm({
       ) : null}
 
       <SubmitButton
-        pendingLabel="Opening table..."
+        pendingLabel={t("customer.open.pending")}
         className="rounded-lg bg-neutral-900 px-4 py-3 text-center font-medium text-white"
       >
-        Start ordering
+        {t("customer.open.submit")}
       </SubmitButton>
     </form>
   );
