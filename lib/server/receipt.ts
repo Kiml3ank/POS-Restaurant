@@ -1,9 +1,8 @@
 import "server-only";
 
 import type { Prisma } from "@/lib/generated/prisma/client";
-import type { Currency, PaymentMethod } from "@/lib/generated/prisma/enums";
+import type { Currency, PaymentMethod, SalePointKind } from "@/lib/generated/prisma/enums";
 import { canBrowseReceipts, canReprintReceipt } from "@/lib/rbac";
-import { salePointDisplayName } from "@/lib/sale-point";
 import { branchDayRangeUtc } from "@/lib/server/branch-time";
 import { prisma } from "@/lib/server/db";
 import { getPayment } from "@/lib/server/payment";
@@ -76,7 +75,13 @@ export type ReceiptListRow = {
   currency: Currency;
   grandTotal: number;
   printCount: number;
-  tableName: string | null;
+  /**
+   * **ชิ้นส่วน** ของชื่อบิล ไม่ใช่ชื่อสำเร็จรูป — "Bàn A1" / "Takeaway #12"
+   * ขึ้นกับภาษาของจอ และไฟล์นี้อยู่ใน lib/server ซึ่งห้ามแปลภาษา
+   * หน้าจอประกอบเองด้วย `salePointDisplayName(row.salePoint, row.salePoint, t)`
+   * (object เดียวใส่ได้ทั้งสองช่องเพราะมีครบทั้ง name/kind และ queueNumber)
+   */
+  salePoint: { name: string; kind: SalePointKind; queueNumber: number | null };
   staffName: string | null;
 };
 
@@ -177,9 +182,13 @@ export async function listReceipts(
       method: receipt.payment.method,
       currency: receipt.payment.currency,
       grandTotal: receipt.payment.grandTotal,
-      // ชื่อที่คนอ่านออกว่าเป็นบิลของใคร — "โต๊ะ A1" หรือ "ซื้อกลับ คิว 12"
-      // ห้ามใช้ `table.name` ดิบ ๆ เพราะเคาน์เตอร์มีชื่อเดียวแต่มีลูกค้าหลายคน
-      tableName: salePointDisplayName(receipt.payment.tableSession.table, receipt.payment.tableSession),
+      // ห้ามให้หน้าจอใช้ `name` ดิบ ๆ เป็นชื่อบิล — เคาน์เตอร์มีชื่อเดียวแต่มีลูกค้า
+      // หลายคน ต้องผ่าน salePointDisplayName() ที่ดูเลขคิวด้วยเสมอ
+      salePoint: {
+        name: receipt.payment.tableSession.table.name,
+        kind: receipt.payment.tableSession.table.kind,
+        queueNumber: receipt.payment.tableSession.queueNumber,
+      },
       staffName: receipt.payment.paidByStaff?.name ?? null,
     })),
   };

@@ -1,4 +1,5 @@
 import type { Currency } from "@/lib/generated/prisma/enums";
+import type { MessageKey } from "@/lib/i18n/vi";
 
 /**
  * เงินในระบบนี้เก็บเป็น **จำนวนเต็มของ "หน่วยย่อยที่สุด" ของสกุลเงินนั้น** เสมอ
@@ -39,8 +40,6 @@ export type CurrencyConfig = {
   group: string;
   /** ตัวคั่นทศนิยม (ไม่ได้ใช้เมื่อ decimals = 0) */
   decimal: string;
-  /** ชื่อที่คนอ่านออก ใช้ในหน้าตั้งค่า/รายงาน */
-  label: string;
 };
 
 /**
@@ -56,7 +55,6 @@ export const CURRENCIES: Record<Currency, CurrencyConfig> = {
     symbolPosition: "before",
     group: ",",
     decimal: ".",
-    label: "บาท",
   },
   LAK: {
     decimals: 0,
@@ -64,7 +62,6 @@ export const CURRENCIES: Record<Currency, CurrencyConfig> = {
     symbolPosition: "before",
     group: ",",
     decimal: ".",
-    label: "กีบ",
   },
   VND: {
     // เวียดนามใช้จุดคั่นหลักพัน ไม่ใช่จุลภาค — "6.000 ₫" คือหกพันดอง ไม่ใช่หกดอง
@@ -73,7 +70,6 @@ export const CURRENCIES: Record<Currency, CurrencyConfig> = {
     symbolPosition: "after",
     group: ".",
     decimal: ",",
-    label: "ดอง",
   },
 };
 
@@ -230,4 +226,14 @@ export function formatMoneyDelta(amount: number, currency: Currency): string {
  */
 export function lineTotalOf(unitPrice: number, modifierTotal: number, quantity: number): number {
   return (unitPrice + modifierTotal) * quantity;
+}
+
+/**
+ * คีย์ชื่อเต็มของสกุลเงิน ("บาท"/"Baht") — เดิมเป็นฟิลด์ `label` ใน CURRENCIES
+ *
+ * ย้ายออกมาเพราะ CURRENCIES เป็น "กติกาการจัดรูปตัวเลข" ซึ่งไม่ขึ้นกับภาษา
+ * ส่วนชื่อเรียกสกุลเงินขึ้นกับภาษา — ปนกันอยู่ไฟล์เดียวแล้วจะแปลไม่ได้
+ */
+export function currencyKey(currency: Currency): MessageKey {
+  return `currency.${currency}`;
 }

@@ -5,8 +5,9 @@ import { redirect } from "next/navigation";
 import { LiveRefresh } from "@/components/live-refresh";
 import type { PaymentMethod } from "@/lib/generated/prisma/enums";
 import { formatMoney } from "@/lib/money";
-import { PAYMENT_METHOD_LABEL } from "@/lib/payment-method";
+import { paymentMethodKey } from "@/lib/payment-method";
 import { canAccessScreen } from "@/lib/rbac";
+import { salePointDisplayName } from "@/lib/sale-point";
 import { listReceipts } from "@/lib/server/receipt";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
@@ -93,7 +94,7 @@ export default async function AdminReceiptsPage({
                 <option value="">ทั้งหมด</option>
                 {METHOD_OPTIONS.map((option) => (
                   <option key={option} value={option}>
-                    {PAYMENT_METHOD_LABEL[option]}
+                    {t(paymentMethodKey(option))}
                   </option>
                 ))}
               </select>
@@ -142,7 +143,7 @@ export default async function AdminReceiptsPage({
                           <span className="display text-[15px] tabular-nums">{row.number}</span>
                           <span className="kicker">
                             {formatIssuedAt(row.issuedAt, staff.branch.timezone)}
-                            {row.tableName ? ` · ${row.tableName}` : ""}
+                            {` · ${salePointDisplayName(row.salePoint, row.salePoint, t)}`}
                             {row.staffName ? ` · ${row.staffName}` : ""}
                           </span>
                         </div>
@@ -154,7 +155,7 @@ export default async function AdminReceiptsPage({
                             <span className="tag tag-accent">พิมพ์ {row.printCount} ครั้ง</span>
                           ) : null}
                           <span className="tag tag-neutral">
-                            {PAYMENT_METHOD_LABEL[row.method]}
+                            {t(paymentMethodKey(row.method))}
                           </span>
                           <span className="display w-28 text-right text-[15px] tabular-nums">
                             {formatMoney(row.grandTotal, row.currency)}

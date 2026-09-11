@@ -1,5 +1,17 @@
 import type { BillRates } from "@/lib/bill";
 import type { OrderType, SalePointKind } from "@/lib/generated/prisma/enums";
+import type { MessageParams } from "@/lib/i18n/translate";
+import type { MessageKey } from "@/lib/i18n/vi";
+
+/**
+ * ตัวแปลที่ผู้เรียกส่งเข้ามา — server component ได้จาก `getT()`
+ * ส่วน client component ได้จาก `useT()`
+ *
+ * ไฟล์นี้ **ไม่อ่าน cookie เอง** โดยตั้งใจ: มันถูกเรียกจากทั้งสองฝั่ง และจาก
+ * สคริปต์ smoke ที่ไม่มี request context เลย — รับตัวแปลเข้ามาจึงเป็นทางเดียว
+ * ที่ยังคงเป็น "ที่เดียวในระบบ" ได้โดยไม่ผูกกับ Next.js
+ */
+type Translate = (key: MessageKey, params?: MessageParams) => string;
 
 /**
  * กติกาของ "จุดขาย" — ที่เดียวในระบบที่ตอบว่าช่องทางไหนทำอะไรได้บ้าง
@@ -35,12 +47,10 @@ export const ORDER_TYPE_FOR_SALE_POINT: Record<SalePointKind, OrderType> = {
   DELIVERY: "DELIVERY",
 };
 
-/** ป้ายภาษาไทยของแต่ละช่องทาง — ใช้บนผังโต๊ะ, ตั๋วครัว (KDS) และใบเสร็จ */
-export const SALE_POINT_LABEL: Record<SalePointKind, string> = {
-  DINE_IN: "Dine-in",
-  COUNTER: "Takeaway",
-  DELIVERY: "Delivery",
-};
+/** คีย์ป้ายของแต่ละช่องทาง — ใช้บนผังโต๊ะ, ตั๋วครัว (KDS) และใบเสร็จ */
+export function salePointKey(kind: SalePointKind): MessageKey {
+  return `salePoint.${kind}`;
+}
 
 /**
  * ชื่อที่ใช้เรียกบิลใบหนึ่งบนหน้าจอ กระดาษ และตั๋วครัว — **ที่เดียวในระบบ**
@@ -61,17 +71,19 @@ export const SALE_POINT_LABEL: Record<SalePointKind, string> = {
  */
 export function salePointDisplayName(
   table: { name: string; kind: SalePointKind },
-  session?: { queueNumber?: number | null } | null,
+  session: { queueNumber?: number | null } | null | undefined,
+  t: Translate,
 ): string {
   if (showsInTableMap(table.kind)) {
-    return `Table ${table.name}`;
+    return t("salePoint.tableNamed", { name: table.name });
   }
 
+  const channel = t(salePointKey(table.kind));
   const queueNumber = session?.queueNumber;
 
   return queueNumber
-    ? `${SALE_POINT_LABEL[table.kind]} #${queueNumber}`
-    : `${SALE_POINT_LABEL[table.kind]} · ${table.name}`;
+    ? t("salePoint.queued", { channel, queue: queueNumber })
+    : t("salePoint.channelNamed", { channel, name: table.name });
 }
 
 /**
@@ -97,8 +109,8 @@ export function salePointBasePath(
  * แยกจาก `salePointDisplayName()` เพราะบางที่ต้องการป้ายกับค่าแยกกัน
  * (`<dt>โต๊ะ</dt><dd>A1</dd>`) ซึ่งเขียนว่า "โต๊ะ" ตายตัวไม่ได้อีกต่อไป
  */
-export function salePointFieldLabel(kind: SalePointKind): string {
-  return showsInTableMap(kind) ? "Table" : "Channel";
+export function salePointFieldLabel(kind: SalePointKind, t: Translate): string {
+  return t(showsInTableMap(kind) ? "salePoint.fieldTable" : "salePoint.fieldChannel");
 }
 
 /**

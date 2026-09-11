@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { STAFF_ROLE_LABEL, canAccessScreen, type StaffScreen } from "@/lib/rbac";
+import { useT } from "@/components/i18n-provider";
+import { canAccessScreen, staffRoleKey, type StaffScreen } from "@/lib/rbac";
 import type { StaffRole } from "@/lib/generated/prisma/enums";
 
 /**
@@ -95,6 +96,7 @@ const MODULES: Module[] = [
 const VISIBLE_MODULES = MODULES.filter((module) => module.href);
 
 export function PosSidebar({ role }: { role: StaffRole }) {
+  const { t } = useT();
   const pathname = usePathname();
 
   const isAllowed = (module: Module) =>
@@ -152,7 +154,7 @@ export function PosSidebar({ role }: { role: StaffRole }) {
 
         <div className="mt-auto flex flex-col gap-1 border-t-2 border-[var(--color-text)] p-4">
           <span className="kicker">Role</span>
-          <span className="display text-[14px]">{STAFF_ROLE_LABEL[role]}</span>
+          <span className="display text-[14px]">{t(staffRoleKey(role))}</span>
         </div>
       </nav>
 

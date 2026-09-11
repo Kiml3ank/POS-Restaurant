@@ -2,7 +2,14 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import type { StaffRole, StaffScreenKind } from "@/lib/generated/prisma/enums";
-import { STAFF_ROLE_LABEL, canAccessScreen, canAssignRole, canManageStaff, canManageStaffMember } from "@/lib/rbac";
+import {
+  canAccessScreen,
+  canAssignRole,
+  canManageStaff,
+  canManageStaffMember,
+  staffRoleKey,
+} from "@/lib/rbac";
+import { getT } from "@/lib/server/locale";
 import { getStaffMember } from "@/lib/server/staff-admin";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
@@ -45,6 +52,7 @@ export default async function StaffDetailPage({
 }: {
   params: Promise<{ staffId: string }>;
 }) {
+  const { t } = await getT();
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -88,7 +96,7 @@ export default async function StaffDetailPage({
   return (
     <Shell
       title={`${detail.staff.code} · ${detail.staff.name}`}
-      subtitle={`${STAFF_ROLE_LABEL[detail.staff.role]} · ${
+      subtitle={`${t(staffRoleKey(detail.staff.role))} · ${
         detail.staff.isActive ? "Active" : "Deactivated"
       }`}
     >

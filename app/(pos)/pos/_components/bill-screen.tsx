@@ -4,13 +4,14 @@ import { LiveRefresh } from "@/components/live-refresh";
 import { dailyOrderNumber } from "@/lib/order-number";
 import { formatBp } from "@/lib/bill";
 import { formatMoney } from "@/lib/money";
-import { ORDER_ITEM_STATUS_LABEL } from "@/lib/order-status";
-import { PAYMENT_METHOD_LABEL } from "@/lib/payment-method";
+import { orderItemStatusKey } from "@/lib/order-status";
+import { paymentMethodKey } from "@/lib/payment-method";
 import { canSetStaffMeal, canTakePayment } from "@/lib/rbac";
 import { salePointDisplayName } from "@/lib/sale-point";
 import type { TableBill } from "@/lib/server/billing";
 import type { PaymentReceipt } from "@/lib/server/payment";
 import { prisma } from "@/lib/server/db";
+import { getT } from "@/lib/server/locale";
 import type { CurrentStaff } from "@/lib/server/staff-session";
 
 import { PaymentPanel } from "./payment-panel";
@@ -53,6 +54,7 @@ export async function BillScreen({
   /** บิลใบไหน — จำเป็นเฉพาะจุดขายที่มีหลายบิลเปิดพร้อมกัน (เคาน์เตอร์ซื้อกลับ) */
   sessionId?: string;
 }) {
+  const { t } = await getT();
   const { table, session, lines, bill, discountBp, unservedCount, isEmpty } = detail;
   const currency = detail.branch.currency;
 
@@ -144,7 +146,7 @@ export async function BillScreen({
                             จะมีเลขบิลไปต่อท้ายชื่อเมนูในบรรทัดเดียวกัน อ่านเป็น
                             "น้ำเปล่า#20260822-0003" ซึ่งดูเหมือนชื่อเมนูเพี้ยน */}
                         <span className="kicker block">
-                          #{dailyOrderNumber(line.orderNumber)} · {ORDER_ITEM_STATUS_LABEL[line.status]}
+                          #{dailyOrderNumber(line.orderNumber)} · {t(orderItemStatusKey(line.status))}
                         </span>
                         {/* ราคา/หน่วยของจอแคบ ที่ตัดคอลัมน์ทิ้งไป */}
                         <span className="block text-xs text-[var(--color-neutral-700)] sm:hidden">
@@ -313,14 +315,15 @@ export async function BillScreen({
  * ไม่ได้อ่านอัตราจาก Branch — เป็นรูปแบบเดียวกับที่ใบเสร็จย้อนหลังในบทที่ 12
  * ต้องใช้ ถ้าวันนี้ร้านขึ้นเซอร์วิสชาร์จ หน้านี้ของบิลเมื่อวานต้องไม่ขยับตาม
  */
-export function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; base: string }) {
+export async function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; base: string }) {
+  const { t } = await getT();
   const { payment, lines } = receipt;
   const currency = payment.currency;
   /**
    * หัวเรื่องของหน้าสรุปต้องพูดภาษาของช่องทางที่ขาย ไม่ใช่ "โต๊ะ" เสมอ
    * — บิลซื้อกลับที่ขึ้นว่า "โต๊ะ เคาน์เตอร์ซื้อกลับ" อ่านแล้วสะดุดทุกครั้ง
    */
-  const tableName = salePointDisplayName(payment.tableSession.table, payment.tableSession);
+  const tableName = salePointDisplayName(payment.tableSession.table, payment.tableSession, t);
 
   /**
    * เลขบิลอยู่ "หัวเอกสารครั้งเดียว" ไม่ใช่ต่อท้ายทุกบรรทัด
@@ -342,7 +345,7 @@ export function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; base: 
           </span>
         </div>
         <div className="flex min-w-0 flex-1 items-center justify-end gap-3 px-4 lg:px-6">
-          <span className="tag tag-solid">{PAYMENT_METHOD_LABEL[payment.method]}</span>
+          <span className="tag tag-solid">{t(paymentMethodKey(payment.method))}</span>
         </div>
       </div>
 
@@ -441,7 +444,7 @@ export function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; base: 
 
             {/* เอกสารต้องบอกได้ด้วยตัวเองว่าจ่ายด้วยอะไร ไม่ใช่ต้องไปอ่านป้ายบนแถบหัวจอ
                 (แถบหัวจอเป็นของ "หน้าจอ" ไม่ใช่ของ "บิล") */}
-            <Row label="Paid by" value={PAYMENT_METHOD_LABEL[payment.method]} muted />
+            <Row label="Paid by" value={t(paymentMethodKey(payment.method))} muted />
 
             {payment.receivedAmount !== null ? (
               <>

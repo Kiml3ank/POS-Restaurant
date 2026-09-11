@@ -5,6 +5,7 @@ import { ReceiptDocument } from "@/components/receipt-document";
 import { ReceiptPrintButton } from "@/components/receipt-print-button";
 import { canAccessScreen, canBrowseReceipts, canReprintReceipt } from "@/lib/rbac";
 import { salePointDisplayName } from "@/lib/sale-point";
+import { getT } from "@/lib/server/locale";
 import { getReceipt } from "@/lib/server/receipt";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
@@ -25,6 +26,7 @@ export default async function AdminReceiptPage({
 }: {
   params: Promise<{ receiptId: string }>;
 }) {
+  const { t } = await getT();
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -61,7 +63,7 @@ export default async function AdminReceiptPage({
         <div className="flex min-w-0 flex-col">
           <span className="display text-[17px]">ใบเสร็จ {detail.receipt.number}</span>
           <span className="kicker">
-            {salePointDisplayName(detail.payment.tableSession.table, detail.payment.tableSession)}{" "}
+            {salePointDisplayName(detail.payment.tableSession.table, detail.payment.tableSession, t)}{" "}
             · พิมพ์แล้ว {detail.receipt.printCount} ครั้ง
           </span>
         </div>

@@ -1,7 +1,7 @@
 import "dotenv/config";
 
 import { calculateBill } from "@/lib/bill";
-import { auditActionLabel, auditMetadataFields } from "@/lib/audit-log";
+import { auditActionKey, auditMetadataFields } from "@/lib/audit-log";
 import { canReadAuditLog, canSetStaffMeal } from "@/lib/rbac";
 import { addToCart, placeOrder } from "@/lib/server/cart";
 import { listAuditLogs } from "@/lib/server/audit";
@@ -313,23 +313,42 @@ async function main() {
 
   // ── 12. ตัวแปล metadata ต้องไม่ทำหน้าพัง ────────────────────────────────
   const fmt = (amount: number) => String(amount);
-  check("action ที่มีป้ายไทยแปลได้", auditActionLabel("payment.take") === "รับเงิน / ปิดบิล");
+  // ตรวจ "คีย์" ไม่ใช่ประโยค — คำแปลเปลี่ยนได้ทุกเมื่อ แต่กติกา "ไม่รู้จัก = null" ห้ามเปลี่ยน
+  check("action ที่มีป้ายได้คีย์ของมัน", auditActionKey("payment.take") === "audit.action.payment_take");
   check(
-    "⭐ action ที่ยังไม่รู้จักคืนชื่อดิบ ไม่ใช่ 'ไม่ทราบ'",
-    auditActionLabel("something.brand_new") === "something.brand_new",
+    "⭐ action ที่ยังไม่รู้จักคืน null (หน้าจอแสดงชื่อดิบ) ไม่ใช่คีย์ของคำว่า 'ไม่ทราบ'",
+    auditActionKey("something.brand_new") === null,
+  );
+  check(
+    "ชื่อที่ชนกับ Object.prototype ไม่หลุดเป็นป้ายว่าง (ต้องได้ null → แสดงชื่อดิบ)",
+    auditActionKey("constructor") === null &&
+      auditActionKey("toString") === null &&
+      auditMetadataFields({ constructor: "x" }, fmt)[0]?.labelKey === null,
+  );
+  check(
+    "action ของหน้าจัดการจุดขายมีป้ายแล้ว",
+    auditActionKey("settings.table_upsert") !== null &&
+      auditActionKey("settings.table_rotate_qr") !== null &&
+      auditActionKey("settings.table_delete") !== null,
   );
   check("metadata = null ไม่พัง", auditMetadataFields(null, fmt).length === 0);
   check("metadata เป็น array ไม่พัง", auditMetadataFields([1, 2], fmt).length === 1);
   check("metadata เป็น string ไม่พัง", auditMetadataFields("hello", fmt).length === 1);
   check(
     "⭐ คีย์ที่ยังไม่มีป้ายยังต้องแสดง (ใช้ชื่อคีย์ดิบ) ห้ามซ่อนแถว",
-    auditMetadataFields({ brandNewKey: "v" }, fmt).some((field) => field.label === "brandNewKey"),
+    auditMetadataFields({ brandNewKey: "v" }, fmt).some(
+      (field) => field.rawKey === "brandNewKey" && field.labelKey === null && field.value === "v",
+    ),
   );
   check(
     "ค่า null/ว่างถูกข้าม ไม่รกหน้าจอ",
     auditMetadataFields({ a: null, b: "", c: "x" }, fmt).length === 1,
   );
-  check("boolean แปลเป็นไทย", auditMetadataFields({ isCopy: true }, fmt)[0]?.value === "ใช่");
+  check(
+    "boolean คืนคีย์ ใช่/ไม่ ให้หน้าจอแปล (ไฟล์ตัวแปลไม่มีคำของภาษาไหนเลย)",
+    auditMetadataFields({ isCopy: true }, fmt)[0]?.valueKey === "common.yes" &&
+      auditMetadataFields({ isCopy: false }, fmt)[0]?.valueKey === "common.no",
+  );
   check(
     "คีย์จำนวนเงินผ่านตัวจัดรูป",
     auditMetadataFields({ grandTotal: 100, currency: "THB" }, (amount) => `**${amount}**`).some(

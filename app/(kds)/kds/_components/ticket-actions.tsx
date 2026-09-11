@@ -5,10 +5,7 @@ import { useActionState } from "react";
 
 import { SubmitButton } from "@/components/submit-button";
 import { IDLE_FORM_STATE, type FormState } from "@/lib/form-state";
-import {
-  KITCHEN_ACTION_LABEL,
-  type KitchenActionableStatus,
-} from "@/lib/order-status";
+import { kitchenActionKey, type KitchenActionableStatus } from "@/lib/order-status";
 
 import { advanceItemAction, advanceTicketAction, serveItemAction } from "../actions";
 
@@ -51,7 +48,7 @@ export function AdvanceItemButton({
           status === "PLACED" ? "btn-secondary" : "btn-primary"
         }`}
       >
-        {KITCHEN_ACTION_LABEL[status]}
+        {t(kitchenActionKey(status))}
       </SubmitButton>
 
       {state.status === "error" ? (

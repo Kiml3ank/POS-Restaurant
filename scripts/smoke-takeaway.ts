@@ -1,8 +1,10 @@
 import "dotenv/config";
 
+import { en } from "@/lib/i18n/en";
+import { translate, type MessageParams } from "@/lib/i18n/translate";
+import { vi, type MessageKey } from "@/lib/i18n/vi";
 import {
   ORDER_TYPE_FOR_SALE_POINT,
-  SALE_POINT_LABEL,
   billRatesForSalePoint,
   chargesServiceCharge,
   joinsExistingSession,
@@ -10,6 +12,7 @@ import {
   salePointBasePath,
   salePointDisplayName,
   salePointFieldLabel,
+  salePointKey,
   showsInTableMap,
 } from "@/lib/sale-point";
 import { branchDayKey } from "@/lib/branch-day";
@@ -137,10 +140,15 @@ async function main() {
   check("ต้องมีเลขคิว: เคาน์เตอร์", needsQueueNumber("COUNTER") === true);
   check("ไม่ต้องมีเลขคิว: โต๊ะนั่ง (มีชื่อโต๊ะให้เรียกอยู่แล้ว)", needsQueueNumber("DINE_IN") === false);
 
+  // tsc ตรวจอยู่แล้วว่าคีย์มีจริง (salePointKey คืน MessageKey) — ที่นี่กันคำแปลว่าง
   check(
-    "ทุก SalePointKind มีป้ายภาษาไทย (ไม่มีค่าไหนหลุดเป็น undefined)",
-    ALL_KINDS.every((kind) => typeof SALE_POINT_LABEL[kind] === "string" && SALE_POINT_LABEL[kind].length > 0),
-    ALL_KINDS.map((kind) => SALE_POINT_LABEL[kind]).join(" · "),
+    "ทุก SalePointKind มีป้ายทั้งสองภาษา (ไม่มีค่าไหนว่าง)",
+    ALL_KINDS.every(
+      (kind) =>
+        translate(vi, salePointKey(kind)).trim().length > 0 &&
+        translate(en, salePointKey(kind)).trim().length > 0,
+    ),
+    ALL_KINDS.map((kind) => `${translate(vi, salePointKey(kind))}/${translate(en, salePointKey(kind))}`).join(" · "),
   );
 
   console.log("\n── 2. อัตราที่ใช้คิดบิลตามช่องทาง ────────────────────────────────\n");
@@ -346,36 +354,48 @@ async function main() {
    * — บอก **ชื่อช่อง** แทนที่จะบอกว่าเป็นบิลของใคร ซึ่งที่เคาน์เตอร์คือเลขคิว
    * (ร้านมีเคาน์เตอร์เดียวแต่ลูกค้าหลายคน ชื่อช่องจึงไม่ช่วยอะไรเลย)
    */
+  /**
+   * ตัวแปลสองภาษาจากพจนานุกรมจริง — ตรวจ **กฎ** ในทั้งสองภาษา ไม่ใช่ประโยค
+   * ภาษาเดียวที่ฮาร์ดโค้ดไว้ (ท่านั้นคือสิ่งที่ทำให้เทสต์ชุดนี้พังทุกครั้งที่แปล)
+   */
+  const tvi = (key: MessageKey, params?: MessageParams) => translate(vi, key, params);
+  const ten = (key: MessageKey, params?: MessageParams) => translate(en, key, params);
+  const both = (
+    table: Parameters<typeof salePointDisplayName>[0],
+    session: Parameters<typeof salePointDisplayName>[1],
+  ) => `${salePointDisplayName(table, session, tvi)} | ${salePointDisplayName(table, session, ten)}`;
+
   check(
-    "ชื่อบิลของโต๊ะนั่ง = โต๊ะ + ชื่อโต๊ะ",
-    salePointDisplayName(dineTable, dineFirst) === `โต๊ะ ${dineTable.name}`,
-    salePointDisplayName(dineTable, dineFirst),
+    "ชื่อบิลของโต๊ะนั่ง = คำว่าโต๊ะ + ชื่อโต๊ะ (ทั้งสองภาษา)",
+    both(dineTable, dineFirst) === `Bàn ${dineTable.name} | Table ${dineTable.name}`,
+    both(dineTable, dineFirst),
   );
   check(
-    "ชื่อบิลของเคาน์เตอร์ = ช่องทาง + เลขคิว",
-    salePointDisplayName(counter, first) === `ซื้อกลับ คิว ${first.queueNumber}`,
-    salePointDisplayName(counter, first),
+    "ชื่อบิลของเคาน์เตอร์ = ช่องทาง + เลขคิว (ทั้งสองภาษา)",
+    both(counter, first) === `Mang đi #${first.queueNumber} | Takeaway #${first.queueNumber}`,
+    both(counter, first),
   );
   check(
     "ชื่อบิลของเคาน์เตอร์ไม่ใช่ชื่อช่อง (บั๊กเดิมที่ครัวอ่านแล้วไม่รู้ว่าของใคร)",
-    !salePointDisplayName(counter, first).includes(counter.name),
+    !salePointDisplayName(counter, first, tvi).includes(counter.name) &&
+      !salePointDisplayName(counter, first, ten).includes(counter.name),
     `ชื่อช่องคือ "${counter.name}"`,
   );
   check(
     "ไรเดอร์ใช้กฎเดียวกับเคาน์เตอร์ (ช่องทาง + เลขคิว)",
-    salePointDisplayName({ name: "ช่องไรเดอร์", kind: "DELIVERY" }, { queueNumber: 7 }) ===
-      "ไรเดอร์ คิว 7",
-    salePointDisplayName({ name: "ช่องไรเดอร์", kind: "DELIVERY" }, { queueNumber: 7 }),
+    both({ name: "Rider slot", kind: "DELIVERY" }, { queueNumber: 7 }) ===
+      "Giao hàng #7 | Delivery #7",
+    both({ name: "Rider slot", kind: "DELIVERY" }, { queueNumber: 7 }),
   );
   check(
-    "ไม่มีเลขคิว (ข้อมูลก่อนมีคอลัมน์นี้) ตกกลับไปใช้ชื่อจุดขาย ไม่ใช่คำว่า 'คิว null'",
-    salePointDisplayName(counter, null) === `${SALE_POINT_LABEL.COUNTER} · ${counter.name}`,
-    salePointDisplayName(counter, null),
+    "ไม่มีเลขคิว (ข้อมูลก่อนมีคอลัมน์นี้) ตกกลับไปใช้ชื่อจุดขาย ไม่ใช่คำว่า '#null'",
+    both(counter, null) === `Mang đi · ${counter.name} | Takeaway · ${counter.name}`,
+    both(counter, null),
   );
   check(
     "โต๊ะนั่งที่มีเลขคิวติดมาด้วยยังอ่านว่า 'โต๊ะ' (กฎตัดสินที่ kind ไม่ใช่ที่ว่ามีเลขคิวไหม)",
-    salePointDisplayName(dineTable, { queueNumber: 99 }) === `โต๊ะ ${dineTable.name}`,
-    salePointDisplayName(dineTable, { queueNumber: 99 }),
+    both(dineTable, { queueNumber: 99 }) === `Bàn ${dineTable.name} | Table ${dineTable.name}`,
+    both(dineTable, { queueNumber: 99 }),
   );
   /**
    * ลิงก์ที่พาไปผิดตระกูล URL เป็นบั๊กเงียบ: หน้าเปิดได้ 200 เหมือนกัน แต่พนักงาน
@@ -392,10 +412,13 @@ async function main() {
     salePointBasePath(counter, first),
   );
   check(
-    "ป้ายของช่องข้อมูลบนใบเสร็จ: โต๊ะนั่ง = 'โต๊ะ' · ที่เหลือ = 'ช่องทาง'",
-    salePointFieldLabel("DINE_IN") === "โต๊ะ" &&
-      salePointFieldLabel("COUNTER") === "ช่องทาง" &&
-      salePointFieldLabel("DELIVERY") === "ช่องทาง",
+    "ป้ายของช่องข้อมูลบนใบเสร็จ: โต๊ะนั่ง = 'โต๊ะ' · ที่เหลือ = 'ช่องทาง' (ทั้งสองภาษา)",
+    salePointFieldLabel("DINE_IN", tvi) === "Bàn" &&
+      salePointFieldLabel("COUNTER", tvi) === "Kênh bán" &&
+      salePointFieldLabel("DELIVERY", tvi) === "Kênh bán" &&
+      salePointFieldLabel("DINE_IN", ten) === "Table" &&
+      salePointFieldLabel("COUNTER", ten) === "Channel" &&
+      salePointFieldLabel("DELIVERY", ten) === "Channel",
   );
 
   /**
@@ -419,20 +442,20 @@ async function main() {
    * ternary คุมอยู่ — ที่นี่ต้องเดินทางเดียวกัน ไม่ใช่ใส่ ! ทับให้ tsc เงียบ
    */
   const counterTicketLabel = counterTicket?.table
-    ? salePointDisplayName(counterTicket.table, counterTicket.tableSession)
+    ? both(counterTicket.table, counterTicket.tableSession)
     : null;
   const dineTicketLabel = dineTicket?.table
-    ? salePointDisplayName(dineTicket.table, dineTicket.tableSession)
+    ? both(dineTicket.table, dineTicket.tableSession)
     : null;
 
   check(
-    "ป้ายบนตั๋วซื้อกลับอ่านว่า 'ซื้อกลับ คิว N'",
-    counterTicketLabel === `ซื้อกลับ คิว ${first.queueNumber}`,
+    "ป้ายบนตั๋วซื้อกลับอ่านว่า 'ช่องทาง #N'",
+    counterTicketLabel === `Mang đi #${first.queueNumber} | Takeaway #${first.queueNumber}`,
     counterTicketLabel ?? "ไม่มีป้าย",
   );
   check(
     "ป้ายบนตั๋วโต๊ะนั่งไม่เปลี่ยนไปจากเดิม (regression ของบทที่ 8)",
-    dineTicketLabel === `โต๊ะ ${dineTable.name}`,
+    dineTicketLabel === `Bàn ${dineTable.name} | Table ${dineTable.name}`,
     dineTicketLabel ?? "ไม่มีป้าย",
   );
   console.log("\n── 8. เคาน์เตอร์ไม่โผล่ที่ไหนที่ไม่ควรโผล่ ──────────────────────\n");
@@ -543,10 +566,23 @@ async function main() {
 
     const listed = await listReceipts(ownerStaff, {});
     const listedRow = listed.ok ? listed.rows.find((row) => row.id === receiptRow.id) : undefined;
+    /**
+     * listReceipts() อยู่ใน lib/server จึงคืน **ชิ้นส่วน** ไม่ใช่ชื่อสำเร็จรูป
+     * (ชั้นธุรกิจห้ามแปลภาษา) — ตรวจทั้งชิ้นส่วนที่ query ต้องดึงมาให้ครบ
+     * และชื่อที่หน้าจอประกอบได้จากชิ้นส่วนนั้นจริง
+     */
     check(
-      "ชื่อบิลบนใบเสร็จซื้อกลับ = ซื้อกลับ คิว N (ไม่ใช่ชื่อช่อง ไม่ใช่คำว่าโต๊ะ)",
-      listedRow?.tableName === `ซื้อกลับ คิว ${first.queueNumber}`,
-      listedRow?.tableName ?? "ไม่มีแถว",
+      "แถวใบเสร็จซื้อกลับพาเลขคิวมาด้วย (query ไม่ลืม select)",
+      listedRow?.salePoint.kind === "COUNTER" &&
+        listedRow.salePoint.queueNumber === first.queueNumber,
+      JSON.stringify(listedRow?.salePoint ?? "ไม่มีแถว"),
+    );
+    check(
+      "ชื่อบิลบนใบเสร็จซื้อกลับ = ช่องทาง #N (ไม่ใช่ชื่อช่อง ไม่ใช่คำว่าโต๊ะ)",
+      listedRow !== undefined &&
+        both(listedRow.salePoint, listedRow.salePoint) ===
+          `Mang đi #${first.queueNumber} | Takeaway #${first.queueNumber}`,
+      listedRow ? both(listedRow.salePoint, listedRow.salePoint) : "ไม่มีแถว",
     );
 
     /**

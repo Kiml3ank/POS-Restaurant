@@ -3,10 +3,9 @@ import { getT } from "@/lib/server/locale";
 import { redirect } from "next/navigation";
 
 import type { Currency } from "@/lib/generated/prisma/enums";
-import { AUDIT_SENSITIVE_ACTIONS, auditActionLabel, auditMetadataFields } from "@/lib/audit-log";
+import { AUDIT_SENSITIVE_ACTIONS, auditActionKey, auditMetadataFields } from "@/lib/audit-log";
 import { CURRENCIES, formatMoney } from "@/lib/money";
-import { STAFF_ROLE_LABEL, canAccessScreen } from "@/lib/rbac";
-import type { StaffRole } from "@/lib/generated/prisma/enums";
+import { canAccessScreen, isStaffRole, staffRoleKey } from "@/lib/rbac";
 import { listAuditLogs } from "@/lib/server/audit";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
@@ -62,6 +61,12 @@ export default async function AuditLogsPage({
       ? formatMoney(amount, currency as Currency)
       : String(amount);
 
+  /** action ที่ยังไม่มีคำแปลแสดงชื่อดิบ — ห้ามซ่อนแถว (กติกาบทที่ 13a) */
+  const actionLabel = (action: string) => {
+    const key = auditActionKey(action);
+    return key ? t(key) : action;
+  };
+
   return (
     <main className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--color-text)] px-4 py-3 lg:px-6">
@@ -103,7 +108,7 @@ export default async function AuditLogsPage({
                     บทถัดไปที่เพิ่ม action ใหม่จะโผล่เองโดยไม่ต้องแก้ไฟล์นี้ */}
                 {result.actions.map((action) => (
                   <option key={action} value={action}>
-                    {auditActionLabel(action)}
+                    {actionLabel(action)}
                   </option>
                 ))}
               </select>
@@ -166,11 +171,11 @@ export default async function AuditLogsPage({
                       >
                         <div className="flex min-w-0 flex-wrap items-baseline gap-2">
                           <span className="display text-[15px]">
-                            {auditActionLabel(row.action)}
+                            {actionLabel(row.action)}
                           </span>
-                          {/* action ที่ยังไม่มีป้ายไทยจะโชว์ชื่อดิบไปแล้วจากบรรทัดบน
+                          {/* action ที่ยังไม่มีคำแปลจะโชว์ชื่อดิบไปแล้วจากบรรทัดบน
                               จึงไม่ต้องโชว์ซ้ำ — แต่ถ้ามีป้าย ให้เห็นชื่อดิบด้วยเพื่อเอาไปค้นต่อ */}
-                          {auditActionLabel(row.action) !== row.action ? (
+                          {auditActionKey(row.action) !== null ? (
                             <code className="kicker">{row.action}</code>
                           ) : null}
                         </div>
@@ -184,7 +189,9 @@ export default async function AuditLogsPage({
                         <span>
                           <span className="kicker">ผู้กระทำ </span>
                           {row.staffName ?? "— (บัญชีถูกลบแล้ว)"}
-                          {row.staffRole ? ` · ${STAFF_ROLE_LABEL[row.staffRole as StaffRole]}` : ""}
+                          {row.staffRole
+                            ? ` · ${isStaffRole(row.staffRole) ? t(staffRoleKey(row.staffRole)) : row.staffRole}`
+                            : ""}
                         </span>
                         {/* IP ตอบคำถาม "กดจากเครื่องในร้านหรือจากข้างนอก" ซึ่งเป็น
                             คำถามแรกเสมอตอนสืบสวน — แถวเก่าก่อนบทที่ 13 จะว่าง */}
@@ -201,9 +208,14 @@ export default async function AuditLogsPage({
                       {fields.length > 0 ? (
                         <dl className="flex flex-wrap gap-x-6 gap-y-1 px-4 py-2.5 text-[13px]">
                           {fields.map((field) => (
-                            <div key={field.label} className="flex items-baseline gap-1.5">
-                              <dt className="kicker">{field.label}</dt>
-                              <dd className="tabular-nums">{field.value}</dd>
+                            <div key={field.rawKey} className="flex items-baseline gap-1.5">
+                              {/* คีย์ที่ยังไม่มีคำแปลแสดงชื่อคีย์ดิบ — ห้ามข้ามแถว */}
+                              <dt className="kicker">
+                                {field.labelKey ? t(field.labelKey) : field.rawKey}
+                              </dt>
+                              <dd className="tabular-nums">
+                                {field.valueKey ? t(field.valueKey) : field.value}
+                              </dd>
                             </div>
                           ))}
                         </dl>

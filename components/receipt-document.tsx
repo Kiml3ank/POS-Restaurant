@@ -1,9 +1,10 @@
 import { formatBp } from "@/lib/bill";
 import { formatMoney } from "@/lib/money";
-import { PAYMENT_METHOD_LABEL } from "@/lib/payment-method";
-import { RECEIPT_COPY_LABEL, RECEIPT_KIND_TITLE } from "@/lib/receipt";
+import { paymentMethodKey } from "@/lib/payment-method";
+import { receiptKindTitleKey } from "@/lib/receipt";
 import { dailyOrderNumber } from "@/lib/order-number";
 import { salePointDisplayName, salePointFieldLabel, showsInTableMap } from "@/lib/sale-point";
+import { getT } from "@/lib/server/locale";
 import type { ReceiptDetail } from "@/lib/server/receipt";
 
 /**
@@ -28,7 +29,8 @@ import type { ReceiptDetail } from "@/lib/server/receipt";
  *
  * ⚠ รูปแบบเอกสารนี้ไม่ใช่คำแนะนำทางกฎหมาย ต้องให้ผู้สอบบัญชี/สรรพากรตรวจก่อนใช้จริง
  */
-export function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
+export async function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
+  const { t } = await getT();
   const { receipt, payment, lines } = detail;
   const currency = payment.currency;
   const isTaxDoc = receipt.kind === "TAX_ABB";
@@ -71,10 +73,10 @@ export function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
 
       <div className="flex flex-col items-center gap-1 text-center">
         <span className="display text-[13px] leading-tight">
-          {RECEIPT_KIND_TITLE[receipt.kind]}
+          {t(receiptKindTitleKey(receipt.kind))}
         </span>
         {isCopy ? (
-          <span className="tag tag-outline text-[11px]">{RECEIPT_COPY_LABEL}</span>
+          <span className="tag tag-outline text-[11px]">{t("receipt.copy")}</span>
         ) : null}
       </div>
 
@@ -90,11 +92,11 @@ export function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
           (เรียกสิ่งที่ไม่ใช่โต๊ะว่าโต๊ะ + บอกชื่อช่องแทนที่จะบอกว่าเป็นบิลของใคร)
         */}
         <Line
-          label={salePointFieldLabel(payment.tableSession.table.kind)}
+          label={salePointFieldLabel(payment.tableSession.table.kind, t)}
           value={
             isDineIn
               ? payment.tableSession.table.name
-              : salePointDisplayName(payment.tableSession.table, payment.tableSession)
+              : salePointDisplayName(payment.tableSession.table, payment.tableSession, t)
           }
         />
         {/*
@@ -202,7 +204,7 @@ export function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
 
       {/* ── การชำระเงิน ─────────────────────────────────────────────── */}
       <dl className="flex flex-col gap-1 text-[11px]">
-        <Line label="ชำระโดย" value={PAYMENT_METHOD_LABEL[payment.method]} />
+        <Line label="ชำระโดย" value={t(paymentMethodKey(payment.method))} />
 
         {payment.receivedAmount !== null ? (
           <>

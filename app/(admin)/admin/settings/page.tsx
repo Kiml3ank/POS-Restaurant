@@ -1,8 +1,9 @@
 import { redirect } from "next/navigation";
 
 import { canAccessScreen, canEditSettings, canEditTaxSettings } from "@/lib/rbac";
-import { SALE_POINT_LABEL } from "@/lib/sale-point";
+import { salePointKey } from "@/lib/sale-point";
 import { prisma } from "@/lib/server/db";
+import { getT } from "@/lib/server/locale";
 import { getSettings } from "@/lib/server/settings";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
@@ -29,6 +30,7 @@ import {
  * ต้องรู้ว่าตอนนี้ร้านคิด VAT กี่เปอร์เซ็นต์เพื่อตอบลูกค้าได้ แค่แก้เองไม่ได้
  */
 export default async function SettingsPage() {
+  const { t } = await getT();
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -200,7 +202,7 @@ export default async function SettingsPage() {
                     <span className="flex flex-wrap items-baseline gap-2">
                       <span className="display text-[15px]">{table.name}</span>
                       <span className="kicker">
-                        {SALE_POINT_LABEL[table.kind]}
+                        {t(salePointKey(table.kind))}
                         {table.kind === "DINE_IN" ? ` · ${table.seats} seats` : ""}
                       </span>
                       {/*

@@ -4,10 +4,11 @@ import { redirect } from "next/navigation";
 import { LiveRefresh } from "@/components/live-refresh";
 import type { PaymentMethod, SalePointKind } from "@/lib/generated/prisma/enums";
 import { formatMoney } from "@/lib/money";
-import { PAYMENT_METHOD_LABEL } from "@/lib/payment-method";
+import { paymentMethodKey } from "@/lib/payment-method";
 import { canAccessScreen, canReadAuditLog, canViewDashboard } from "@/lib/rbac";
-import { SALE_POINT_LABEL } from "@/lib/sale-point";
+import { salePointKey } from "@/lib/sale-point";
 import { getDashboard } from "@/lib/server/dashboard";
+import { getT } from "@/lib/server/locale";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
 /**
@@ -27,6 +28,7 @@ import { getCurrentStaff } from "@/lib/server/staff-session";
  * ร้านที่ปิดตีสองต้องเห็นยอดของกะเดียวกันทั้งกะ (เหตุผลเดียวกับเลขบิล/เลขคิว)
  */
 export default async function AdminHomePage() {
+  const { t } = await getT();
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -85,7 +87,7 @@ export default async function AdminHomePage() {
               <Breakdown
                 title="Payment method"
                 rows={sales.byMethod.map((row) => ({
-                  label: PAYMENT_METHOD_LABEL[row.method as PaymentMethod],
+                  label: t(paymentMethodKey(row.method as PaymentMethod)),
                   count: row.count,
                   amount: row.amount,
                 }))}
@@ -94,7 +96,7 @@ export default async function AdminHomePage() {
               <Breakdown
                 title="Sales channel"
                 rows={sales.byChannel.map((row) => ({
-                  label: SALE_POINT_LABEL[row.kind as SalePointKind],
+                  label: t(salePointKey(row.kind as SalePointKind)),
                   count: row.count,
                   amount: row.amount,
                 }))}

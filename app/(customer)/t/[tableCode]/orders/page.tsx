@@ -4,8 +4,9 @@ import { notFound, redirect } from "next/navigation";
 import { LiveRefresh } from "@/components/live-refresh";
 import { dailyOrderNumber } from "@/lib/order-number";
 import { formatMoney } from "@/lib/money";
-import { ORDER_ITEM_STATUS_LABEL, ORDER_STATUS_LABEL } from "@/lib/order-status";
+import { orderItemStatusKey, orderStatusKey } from "@/lib/order-status";
 import { getPlacedOrders } from "@/lib/server/cart";
+import { getT } from "@/lib/server/locale";
 import { resolveCustomerContext } from "@/lib/server/table-session";
 
 import { CustomerHeader } from "../_components/customer-header";
@@ -25,6 +26,7 @@ export default async function TableOrdersPage({
 }: {
   params: Promise<{ tableCode: string }>;
 }) {
+  const { t } = await getT();
   const { tableCode } = await params;
   const context = await resolveCustomerContext(tableCode);
 
@@ -98,7 +100,7 @@ export default async function TableOrdersPage({
                     <span className="font-medium">#{dailyOrderNumber(order.orderNumber)}</span>
                     <span className="text-sm text-neutral-500">
                       {order.placedAt ? timeFormatter.format(order.placedAt) : "—"} ·{" "}
-                      {ORDER_STATUS_LABEL[order.status]}
+                      {t(orderStatusKey(order.status))}
                     </span>
                   </div>
 
@@ -115,7 +117,7 @@ export default async function TableOrdersPage({
                           ) : null}
                         </span>
                         <span className="shrink-0 text-neutral-500">
-                          {ORDER_ITEM_STATUS_LABEL[line.status]}
+                          {t(orderItemStatusKey(line.status))}
                         </span>
                       </li>
                     ))}

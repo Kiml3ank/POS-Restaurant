@@ -1,7 +1,8 @@
 import Link from "next/link";
 
 import { LiveRefresh } from "@/components/live-refresh";
-import { STAFF_ROLE_LABEL, canAccessScreen } from "@/lib/rbac";
+import { canAccessScreen, staffRoleKey } from "@/lib/rbac";
+import { getT } from "@/lib/server/locale";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
 import { kdsLogoutAction } from "./kds/actions";
@@ -28,6 +29,7 @@ import { kdsLogoutAction } from "./kds/actions";
 export default async function KdsLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const { t } = await getT();
   const staff = await getCurrentStaff("kds");
 
   // หน้าใส่ PIN — ยังไม่มีใครล็อกอิน จึงไม่มีแถบหัวจอและไม่มีสาย SSE
@@ -51,7 +53,7 @@ export default async function KdsLayout({
           */}
           <LiveRefresh src="/api/realtime" className="text-[var(--color-accent-700)]" />
           <span className="kicker hidden whitespace-nowrap lg:inline">
-            {STAFF_ROLE_LABEL[staff.role]}
+            {t(staffRoleKey(staff.role))}
           </span>
           <span className="display hidden truncate text-[15px] sm:inline">{staff.name}</span>
 

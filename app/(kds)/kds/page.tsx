@@ -1,11 +1,12 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { ORDER_ITEM_STATUS_LABEL, isKitchenActionable } from "@/lib/order-status";
+import { isKitchenActionable, orderItemStatusKey } from "@/lib/order-status";
 import { canAccessScreen, canCookOrderItem, canServeOrderItem } from "@/lib/rbac";
 import { dailyOrderNumber } from "@/lib/order-number";
 import { salePointDisplayName } from "@/lib/sale-point";
 import { getKitchenStations, getKitchenTickets, type KitchenTicket } from "@/lib/server/kds";
+import { getT, type Translator } from "@/lib/server/locale";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
 import { Elapsed, LATE_AFTER_MINUTES } from "./_components/elapsed";
@@ -33,6 +34,7 @@ export default async function KdsPage({
 }: {
   searchParams: Promise<{ station?: string }>;
 }) {
+  const { t } = await getT();
   const staff = await getCurrentStaff("kds");
 
   if (!staff || !canAccessScreen(staff.role, "kds")) {
@@ -95,6 +97,7 @@ export default async function KdsPage({
                   showStationName={activeStation === null}
                   canCook={canCook}
                   canServe={canServe}
+                  t={t}
                 />
               </li>
             ))}
@@ -144,12 +147,15 @@ function TicketCard({
   showStationName,
   canCook,
   canServe,
+  t,
 }: {
   ticket: KitchenTicket;
   stationId: string | null;
   showStationName: boolean;
   canCook: boolean;
   canServe: boolean;
+  /** รับจาก page — component นี้เป็น server component ธรรมดา เรียก getT() ซ้ำทุกใบไม่คุ้ม */
+  t: Translator["t"];
 }) {
   const queuedAt = ticket.queuedAt.getTime();
   // นาทีที่รอมาแล้วคำนวณที่ lib/server/kds.ts (นาฬิกาเดียวกันทั้งจอ) แล้วให้
@@ -184,7 +190,7 @@ function TicketCard({
           */}
           <span className="display truncate text-[22px]">
             {ticket.table
-              ? salePointDisplayName(ticket.table, ticket.tableSession)
+              ? salePointDisplayName(ticket.table, ticket.tableSession, t)
               : "Delivery"}
           </span>
           <span className="kicker truncate">#{dailyOrderNumber(ticket.orderNumber)}</span>
@@ -230,7 +236,7 @@ function TicketCard({
               ) : null}
 
               <span className="kicker">
-                {ORDER_ITEM_STATUS_LABEL[item.status]}
+                {t(orderItemStatusKey(item.status))}
                 {showStationName && item.station ? ` · ${item.station.name}` : ""}
               </span>
             </div>

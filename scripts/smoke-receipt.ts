@@ -3,11 +3,14 @@ import "dotenv/config";
 import type { Currency } from "@/lib/generated/prisma/enums";
 import { formatMoney } from "@/lib/money";
 import { canBrowseReceipts, canReprintReceipt } from "@/lib/rbac";
+import { en } from "@/lib/i18n/en";
+import { translate } from "@/lib/i18n/translate";
+import { vi } from "@/lib/i18n/vi";
 import {
-  RECEIPT_KIND_TITLE,
   RECEIPT_SERIES,
   formatReceiptNumber,
   receiptKindForCurrency,
+  receiptKindTitleKey,
 } from "@/lib/receipt";
 import { addToCart, placeOrder } from "@/lib/server/cart";
 import { prisma } from "@/lib/server/db";
@@ -129,15 +132,23 @@ async function main() {
   check("THB ออกใบกำกับภาษีอย่างย่อ", receiptKindForCurrency("THB") === "TAX_ABB");
   check("LAK ออกใบเสร็จธรรมดา", receiptKindForCurrency("LAK") === "RECEIPT");
   check("VND ออกใบเสร็จธรรมดา", receiptKindForCurrency("VND") === "RECEIPT");
+  /**
+   * กฎทางกฎหมายที่ต้องจริงในทุกภาษา: ใบที่ไม่ใช่ใบกำกับภาษีห้ามเรียกตัวเองว่าเอกสารภาษี
+   * — ตรวจคำว่า "ภาษี" ของแต่ละภาษา (thuế / tax) ไม่ใช่ประโยคเต็มที่แปลใหม่ได้ทุกเมื่อ
+   */
+  const receiptTitle = translate(vi, receiptKindTitleKey("RECEIPT"));
+  const receiptTitleEn = translate(en, receiptKindTitleKey("RECEIPT"));
+  const abbTitle = translate(vi, receiptKindTitleKey("TAX_ABB"));
+  const abbTitleEn = translate(en, receiptKindTitleKey("TAX_ABB"));
   check(
-    "หัวเอกสารของ RECEIPT ต้องไม่มีคำว่าภาษี",
-    !RECEIPT_KIND_TITLE.RECEIPT.includes("ภาษี"),
-    RECEIPT_KIND_TITLE.RECEIPT,
+    "หัวเอกสารของ RECEIPT ต้องไม่มีคำว่าภาษี (ทั้งสองภาษา)",
+    !receiptTitle.toLowerCase().includes("thuế") && !receiptTitleEn.toLowerCase().includes("tax"),
+    `${receiptTitle} | ${receiptTitleEn}`,
   );
   check(
-    "หัวเอกสารของ TAX_ABB ต้องมีคำว่าใบกำกับภาษี",
-    RECEIPT_KIND_TITLE.TAX_ABB.includes("ใบกำกับภาษี"),
-    RECEIPT_KIND_TITLE.TAX_ABB,
+    "หัวเอกสารของ TAX_ABB ต้องบอกว่าเป็นใบกำกับภาษี (ทั้งสองภาษา)",
+    abbTitle.toLowerCase().includes("thuế") && abbTitleEn.toLowerCase().includes("tax invoice"),
+    `${abbTitle} | ${abbTitleEn}`,
   );
 
   // ── 2. สิทธิ์ (ตารางล้วน ยังไม่แตะฐาน) ──────────────────────────────────
@@ -429,7 +440,10 @@ async function main() {
     ),
   );
   check("ทุกแถวมีเลขที่", all.rows.every((row) => row.number.startsWith(`${branch.code}-`)));
-  check("ทุกแถวมีชื่อโต๊ะ", all.rows.every((row) => row.tableName !== null));
+  check(
+    "ทุกแถวมีชิ้นส่วนชื่อจุดขายครบ (ชื่อ + ช่องทาง)",
+    all.rows.every((row) => row.salePoint.name.length > 0 && row.salePoint.kind !== undefined),
+  );
 
   const byNumber = await listReceipts(owner, { q: all.rows[0].number });
   check(

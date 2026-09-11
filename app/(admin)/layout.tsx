@@ -1,6 +1,7 @@
 import Link from "next/link";
 
-import { STAFF_ROLE_LABEL, canAccessScreen, canEditMenu, canViewDashboard } from "@/lib/rbac";
+import { canAccessScreen, canEditMenu, canViewDashboard, staffRoleKey } from "@/lib/rbac";
+import { getT } from "@/lib/server/locale";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
 import { adminLogoutAction } from "./admin/actions";
@@ -20,6 +21,7 @@ import { AdminNav } from "./admin/_components/admin-nav";
 export default async function AdminLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const { t } = await getT();
   const staff = await getCurrentStaff("admin");
 
   // หน้าใส่ PIN — ยังไม่มีใครล็อกอิน จึงไม่มีแถบหัวจอและไม่มีเมนูข้าง
@@ -51,7 +53,7 @@ export default async function AdminLayout({
             {canEditMenu(staff.role) ? "Full edit access" : "Sold-out toggle only"}
           </span>
           <span className="kicker hidden whitespace-nowrap lg:inline">
-            {STAFF_ROLE_LABEL[staff.role]}
+            {t(staffRoleKey(staff.role))}
           </span>
           <span className="display hidden truncate text-[15px] sm:inline">{staff.name}</span>
 

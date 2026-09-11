@@ -5,6 +5,7 @@ import { ReceiptDocument } from "@/components/receipt-document";
 import { ReceiptPrintButton } from "@/components/receipt-print-button";
 import { canAccessScreen, canReprintReceipt } from "@/lib/rbac";
 import { salePointBasePath, salePointDisplayName, showsInTableMap } from "@/lib/sale-point";
+import { getT } from "@/lib/server/locale";
 import { getReceipt } from "@/lib/server/receipt";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
@@ -22,6 +23,7 @@ export default async function PosReceiptPage({
 }: {
   params: Promise<{ receiptId: string }>;
 }) {
+  const { t } = await getT();
   const staff = await getCurrentStaff("pos");
 
   if (!staff || !canAccessScreen(staff.role, "pos")) {
@@ -53,7 +55,7 @@ export default async function PosReceiptPage({
         <div className="flex min-w-0 flex-col">
           <span className="display text-[17px]">Receipt {detail.receipt.number}</span>
           <span className="kicker">
-            {salePointDisplayName(table, detail.payment.tableSession)} · printed{" "}
+            {salePointDisplayName(table, detail.payment.tableSession, t)} · printed{" "}
             {detail.receipt.printCount} time(s)
           </span>
         </div>

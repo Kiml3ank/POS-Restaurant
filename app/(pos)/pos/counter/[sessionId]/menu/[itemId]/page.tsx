@@ -5,6 +5,7 @@ import { ItemOptionsForm, type OptionGroupView } from "@/components/item-options
 import { formatMoney } from "@/lib/money";
 import { canAccessScreen } from "@/lib/rbac";
 import { salePointDisplayName } from "@/lib/sale-point";
+import { getT } from "@/lib/server/locale";
 import { getCustomerMenuItem } from "@/lib/server/menu";
 import { getPosSession } from "@/lib/server/pos";
 import { getCurrentStaff } from "@/lib/server/staff-session";
@@ -25,6 +26,7 @@ export default async function PosCounterMenuItemPage({
 }: {
   params: Promise<{ sessionId: string; itemId: string }>;
 }) {
+  const { t } = await getT();
   const staff = await getCurrentStaff("pos");
 
   if (!staff || !canAccessScreen(staff.role, "pos")) {
@@ -65,7 +67,7 @@ export default async function PosCounterMenuItemPage({
         <div className="flex flex-none items-baseline justify-between gap-4 border-b-2 border-[var(--color-text)] p-4 lg:p-6">
           <div className="flex min-w-0 flex-col gap-1">
             <span className="kicker truncate">
-              {salePointDisplayName(detail.table, detail.session)} · {item.category.name}
+              {salePointDisplayName(detail.table, detail.session, t)} · {item.category.name}
             </span>
             <h1 className="display text-[28px] leading-tight">{item.name}</h1>
           </div>

@@ -35,7 +35,7 @@ export const LAST_STAFF_TTL_DAYS = 30;
 export type LastStaffOnDevice = {
   /** ชื่อที่แสดง */
   name: string;
-  /** ตำแหน่ง — เก็บเป็น string ดิบ แปลงเป็นป้ายไทยด้วย STAFF_ROLE_LABEL ตอนแสดงผล */
+  /** ตำแหน่ง — เก็บเป็น string ดิบ ตอนแสดงผลตรวจด้วย isStaffRole() แล้วแปลผ่าน staffRoleKey() */
   role: string;
   /** epoch milliseconds ตอนที่ล็อกอินครั้งนั้น */
   at: number;

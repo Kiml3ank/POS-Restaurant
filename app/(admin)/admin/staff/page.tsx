@@ -1,7 +1,8 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
 
-import { STAFF_ROLE_LABEL, canAccessScreen, canManageStaff } from "@/lib/rbac";
+import { canAccessScreen, canManageStaff, staffRoleKey } from "@/lib/rbac";
+import { getT } from "@/lib/server/locale";
 import { listStaff } from "@/lib/server/staff-admin";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
@@ -18,6 +19,7 @@ import { getCurrentStaff } from "@/lib/server/staff-session";
  * คำถามระดับสาขา ไม่ใช่ระดับคน
  */
 export default async function StaffListPage() {
+  const { t } = await getT();
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -74,7 +76,7 @@ export default async function StaffListPage() {
                     {row.code} · {row.name}
                   </span>
                   <span className="kicker">
-                    {STAFF_ROLE_LABEL[row.role]}
+                    {t(staffRoleKey(row.role))}
                     {row.lastLoginAt
                       ? ` · เข้าล่าสุด ${formatDateTime(row.lastLoginAt, staff.branch.timezone)}`
                       : " · ยังไม่เคยเข้าใช้งาน"}

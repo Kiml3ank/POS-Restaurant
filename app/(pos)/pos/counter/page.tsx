@@ -4,7 +4,8 @@ import { redirect } from "next/navigation";
 import { LiveRefresh } from "@/components/live-refresh";
 import { formatMoney } from "@/lib/money";
 import { canAccessScreen } from "@/lib/rbac";
-import { SALE_POINT_LABEL } from "@/lib/sale-point";
+import { salePointKey } from "@/lib/sale-point";
+import { getT } from "@/lib/server/locale";
 import {
   getOpenSalePointSessions,
   getSalePoints,
@@ -130,7 +131,7 @@ export default async function PosCounterQueuePage() {
  * ที่นี่ "ต้องรีบ" = **ของเสร็จแล้วแต่ลูกค้ายังไม่ได้รับ** ซึ่งต่างจากผังโต๊ะที่
  * แปลว่า "ต้องไปยกเสิร์ฟ" — ที่เคาน์เตอร์ไม่มีใครยกไปให้ ลูกค้ายืนรออยู่ตรงนั้น
  */
-function QueueCard({
+async function QueueCard({
   entry,
   currency,
   timezone,
@@ -139,6 +140,7 @@ function QueueCard({
   currency: Parameters<typeof formatMoney>[1];
   timezone: string;
 }) {
+  const { t } = await getT();
   const ready = entry.readyItems > 0;
 
   return (
@@ -155,7 +157,7 @@ function QueueCard({
           {entry.queueNumber ? `#${entry.queueNumber}` : "—"}
         </span>
         <span className={ready ? "tag tag-solid" : "tag tag-neutral"}>
-          {SALE_POINT_LABEL[entry.table.kind]}
+          {t(salePointKey(entry.table.kind))}
         </span>
       </div>
 

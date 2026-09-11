@@ -6,8 +6,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { SubmitButton } from "@/components/submit-button";
 import { IDLE_FORM_STATE, type FormState } from "@/lib/form-state";
 import type { LastStaffOnDevice } from "@/lib/last-staff-cookie";
-import { STAFF_ROLE_LABEL } from "@/lib/rbac";
-import type { StaffRole } from "@/lib/generated/prisma/enums";
+import { isStaffRole, staffRoleKey } from "@/lib/rbac";
 
 /**
  * ล็อกอินพนักงานด้วยรหัส + PIN (บทที่ 13 ส่วนที่ POS บทที่ 9 ต้องใช้ก่อน)
@@ -92,7 +91,8 @@ export function PinForm({
           <span className="flex items-baseline gap-3">
             <span className="display text-[16px]">{lastStaff.name}</span>
             <span className="kicker">
-              {STAFF_ROLE_LABEL[lastStaff.role as StaffRole] ?? lastStaff.role}
+              {/* cookie แก้เองได้ — ตำแหน่งที่ไม่รู้จักแสดงดิบ ห้ามส่งเข้า t() ตรง ๆ */}
+              {isStaffRole(lastStaff.role) ? t(staffRoleKey(lastStaff.role)) : lastStaff.role}
             </span>
           </span>
         </div>

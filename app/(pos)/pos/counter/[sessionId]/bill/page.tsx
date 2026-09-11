@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 import { canAccessScreen } from "@/lib/rbac";
 import { salePointDisplayName } from "@/lib/sale-point";
 import { getSessionBill } from "@/lib/server/billing";
+import { getT } from "@/lib/server/locale";
 import { getPayment } from "@/lib/server/payment";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
@@ -26,6 +27,7 @@ export default async function PosCounterBillPage({
   params: Promise<{ sessionId: string }>;
   searchParams: Promise<{ paid?: string }>;
 }) {
+  const { t } = await getT();
   const staff = await getCurrentStaff("pos");
 
   if (!staff || !canAccessScreen(staff.role, "pos")) {
@@ -58,7 +60,7 @@ export default async function PosCounterBillPage({
       staff={staff}
       detail={detail}
       base={`/pos/counter/${sessionId}`}
-      heading={`Checkout · ${salePointDisplayName(detail.table, detail.session)}`}
+      heading={`Checkout · ${salePointDisplayName(detail.table, detail.session, t)}`}
       sessionId={detail.session.id}
     />
   );

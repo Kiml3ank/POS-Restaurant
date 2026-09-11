@@ -1,3 +1,4 @@
+import type { MessageKey } from "@/lib/i18n/vi";
 import type { OrderItemStatus, OrderStatus } from "@/lib/generated/prisma/enums";
 
 /**
@@ -13,24 +14,20 @@ import type { OrderItemStatus, OrderStatus } from "@/lib/generated/prisma/enums"
  * ไม่มี `import "server-only"` เพราะ client component ใช้ป้ายพวกนี้ด้วย
  */
 
-export const ORDER_STATUS_LABEL: Record<OrderStatus, string> = {
-  DRAFT: "Cart",
-  PLACED: "Sent to kitchen",
-  IN_PROGRESS: "Preparing",
-  READY: "Ready to serve",
-  SERVED: "Served",
-  PAID: "Paid",
-  CANCELLED: "Cancelled",
-};
+/**
+ * คีย์ป้ายสถานะบิล — ตัวข้อความอยู่ในพจนานุกรม ไม่ได้อยู่ที่นี่แล้ว
+ *
+ * ไฟล์นี้ยังเป็นเจ้าของกติกา "สถานะไหนใช้ป้ายไหน" เหมือนเดิม เปลี่ยนแค่ว่า
+ * มันคืน **คีย์** แทน **คำ** — และเพราะชนิดที่คืนคือ MessageKey ตัว tsc
+ * จะฟ้องเองถ้าเพิ่มสถานะใน schema แล้วลืมเพิ่มป้ายในพจนานุกรม
+ */
+export function orderStatusKey(status: OrderStatus): MessageKey {
+  return `orderStatus.${status}`;
+}
 
-export const ORDER_ITEM_STATUS_LABEL: Record<OrderItemStatus, string> = {
-  DRAFT: "In cart",
-  PLACED: "Awaiting kitchen",
-  IN_PROGRESS: "Preparing",
-  READY: "Ready to serve",
-  SERVED: "Served",
-  CANCELLED: "Cancelled",
-};
+export function orderItemStatusKey(status: OrderItemStatus): MessageKey {
+  return `orderItemStatus.${status}`;
+}
 
 /**
  * เส้นทางที่เดินได้จากแต่ละสถานะ
@@ -98,10 +95,9 @@ export function isKitchenActionable(
 }
 
 /** ป้ายบนปุ่มของจอครัว — อยู่ที่นี่เพื่อให้ทุกจอเรียกของเดียวกัน */
-export const KITCHEN_ACTION_LABEL: Record<KitchenActionableStatus, string> = {
-  PLACED: "Accept order",
-  IN_PROGRESS: "Mark done",
-};
+export function kitchenActionKey(status: KitchenActionableStatus): MessageKey {
+  return `kitchenAction.${status}`;
+}
 
 /**
  * ความคืบหน้าของรายการเรียงจากน้อยไปมาก — ใช้หา "รายการที่ช้าที่สุดในบิล"

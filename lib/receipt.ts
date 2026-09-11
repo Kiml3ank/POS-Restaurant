@@ -1,5 +1,6 @@
 import type { Currency } from "@/lib/generated/prisma/enums";
 import type { ReceiptKind } from "@/lib/generated/prisma/enums";
+import type { MessageKey } from "@/lib/i18n/vi";
 
 /**
  * ใบเสร็จ / ใบกำกับภาษีอย่างย่อ — ส่วนที่ไม่แตะฐานข้อมูล (บทที่ 12)
@@ -47,12 +48,14 @@ export function receiptKindForCurrency(currency: Currency): ReceiptKind {
   return currency === "THB" ? "TAX_ABB" : "RECEIPT";
 }
 
-/** ถ้อยคำบนหัวเอกสาร — ต่างกันตามชนิด ไม่ใช่ตามสกุลเงิน (ชนิดถูก snapshot ไว้แล้ว) */
-export const RECEIPT_KIND_TITLE: Record<ReceiptKind, string> = {
-  TAX_ABB: "ใบเสร็จรับเงิน / ใบกำกับภาษีอย่างย่อ",
-  RECEIPT: "ใบเสร็จรับเงิน",
-};
-
-/** ใบที่พิมพ์ครั้งที่สองขึ้นไปต้องบอกให้ชัดว่าไม่ใช่ต้นฉบับ */
-export const RECEIPT_COPY_LABEL = "สำเนา";
-export const RECEIPT_ORIGINAL_LABEL = "ต้นฉบับ";
+/**
+ * คีย์ของถ้อยคำบนหัวเอกสาร — ต่างกันตามชนิด ไม่ใช่ตามสกุลเงิน (ชนิดถูก snapshot ไว้แล้ว)
+ *
+ * ⚠ คำบนหัวใบเป็น "กรอบ" ไม่ใช่ส่วนหนึ่งของ snapshot จึงเปลี่ยนตามภาษาของจอ
+ * (ตกลงไว้ใน spec §5.2) — แต่ **คำแปลของ RECEIPT ห้ามมีคำว่า "ภาษี" ในทุกภาษา**
+ * เพราะเอกสารชนิดนั้นไม่ใช่ใบกำกับภาษี (มีเทสต์ตรึงทั้ง vi/en ใน smoke:receipt)
+ * ใบที่พิมพ์ครั้งที่สองขึ้นไปใช้คีย์ `receipt.copy` บอกให้ชัดว่าไม่ใช่ต้นฉบับ
+ */
+export function receiptKindTitleKey(kind: ReceiptKind): MessageKey {
+  return `receipt.kind.${kind}`;
+}

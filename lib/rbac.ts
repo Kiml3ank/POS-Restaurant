@@ -1,4 +1,5 @@
 import type { StaffRole } from "@/lib/generated/prisma/enums";
+import type { MessageKey } from "@/lib/i18n/vi";
 
 /**
  * สิทธิ์ตามตำแหน่ง (ฐานของบทที่ 13 — ดึงมาทำก่อนเท่าที่ POS บทที่ 9 ต้องใช้)
@@ -10,13 +11,23 @@ import type { StaffRole } from "@/lib/generated/prisma/enums";
  * แต่ **การซ่อนปุ่มไม่ใช่การกันสิทธิ์** ทุก Server Action ต้องเช็คซ้ำฝั่ง server เสมอ
  */
 
-export const STAFF_ROLE_LABEL: Record<StaffRole, string> = {
-  OWNER: "Owner",
-  MANAGER: "Manager",
-  CASHIER: "Cashier",
-  SERVER: "Server",
-  KITCHEN: "Kitchen",
-};
+/**
+ * คีย์ป้ายตำแหน่ง — ตัวข้อความอยู่ในพจนานุกรม (`staffRole.*`)
+ *
+ * ชนิดที่คืนเป็น MessageKey: เพิ่มตำแหน่งใน schema แล้วลืมเพิ่มคีย์ tsc ฟ้องเอง
+ */
+export function staffRoleKey(role: StaffRole): MessageKey {
+  return `staffRole.${role}`;
+}
+
+/**
+ * ตำแหน่งที่อ่านมาเป็น string ดิบ (cookie "คนล่าสุดที่ใช้เครื่องนี้" / AuditLog)
+ * ต้องผ่านตัวนี้ก่อนส่งเข้า staffRoleKey() — ค่าที่ไม่รู้จักให้แสดงดิบแทน
+ * ห้าม cast ตรง ๆ เพราะคีย์ที่ไม่มีในพจนานุกรมจะทำให้ translate() พัง
+ */
+export function isStaffRole(value: string): value is StaffRole {
+  return Object.hasOwn(ROLE_RANK, value);
+}
 
 /** หน้าจอที่มีการจำกัดสิทธิ์ */
 export type StaffScreen = "pos" | "kds" | "admin";

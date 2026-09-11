@@ -6,7 +6,7 @@ import { useActionState } from "react";
 import { SubmitButton } from "@/components/submit-button";
 import type { StaffRole } from "@/lib/generated/prisma/enums";
 import { IDLE_FORM_STATE, type FormState } from "@/lib/form-state";
-import { STAFF_ROLE_LABEL } from "@/lib/rbac";
+import { staffRoleKey } from "@/lib/rbac";
 
 import {
   createStaffAction,
@@ -34,13 +34,15 @@ function RoleSelect({
   roles: readonly StaffRole[];
   defaultValue?: StaffRole;
 }) {
+  const { t } = useT();
+
   return (
     <label className="flex flex-col gap-1">
       <span className="kicker">ตำแหน่ง</span>
       <select name="role" defaultValue={defaultValue ?? roles[0]} className="input h-12">
         {roles.map((role) => (
           <option key={role} value={role}>
-            {STAFF_ROLE_LABEL[role]}
+            {t(staffRoleKey(role))}
           </option>
         ))}
       </select>

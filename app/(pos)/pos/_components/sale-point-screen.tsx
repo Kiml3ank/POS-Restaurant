@@ -4,9 +4,10 @@ import { LiveRefresh } from "@/components/live-refresh";
 import type { Currency } from "@/lib/generated/prisma/enums";
 import { formatMoney } from "@/lib/money";
 import { dailyOrderNumber } from "@/lib/order-number";
-import { ORDER_ITEM_STATUS_LABEL, ORDER_STATUS_LABEL } from "@/lib/order-status";
+import { orderItemStatusKey, orderStatusKey } from "@/lib/order-status";
 import { canCancelOrderItem, canMoveTableSession, canServeOrderItem } from "@/lib/rbac";
 import { needsQueueNumber, showsInTableMap } from "@/lib/sale-point";
+import { getT } from "@/lib/server/locale";
 import { getCustomerMenu } from "@/lib/server/menu";
 import {
   CUSTOMER_NAME_MAX_LENGTH,
@@ -403,7 +404,7 @@ export async function SalePointScreen({
   );
 }
 
-function OrderCard({
+async function OrderCard({
   order,
   timezone,
   canCancel,
@@ -416,13 +417,15 @@ function OrderCard({
   canServe: boolean;
   currency: Currency;
 }) {
+  const { t } = await getT();
+
   return (
     <article className="panel flex flex-col">
       <div className="flex flex-wrap items-baseline justify-between gap-3 border-b-2 border-[var(--color-text)] px-5 py-3">
         <span className="display text-[17px]">#{dailyOrderNumber(order.orderNumber)}</span>
         <span className="kicker">
           {order.placedAt ? formatTime(order.placedAt, timezone) : "—"} ·{" "}
-          {ORDER_STATUS_LABEL[order.status]} ·{" "}
+          {t(orderStatusKey(order.status))} ·{" "}
           {order.placedByStaff ? order.placedByStaff.name : "Customer order"}
         </span>
       </div>
@@ -461,7 +464,7 @@ function OrderCard({
               </div>
 
               <div className="flex shrink-0 flex-col items-end gap-1 text-right">
-                <span className="tag tag-neutral">{ORDER_ITEM_STATUS_LABEL[line.status]}</span>
+                <span className="tag tag-neutral">{t(orderItemStatusKey(line.status))}</span>
                 <span
                   className={
                     cancelled
