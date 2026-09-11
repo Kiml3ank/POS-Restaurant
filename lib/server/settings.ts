@@ -44,6 +44,27 @@ function fail(errorKey: MessageKey, params?: MessageParams) {
 }
 
 /**
+ * รูปแบบเลขผู้เสียภาษีตามประเทศของสาขา — ใช้สกุลเงินบอกประเทศ (ท่าเดียวกับ
+ * `receiptKindForCurrency()`: เป็นสิ่งเดียวที่ระบบรู้จริงเกี่ยวกับประเทศของสาขา)
+ * ขีด/ช่องว่างถูกตัดออกก่อนตรวจเสมอ
+ *
+ *   THB  เลขประจำตัวผู้เสียภาษีไทย 13 หลัก
+ *   VND  MST เวียดนาม 10 หลัก · หน่วยขึ้นตรง/สาขาเติมอีก 3 หลัก (0312345678-001)
+ *   LAK  ⚠ ยังไม่ได้ตรวจกฎจริงของลาว — กันแค่ของที่ไม่ใช่ตัวเลข ห้ามอ้างว่าถูกต้อง
+ *
+ * `Record<Currency, …>` บังคับให้เพิ่มแถวเองเมื่อมีสกุลเงินใหม่ (tsc ฟ้อง)
+ */
+const TAX_ID_PATTERN: Record<Currency, RegExp> = {
+  THB: /^\d{13}$/,
+  VND: /^\d{10}(\d{3})?$/,
+  LAK: /^\d{6,20}$/,
+};
+
+function taxIdErrorKey(currency: Currency): MessageKey {
+  return `error.tax_id_invalid.${currency}`;
+}
+
+/**
  * 0-10000 basis point = 0-100% · ต้องเป็นจำนวนเต็มเสมอ
  *
  * รับ "คีย์ของแต่ละฟิลด์" เข้ามาแทนที่จะแทรกชื่อฟิลด์เป็น `{label}`
@@ -276,19 +297,19 @@ export async function updateBusinessInfo(
 
   const taxId = input.taxId.replace(/\s|-/g, "").trim();
 
-  /**
-   * เลขประจำตัวผู้เสียภาษีไทยมี 13 หลักเสมอ — ปล่อยว่างได้ (สาขานอกไทย/ยังไม่จด)
-   * แต่ถ้ากรอกมาต้องครบ ไม่งั้นใบกำกับภาษีอย่างย่อที่พิมพ์ออกไปใช้ไม่ได้จริง
-   * และจะไม่มีใครรู้จนกว่าสรรพากรจะทัก
-   */
-  if (taxId && !/^\d{13}$/.test(taxId)) {
-    return fail("error.tax_id_invalid");
-  }
-
   const branch = await prisma.branch.findUniqueOrThrow({
     where: { id: actor.branchId },
     include: { tenant: true },
   });
+
+  /**
+   * ปล่อยว่างได้ (ยังไม่จด) แต่ถ้ากรอกมาต้องตรงรูปแบบของประเทศสาขา — ไม่งั้นเอกสาร
+   * ที่พิมพ์ออกไปใช้ไม่ได้จริง และจะไม่มีใครรู้จนกว่าสรรพากรจะทัก
+   * เดิมตรวจแบบไทย 13 หลักอย่างเดียว สาขาเวียดนามจึงบันทึก MST 10 หลักของตัวเองไม่ได้
+   */
+  if (taxId && !TAX_ID_PATTERN[branch.currency].test(taxId)) {
+    return fail(taxIdErrorKey(branch.currency));
+  }
 
   const before = {
     tenantName: branch.tenant.name,
