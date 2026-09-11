@@ -7,6 +7,7 @@ import { SubmitButton } from "@/components/submit-button";
 import { IDLE_FORM_STATE, type FormState } from "@/lib/form-state";
 import type { Currency } from "@/lib/generated/prisma/enums";
 import { formatAmount, formatMoney, minorUnitsPerMajor, parseMoneyInput } from "@/lib/money";
+import { paymentMethodKey } from "@/lib/payment-method";
 
 import { takePaymentAction } from "../actions";
 
@@ -54,7 +55,7 @@ export function PaymentPanel({
   if (!canTake) {
     return (
       <p className="alert" role="status">
-        Your role can&apos;t take payments — please call a cashier or manager to close this bill
+        {t("error.cannot_take_payment")}
       </p>
     );
   }
@@ -82,19 +83,23 @@ export function PaymentPanel({
         (กับดักเดียวกับใน archive/report/2026-08-22-responsive-screens.md §3.1)
         ที่นี่จึงแบ่งครึ่งด้วย flex-1 ที่ลูกแทน
       */}
-      <div className="ink-row" role="group" aria-label="Payment method">
+      <div className="ink-row" role="group" aria-label={t("bill.paymentMethod")}>
         <MethodButton
-          label="Cash"
+          label={t(paymentMethodKey("CASH"))}
           active={method === "CASH"}
           onSelect={() => setMethod("CASH")}
         />
-        <MethodButton label="QR" active={method === "QR"} onSelect={() => setMethod("QR")} />
+        <MethodButton
+          label={t(paymentMethodKey("QR"))}
+          active={method === "QR"}
+          onSelect={() => setMethod("QR")}
+        />
       </div>
 
       {method === "CASH" ? (
         <div className="flex flex-col gap-2">
           <label htmlFor={cashFieldId} className="kicker">
-            Cash received
+            {t("bill.cashReceived")}
           </label>
           <input
             id={cashFieldId}
@@ -126,14 +131,19 @@ export function PaymentPanel({
 
           {/* เงินทอนต้องใหญ่และอ่านได้จากระยะที่ลูกค้ายืนอยู่ — เป็นตัวเลขที่ทั้งสองฝ่ายต้องเห็นตรงกัน */}
           <div className="flex items-baseline justify-between gap-3 border-t-2 border-[var(--color-text)] pt-3">
-            <span className="kicker">Change</span>
+            <span className="kicker">{t("bill.change")}</span>
             <span className="display text-[26px] tabular-nums">
-              {change === null ? "—" : change < 0 ? "Not enough" : formatMoney(change, currency)}
+              {change === null ? "—" : change < 0 ? t("bill.notEnough") : formatMoney(change, currency)}
             </span>
           </div>
         </div>
       ) : (
-        <QrPlaceholder amount={grandTotal} currency={currency} />
+        <QrPlaceholder
+          amount={grandTotal}
+          currency={currency}
+          tag={t("bill.qrDemoTag")}
+          hint={t("bill.qrDemoHint")}
+        />
       )}
 
       {state.status === "error" ? (
@@ -143,11 +153,11 @@ export function PaymentPanel({
       ) : null}
 
       <SubmitButton
-        pendingLabel="Closing bill…"
+        pendingLabel={t("bill.closing")}
         className="btn btn-primary btn-block display h-14 text-[17px]"
         disabled={method === "CASH" && (received === null || received < grandTotal)}
       >
-        Confirm payment of {formatMoney(grandTotal, currency)}
+        {t("bill.confirmPayment", { total: formatMoney(grandTotal, currency) })}
       </SubmitButton>
     </form>
   );
@@ -185,10 +195,21 @@ function MethodButton({
  * tag 29 · ลาว = LAO QR ของ BCEL One · เวียดนาม = VietQR ของ NAPAS) และต้อง
  * รอ callback จากธนาคารก่อนปิดบิล ไม่ใช่ให้แคชเชียร์กดยืนยันเอง
  */
-function QrPlaceholder({ amount, currency }: { amount: number; currency: Currency }) {
+function QrPlaceholder({
+  amount,
+  currency,
+  tag,
+  hint,
+}: {
+  amount: number;
+  currency: Currency;
+  /** ข้อความแปลแล้วจากตัวแม่ — กล่องนี้ไม่เรียก useT() เองเพื่อให้เป็นแค่ภาพวาด */
+  tag: string;
+  hint: string;
+}) {
   return (
     <div className="flex flex-col items-center gap-3 border-2 border-dashed border-[var(--color-text)] p-5 text-center">
-      <span className="tag tag-accent">Demo mode · not a real scannable code</span>
+      <span className="tag tag-accent">{tag}</span>
 
       <div
         aria-hidden
@@ -198,9 +219,7 @@ function QrPlaceholder({ amount, currency }: { amount: number; currency: Currenc
       </div>
 
       <p className="display text-[22px] tabular-nums">{formatMoney(amount, currency)}</p>
-      <p className="text-[13px] text-[var(--color-neutral-700)]">
-        Not connected to a bank yet — only confirm once payment has actually been received.
-      </p>
+      <p className="text-[13px] text-[var(--color-neutral-700)]">{hint}</p>
     </div>
   );
 }

@@ -3,11 +3,12 @@ import Link from "next/link";
 import { LiveRefresh } from "@/components/live-refresh";
 import { dailyOrderNumber } from "@/lib/order-number";
 import { formatBp } from "@/lib/bill";
+import { intlLocale, type Locale } from "@/lib/i18n/locales";
 import { formatMoney } from "@/lib/money";
 import { orderItemStatusKey } from "@/lib/order-status";
 import { paymentMethodKey } from "@/lib/payment-method";
 import { canSetStaffMeal, canTakePayment } from "@/lib/rbac";
-import { salePointDisplayName } from "@/lib/sale-point";
+import { salePointDisplayName, showsInTableMap } from "@/lib/sale-point";
 import type { TableBill } from "@/lib/server/billing";
 import type { PaymentReceipt } from "@/lib/server/payment";
 import { prisma } from "@/lib/server/db";
@@ -54,7 +55,7 @@ export async function BillScreen({
   /** บิลใบไหน — จำเป็นเฉพาะจุดขายที่มีหลายบิลเปิดพร้อมกัน (เคาน์เตอร์ซื้อกลับ) */
   sessionId?: string;
 }) {
-  const { t } = await getT();
+  const { t, tc } = await getT();
   const { table, session, lines, bill, discountBp, unservedCount, isEmpty } = detail;
   const currency = detail.branch.currency;
 
@@ -77,7 +78,7 @@ export async function BillScreen({
       <div className="flex h-[58px] flex-none items-stretch border-b-2 border-[var(--color-text)]">
         <Link
           href={base}
-          aria-label="Back"
+          aria-label={t("common.back")}
           className="flex w-14 flex-none items-center justify-center border-r-2 border-[var(--color-text)] text-xl leading-none transition-colors hover:bg-[var(--color-accent-100)]"
         >
           ‹
@@ -95,15 +96,17 @@ export async function BillScreen({
 
       {!session ? (
         <EmptyState
-          title="This table isn't open"
-          detail="There's no open table session, so there's nothing to charge yet."
+          title={t("bill.empty.notOpenTitle")}
+          detail={t("bill.empty.notOpenDetail")}
           href={base}
+          backLabel={t("common.back")}
         />
       ) : isEmpty ? (
         <EmptyState
-          title="No items on the bill yet"
-          detail="The table is open but nothing has been sent to the kitchen yet."
+          title={t("bill.empty.noItemsTitle")}
+          detail={t("bill.empty.noItemsDetail")}
           href={base}
+          backLabel={t("common.back")}
         />
       ) : (
         /*
@@ -119,12 +122,12 @@ export async function BillScreen({
               <table className="table">
                 <thead>
                   <tr>
-                    <th>Item</th>
-                    <th className="w-16 text-right sm:w-20">Qty</th>
+                    <th>{t("bill.col.item")}</th>
+                    <th className="w-16 text-right sm:w-20">{t("bill.col.qty")}</th>
                     {/* จอแคบตัดคอลัมน์นี้ทิ้งแล้วไปแสดงใต้ชื่อเมนูแทน — สี่คอลัมน์
                         ที่ 390px ทำให้ชื่อเมนูแตกเป็นสามบรรทัดจนอ่านยากกว่าเดิม */}
-                    <th className="hidden w-32 text-right sm:table-cell">Unit price</th>
-                    <th className="w-28 text-right sm:w-32">Total</th>
+                    <th className="hidden w-32 text-right sm:table-cell">{t("bill.col.unitPrice")}</th>
+                    <th className="w-28 text-right sm:w-32">{t("bill.col.total")}</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -139,7 +142,7 @@ export async function BillScreen({
                         ) : null}
                         {line.note ? (
                           <span className="block text-xs text-[var(--color-accent-700)]">
-                            Note: {line.note}
+                            {t("common.note", { note: line.note })}
                           </span>
                         ) : null}
                         {/* ต้องเป็น block — บรรทัดที่ไม่มีตัวเลือก/หมายเหตุมาคั่น
@@ -150,7 +153,7 @@ export async function BillScreen({
                         </span>
                         {/* ราคา/หน่วยของจอแคบ ที่ตัดคอลัมน์ทิ้งไป */}
                         <span className="block text-xs text-[var(--color-neutral-700)] sm:hidden">
-                          {formatMoney(line.unitPrice, currency)} each
+                          {t("bill.each", { price: formatMoney(line.unitPrice, currency) })}
                         </span>
                       </td>
                       <td className="text-right tabular-nums">{line.quantity}</td>
@@ -179,14 +182,17 @@ export async function BillScreen({
                 ทำให้สายตาลากจากป้ายไปหาตัวเลขไม่ถึง
               */}
               <div className="mt-6 flex max-w-[520px] flex-col gap-3">
-                <Row label="Food subtotal" value={formatMoney(bill.subtotal, currency)} />
+                <Row label={t("bill.subtotal")} value={formatMoney(bill.subtotal, currency)} />
 
                 {bill.discountAmount > 0 ? (
                   <Row
                     label={
                       session?.staffCustomer
-                        ? `Staff discount · ${session.staffCustomer.name} ${formatBp(discountBp)}`
-                        : "Discount"
+                        ? t("bill.staffDiscount", {
+                            name: session.staffCustomer.name,
+                            pct: formatBp(discountBp),
+                          })
+                        : t("bill.discount")
                     }
                     value={`-${formatMoney(bill.discountAmount, currency)}`}
                     accent
@@ -195,7 +201,7 @@ export async function BillScreen({
 
                 {bill.serviceChargeBp > 0 ? (
                   <Row
-                    label={`Service charge ${formatBp(bill.serviceChargeBp)}`}
+                    label={t("bill.serviceCharge", { pct: formatBp(bill.serviceChargeBp) })}
                     value={formatMoney(bill.serviceChargeAmount, currency)}
                   />
                 ) : null}
@@ -210,19 +216,19 @@ export async function BillScreen({
                 {bill.pricesIncludeVat ? (
                   <>
                     <Row
-                      label="Net amount (before VAT)"
+                      label={t("bill.netAmount")}
                       value={formatMoney(bill.netAmount, currency)}
                       muted
                     />
                     <Row
-                      label={`VAT ${formatBp(bill.vatRateBp)} (included in price)`}
+                      label={t("bill.vatIncludedRow", { pct: formatBp(bill.vatRateBp) })}
                       value={formatMoney(bill.vatAmount, currency)}
                       muted
                     />
                   </>
                 ) : (
                   <Row
-                    label={`VAT ${formatBp(bill.vatRateBp)}`}
+                    label={t("bill.vat", { pct: formatBp(bill.vatRateBp) })}
                     value={formatMoney(bill.vatAmount, currency)}
                   />
                 )}
@@ -259,8 +265,8 @@ export async function BillScreen({
               พนักงานสลับไปมาระหว่างสองหน้านี้ตลอดเวลา ความกว้างที่ขยับไปมาทำให้สายตาเสียจังหวะ */}
           <aside className="flex flex-none flex-col border-t-2 border-[var(--color-text)] bg-[var(--color-neutral-100)] xl:w-1/3 xl:max-w-[560px] xl:min-w-[412px] xl:border-t-0 xl:border-l-2">
             <div className="flex flex-none items-center justify-between gap-3 border-b-2 border-[var(--color-text)] px-6 py-4">
-              <span className="display text-[20px]">Amount due</span>
-              <span className="kicker">{session.pax} guests</span>
+              <span className="display text-[20px]">{t("bill.amountDue")}</span>
+              <span className="kicker">{tc("common.guests", session.pax)}</span>
             </div>
 
             {/*
@@ -279,12 +285,12 @@ export async function BillScreen({
             <div className="flex flex-col gap-3 border-t-2 border-[var(--color-text)] px-6 py-4 xl:min-h-0 xl:flex-1 xl:overflow-auto">
               {unservedCount > 0 ? (
                 <p role="status" className="alert">
-                  {unservedCount} item(s) not served yet — check with the customer before charging
+                  {tc("bill.unserved", unservedCount)}
                 </p>
               ) : null}
 
               <div className="flex items-baseline justify-between gap-3">
-                <span className="kicker">Grand total</span>
+                <span className="kicker">{t("bill.grandTotal")}</span>
                 <span className="display text-[34px]">
                   {formatMoney(bill.grandTotal, currency)}
                 </span>
@@ -298,7 +304,7 @@ export async function BillScreen({
                 canTake={canTakePayment(staff.role)}
               />
               <Link href={base} className="btn btn-ghost btn-block h-10 text-[13px]">
-                Go back without taking payment
+                {t("bill.backNoPayment")}
               </Link>
             </div>
           </aside>
@@ -316,7 +322,7 @@ export async function BillScreen({
  * ต้องใช้ ถ้าวันนี้ร้านขึ้นเซอร์วิสชาร์จ หน้านี้ของบิลเมื่อวานต้องไม่ขยับตาม
  */
 export async function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; base: string }) {
-  const { t } = await getT();
+  const { t, tc, locale } = await getT();
   const { payment, lines } = receipt;
   const currency = payment.currency;
   /**
@@ -341,7 +347,7 @@ export async function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; 
       <div className="flex h-[58px] flex-none items-stretch border-b-2 border-[var(--color-text)]">
         <div className="flex flex-none items-center border-r-2 border-[var(--color-text)] px-4 lg:px-6">
           <span className="display text-[19px] whitespace-nowrap">
-            Paid · {tableName}
+            {t("bill.paidHeading", { name: tableName })}
           </span>
         </div>
         <div className="flex min-w-0 flex-1 items-center justify-end gap-3 px-4 lg:px-6">
@@ -361,14 +367,14 @@ export async function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; 
         <article className="panel mx-auto w-full max-w-[560px]">
           <header className="flex flex-col gap-1 border-b-2 border-[var(--color-text)] px-5 py-4 sm:px-6">
             <div className="flex items-baseline justify-between gap-3">
-              <span className="display text-[20px]">Bill · {tableName}</span>
-              <span className="kicker tabular-nums">{payment.tableSession.pax} guests</span>
+              <span className="display text-[20px]">{t("bill.billHeading", { name: tableName })}</span>
+              <span className="kicker tabular-nums">{tc("common.guests", payment.tableSession.pax)}</span>
             </div>
             <span className="kicker tabular-nums">
               {orderNumbers.map((number) => `#${dailyOrderNumber(number)}`).join(" · ")}
             </span>
             <span className="kicker">
-              {formatPaidAt(payment.paidAt, payment.branch.timezone)}
+              {formatPaidAt(payment.paidAt, payment.branch.timezone, locale)}
               {payment.paidByStaff ? ` · ${payment.paidByStaff.name}` : ""}
             </span>
           </header>
@@ -403,11 +409,11 @@ export async function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; 
 
           {/* ── ยอดเงิน ─────────────────────────────────────────────── */}
           <div className="flex flex-col gap-3 px-5 py-4 sm:px-6">
-            <Row label="Food subtotal" value={formatMoney(payment.subtotal, currency)} />
+            <Row label={t("bill.subtotal")} value={formatMoney(payment.subtotal, currency)} />
 
             {payment.discountAmount > 0 ? (
               <Row
-                label="Discount"
+                label={t("bill.discount")}
                 value={`-${formatMoney(payment.discountAmount, currency)}`}
                 accent
               />
@@ -415,20 +421,20 @@ export async function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; 
 
             {payment.serviceChargeBp > 0 ? (
               <Row
-                label={`Service charge ${formatBp(payment.serviceChargeBp)}`}
+                label={t("bill.serviceCharge", { pct: formatBp(payment.serviceChargeBp) })}
                 value={formatMoney(payment.serviceChargeAmount, currency)}
               />
             ) : null}
 
             <Row
-              label="Net amount (before VAT)"
+              label={t("bill.netAmount")}
               value={formatMoney(payment.netAmount, currency)}
               muted
             />
             <Row
-              label={`VAT ${formatBp(payment.vatRateBp)}${
-                payment.pricesIncludeVat ? " (included in price)" : ""
-              }`}
+              label={t(payment.pricesIncludeVat ? "bill.vatIncludedRow" : "bill.vat", {
+                pct: formatBp(payment.vatRateBp),
+              })}
               value={formatMoney(payment.vatAmount, currency)}
               muted
             />
@@ -436,7 +442,7 @@ export async function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; 
 
           <div className="flex flex-col gap-3 border-t-2 border-[var(--color-text)] px-5 py-4 sm:px-6">
             <div className="flex items-baseline justify-between gap-3">
-              <span className="kicker">Grand total</span>
+              <span className="kicker">{t("bill.grandTotal")}</span>
               <span className="display text-[30px] tabular-nums">
                 {formatMoney(payment.grandTotal, currency)}
               </span>
@@ -444,14 +450,14 @@ export async function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; 
 
             {/* เอกสารต้องบอกได้ด้วยตัวเองว่าจ่ายด้วยอะไร ไม่ใช่ต้องไปอ่านป้ายบนแถบหัวจอ
                 (แถบหัวจอเป็นของ "หน้าจอ" ไม่ใช่ของ "บิล") */}
-            <Row label="Paid by" value={t(paymentMethodKey(payment.method))} muted />
+            <Row label={t("bill.paidBy")} value={t(paymentMethodKey(payment.method))} muted />
 
             {payment.receivedAmount !== null ? (
               <>
-                <Row label="Cash received" value={formatMoney(payment.receivedAmount, currency)} />
+                <Row label={t("bill.cashReceived")} value={formatMoney(payment.receivedAmount, currency)} />
                 {/* เงินทอนคือตัวเลขที่แคชเชียร์ต้องนับตามจริง จึงใหญ่รองจากยอดรวม */}
                 <div className="flex items-baseline justify-between gap-3 border-t-2 border-[var(--color-text)] pt-3">
-                  <span className="kicker">Change</span>
+                  <span className="kicker">{t("bill.change")}</span>
                   <span className="display text-[26px] tabular-nums">
                     {formatMoney(payment.changeAmount ?? 0, currency)}
                   </span>
@@ -461,7 +467,7 @@ export async function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; 
 
             {payment.method === "QR" ? (
               <p role="status" className="alert">
-                Demo mode — not confirmed with a bank. This record comes from the staff member&apos;s confirmation.
+                {t("bill.qrDemoNotice")}
               </p>
             ) : null}
           </div>
@@ -472,7 +478,7 @@ export async function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; 
           */}
           {receipt.payment.receipt ? (
             <p className="kicker border-t-2 border-[var(--color-text)] px-5 py-3 tabular-nums sm:px-6">
-              Receipt No. {receipt.payment.receipt.number}
+              {t("bill.receiptNo", { number: receipt.payment.receipt.number })}
             </p>
           ) : null}
         </article>
@@ -489,14 +495,17 @@ export async function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; 
               href={`/pos/receipt/${receipt.payment.receipt.id}`}
               className="btn btn-primary display h-12 flex-1"
             >
-              Receipt
+              {t("bill.receiptButton")}
             </Link>
           ) : null}
           <Link href="/pos" className="btn btn-secondary h-12 flex-1">
-            Back to table map
+            {t("bill.backToMap")}
           </Link>
+          {/* ซื้อกลับกลับไปที่แถบคิว (base = /pos/counter) — ป้าย "เปิดโต๊ะนี้อีกครั้ง" ผิดช่องทาง */}
           <Link href={base} className="btn btn-secondary h-12 flex-1">
-            Reopen this table
+            {showsInTableMap(payment.tableSession.table.kind)
+              ? t("bill.reopenTable")
+              : t("pos.receipt.takeawayQueue")}
           </Link>
         </div>
       </div>
@@ -512,8 +521,8 @@ export async function PaidSummary({ receipt, base }: { receipt: PaymentReceipt; 
  * เกิด hydration mismatch — และการระบุ timeZone ตรง ๆ ทำให้ผลลัพธ์ไม่ขึ้นกับ
  * เครื่องที่รัน (server ที่ตั้งเป็น UTC ต้องแสดงเวลาไทยให้ถูก)
  */
-function formatPaidAt(paidAt: Date, timezone: string): string {
-  return new Intl.DateTimeFormat("en-GB", {
+function formatPaidAt(paidAt: Date, timezone: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: timezone,
     dateStyle: "medium",
     timeStyle: "short",
@@ -545,13 +554,23 @@ function Row({
   );
 }
 
-function EmptyState({ title, detail, href }: { title: string; detail: string; href: string }) {
+function EmptyState({
+  title,
+  detail,
+  href,
+  backLabel,
+}: {
+  title: string;
+  detail: string;
+  href: string;
+  backLabel: string;
+}) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 p-10 text-center">
       <p className="display text-[28px]">{title}</p>
       <p className="text-[var(--color-neutral-700)]">{detail}</p>
       <Link href={href} className="btn btn-secondary mt-2 h-11">
-        Back
+        {backLabel}
       </Link>
     </div>
   );

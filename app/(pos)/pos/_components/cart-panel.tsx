@@ -2,6 +2,8 @@
 
 import { useEffect, useState } from "react";
 
+import { useT } from "@/components/i18n-provider";
+
 /**
  * ตะกร้าของหน้าโต๊ะ — แผงปักขวาบนจอกว้าง / แผ่นที่กางขึ้นจากล่างบนจอแคบ
  *
@@ -35,6 +37,7 @@ export function CartPanel({
   totalLabel: string;
   children: React.ReactNode;
 }) {
+  const { t, tc } = useT();
   const [open, setOpen] = useState(false);
 
   // กด Esc ปิดแผ่น — เครื่อง POS หลายร้านต่อคีย์บอร์ดไว้ (สแกนบาร์โค้ด/พิมพ์เร็ว)
@@ -71,10 +74,10 @@ export function CartPanel({
       {/* หัวแบบจอกว้าง — ไม่มีปุ่ม เพราะแผงกางอยู่ตลอดเวลาอยู่แล้ว */}
       <div className="hidden flex-none items-center justify-between gap-3 border-b-2 border-[var(--color-text)] px-6 py-4 xl:flex">
         <div className="flex flex-col gap-0.5">
-          <span className="display text-[20px]">Cart</span>
-          <span className="kicker">Not sent to kitchen yet</span>
+          <span className="display text-[20px]">{t("pos.cart.title")}</span>
+          <span className="kicker">{t("pos.cart.notSent")}</span>
         </div>
-        <span className="display text-[20px]">{itemCount} item(s)</span>
+        <span className="display text-[20px]">{tc("common.items", itemCount)}</span>
       </div>
 
       {/* หัวแบบจอแคบ — เป็นปุ่มกาง/ยุบ และเป็นที่ที่ยอดรวมโผล่ตอนยุบอยู่ */}
@@ -85,8 +88,10 @@ export function CartPanel({
         className="flex min-h-[62px] w-full flex-none items-center justify-between gap-3 px-4 py-3 text-left transition-colors hover:bg-[var(--color-accent-100)] xl:hidden"
       >
         <span className="flex min-w-0 flex-col">
-          <span className="kicker">Cart · Not sent to kitchen yet</span>
-          <span className="display text-[16px]">{itemCount} item(s)</span>
+          <span className="kicker">
+            {t("pos.cart.title")} · {t("pos.cart.notSent")}
+          </span>
+          <span className="display text-[16px]">{tc("common.items", itemCount)}</span>
         </span>
 
         <span className="flex flex-none items-baseline gap-3">

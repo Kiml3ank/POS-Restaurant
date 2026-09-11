@@ -153,7 +153,7 @@ export default async function CustomerMenuPage({
                         </span>
                       ) : null}
                       {item.hasOptions ? (
-                        <span className="text-xs text-neutral-400">{t("customer.menu.hasOptions")}</span>
+                        <span className="text-xs text-neutral-400">{t("common.hasOptions")}</span>
                       ) : null}
                     </div>
 

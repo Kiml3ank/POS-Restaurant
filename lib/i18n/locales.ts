@@ -19,3 +19,16 @@ export const DEFAULT_LOCALE: Locale = "vi";
 export function isLocale(value: unknown): value is Locale {
   return typeof value === "string" && (LOCALES as readonly string[]).includes(value);
 }
+
+/**
+ * แท็กภาษาสำหรับ `Intl.DateTimeFormat` — ใช้เฉพาะรูปแบบที่มี **ชื่อเดือน**
+ * ("11 thg 9, 2026" / "11 Sept 2026") ซึ่งเป็นคำที่ต้องเปลี่ยนตามปุ่มภาษา
+ *
+ * ⚠ ใช้ได้เฉพาะที่ render บน server ที่เดียวเท่านั้น — ICU ของ server กับ
+ * browser ต่างกันได้ ถ้าเอาไปใช้ใน client component จะเกิด hydration mismatch
+ * (เหตุผลเดียวกับที่ formatAmount() ใน lib/money.ts ห้ามใช้ Intl)
+ * รูปแบบตัวเลขล้วน (dd/mm/yyyy) ใช้ "en-GB" ต่อได้ เพราะเวียดนามเรียงแบบเดียวกัน
+ */
+export function intlLocale(locale: Locale): string {
+  return locale === "vi" ? "vi-VN" : "en-GB";
+}

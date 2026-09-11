@@ -83,7 +83,7 @@ export function ServeItemButton({
         disabled={disabled}
         className="btn btn-secondary h-11 min-w-[110px] text-[15px] sm:min-w-[132px]"
       >
-        {t("kds.serve")}
+        {t("common.served")}
       </SubmitButton>
 
       {state.status === "error" ? (

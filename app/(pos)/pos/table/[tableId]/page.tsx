@@ -1,6 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 
 import { canAccessScreen } from "@/lib/rbac";
+import { getT } from "@/lib/server/locale";
 import { getPosTable } from "@/lib/server/pos";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
@@ -22,6 +23,7 @@ export default async function PosTablePage({
   params: Promise<{ tableId: string }>;
   searchParams: Promise<{ view?: string; cat?: string }>;
 }) {
+  const { t, tc } = await getT();
   const staff = await getCurrentStaff("pos");
 
   if (!staff || !canAccessScreen(staff.role, "pos")) {
@@ -44,12 +46,14 @@ export default async function PosTablePage({
       detail={detail}
       base={`/pos/table/${table.id}`}
       backHref="/pos"
-      heading={`Table ${table.name}`}
+      heading={t("salePoint.tableNamed", { name: table.name })}
       subtitle={`${
         session
-          ? `${session.pax} guests · opened ${formatTime(session.openedAt, staff.branch.timezone)}`
-          : "Table not open"
-      } · QR ${table.tableCode}`}
+          ? `${tc("common.guests", session.pax)} · ${t("pos.subtitle.opened", {
+              time: formatTime(session.openedAt, staff.branch.timezone),
+            })}`
+          : t("pos.subtitle.notOpen")
+      } · ${t("pos.subtitle.qr", { code: table.tableCode })}`}
       view={view}
       cat={cat}
     />

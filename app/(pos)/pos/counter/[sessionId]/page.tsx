@@ -56,9 +56,9 @@ export default async function PosCounterBillPage({
       base={`/pos/counter/${session.id}`}
       backHref="/pos/counter"
       heading={salePointDisplayName(table, session, t)}
-      subtitle={`${table.name} · opened ${formatTime(session.openedAt, staff.branch.timezone)}${
-        session.customerName ? ` · ${session.customerName}` : ""
-      }`}
+      subtitle={`${table.name} · ${t("pos.subtitle.opened", {
+        time: formatTime(session.openedAt, staff.branch.timezone),
+      })}${session.customerName ? ` · ${session.customerName}` : ""}`}
       view={view}
       cat={cat}
     />

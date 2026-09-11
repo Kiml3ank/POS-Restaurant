@@ -81,6 +81,7 @@ export async function SalePointScreen({
   view?: string;
   cat?: string;
 }) {
+  const { t, tc } = await getT();
   const currency = staff.branch.currency;
   const { table, session, orders, runningTotal } = detail;
   const cart = orders.find((order) => order.status === "DRAFT") ?? null;
@@ -117,7 +118,7 @@ export async function SalePointScreen({
       <div className="flex h-[58px] flex-none items-stretch border-b-2 border-[var(--color-text)]">
         <Link
           href={backHref}
-          aria-label="Back"
+          aria-label={t("common.back")}
           className="flex w-14 flex-none items-center justify-center border-r-2 border-[var(--color-text)] text-xl leading-none transition-colors hover:bg-[var(--color-accent-100)]"
         >
           ‹
@@ -148,7 +149,7 @@ export async function SalePointScreen({
               <span className="flex items-baseline gap-2 lg:gap-3">
                 {/* ป้าย "ยอดสะสม" ตัดทิ้งบนจอแคบ — ตัวเลขที่มีสัญลักษณ์เงินนำหน้า
                     อยู่ตรงมุมนี้ อ่านออกอยู่แล้วว่าคือยอดของโต๊ะ ไม่ต้องมีป้ายบอก */}
-                <span className="kicker hidden sm:inline">Running total</span>
+                <span className="kicker hidden sm:inline">{t("pos.card.runningTotal")}</span>
                 <span className="display text-[18px] lg:text-[24px]">
                   {formatMoney(runningTotal, currency)}
                 </span>
@@ -161,8 +162,8 @@ export async function SalePointScreen({
       {!session ? (
         <div className="flex flex-1 items-start justify-center overflow-auto p-8">
           <section className="panel w-full max-w-md p-6">
-            <p className="kicker kicker-accent mb-4">Table empty</p>
-            <h2 className="display mb-6 text-[28px]">Open table {table.name}</h2>
+            <p className="kicker kicker-accent mb-4">{t("pos.table.empty")}</p>
+            <h2 className="display mb-6 text-[28px]">{t("pos.table.openNamed", { name: table.name })}</h2>
             <OpenTableForm tableId={table.id} seats={table.seats} />
           </section>
         </div>
@@ -179,7 +180,7 @@ export async function SalePointScreen({
                   onBills ? "hover:bg-[var(--color-accent-100)]" : "bg-[var(--color-text)] text-white"
                 }`}
               >
-                เมนู
+                {t("pos.tab.menu")}
               </Link>
               <Link
                 href={`${base}?view=bills`}
@@ -187,7 +188,7 @@ export async function SalePointScreen({
                   onBills ? "bg-[var(--color-text)] text-white" : "hover:bg-[var(--color-accent-100)]"
                 }`}
               >
-                บิลที่ส่งแล้ว
+                {t("pos.tab.bills")}
                 <span className={onBills ? "tag tag-solid" : "tag tag-neutral"}>
                   {sentOrders.length}
                 </span>
@@ -205,7 +206,7 @@ export async function SalePointScreen({
                   href={`${base}/bill`}
                   className="display flex flex-none items-center border-r-2 border-[var(--color-text)] bg-[var(--color-accent)] px-5 text-[15px] whitespace-nowrap text-white transition-colors hover:bg-[var(--color-accent-600)]"
                 >
-                  Checkout
+                  {t("pos.tab.checkout")}
                 </Link>
               ) : null}
 
@@ -219,8 +220,8 @@ export async function SalePointScreen({
                   */}
                   <span className="kicker whitespace-nowrap">
                     {needsQueueNumber(table.kind)
-                      ? "Set customer name, cancel items, and close the bill here"
-                      : "Cancel items and close the table session here"}
+                      ? t("pos.tab.billsHintCounter")
+                      : t("pos.tab.billsHintTable")}
                   </span>
                 </div>
               ) : (
@@ -240,7 +241,7 @@ export async function SalePointScreen({
                   ))}
                   <div className="flex flex-1 items-center justify-end px-6">
                     <span className="kicker whitespace-nowrap">
-                      {activeCategory?.items.length ?? 0} เมนู
+                      {tc("common.items", activeCategory?.items.length ?? 0)}
                     </span>
                   </div>
                 </>
@@ -262,8 +263,7 @@ export async function SalePointScreen({
 
                   {sentOrders.length === 0 ? (
                     <p className="panel p-6 text-[var(--color-neutral-700)]">
-                      ยังไม่มีบิลที่ส่งเข้าครัว — เลือกเมนูจากแท็บ &ldquo;เมนู&rdquo;
-                      แล้วกดส่งจากตะกร้าทางขวา
+                      {t("pos.bills.empty", { menuTab: t("pos.tab.menu") })}
                     </p>
                   ) : (
                     sentOrders.map((order) => (
@@ -300,9 +300,7 @@ export async function SalePointScreen({
                   </div>
                 </div>
               ) : !activeCategory ? (
-                <p className="text-[var(--color-neutral-700)]">
-                  ยังไม่มีเมนูที่เปิดขายในสาขานี้ — เปิด/ปิดเมนูได้ในหน้าหลังร้าน (บทที่ 13)
-                </p>
+                <p className="text-[var(--color-neutral-700)]">{t("pos.menu.none")}</p>
               ) : (
                 <ul className="ink-grid ink-grid-sparse grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
                   {activeCategory.items.map((item) => (
@@ -315,7 +313,7 @@ export async function SalePointScreen({
                           {item.name}
                         </span>
                         <span className="flex w-full items-end justify-between gap-2">
-                          <span className="kicker">{item.hasOptions ? "Has options" : ""}</span>
+                          <span className="kicker">{item.hasOptions ? t("common.hasOptions") : ""}</span>
                           <span className="display text-[19px]">
                             {formatMoney(item.basePrice, currency)}
                           </span>
@@ -332,8 +330,7 @@ export async function SalePointScreen({
             <div className="min-h-0 flex-1 overflow-auto">
               {!cart || cart.items.length === 0 ? (
                 <p className="px-6 py-12 leading-relaxed text-[var(--color-neutral-600)]">
-                  ยังไม่มีรายการ แตะเมนูทางซ้ายเพื่อเริ่ม
-                  หรือรอลูกค้ากดสั่งจากมือถือ — ทั้งสองทางลงตะกร้าใบเดียวกัน
+                  {t("pos.cart.empty")}
                 </p>
               ) : (
                 cart.items.map((line) => (
@@ -350,7 +347,7 @@ export async function SalePointScreen({
                       ) : null}
                       {line.note ? (
                         <span className="text-xs text-[var(--color-accent-700)]">
-                          หมายเหตุ: {line.note}
+                          {t("common.note", { note: line.note })}
                         </span>
                       ) : null}
                     </div>
@@ -372,15 +369,15 @@ export async function SalePointScreen({
 
             <div className="flex flex-none flex-col gap-2 border-t-2 border-[var(--color-text)] px-6 py-4">
               <div className="flex justify-between text-[var(--color-neutral-700)]">
-                <span>ค่าอาหาร</span>
+                <span>{t("bill.subtotal")}</span>
                 <span>{formatMoney(cart?.subtotal ?? 0, currency)}</span>
               </div>
-              <p className="kicker">Service charge and VAT are calculated at checkout</p>
+              <p className="kicker">{t("common.taxHint")}</p>
 
               <div className="rule my-2" />
 
               <div className="flex items-baseline justify-between">
-                <span className="kicker">Cart total</span>
+                <span className="kicker">{t("pos.cart.total")}</span>
                 <span className="display text-[34px]">{formatMoney(cart?.subtotal ?? 0, currency)}</span>
               </div>
 
@@ -390,9 +387,7 @@ export async function SalePointScreen({
                   sessionId={sessionId}
                   itemCount={cartItemCount}
                   label={
-                    cartItemCount === 0
-                      ? "No items yet"
-                      : `Send ${cartItemCount} item(s) to kitchen`
+                    cartItemCount === 0 ? t("pos.cart.noItems") : tc("pos.cart.send", cartItemCount)
                   }
                 />
               </div>
@@ -426,7 +421,7 @@ async function OrderCard({
         <span className="kicker">
           {order.placedAt ? formatTime(order.placedAt, timezone) : "—"} ·{" "}
           {t(orderStatusKey(order.status))} ·{" "}
-          {order.placedByStaff ? order.placedByStaff.name : "Customer order"}
+          {order.placedByStaff ? order.placedByStaff.name : t("order.channel.customer")}
         </span>
       </div>
 
@@ -452,12 +447,12 @@ async function OrderCard({
                 ) : null}
                 {line.note ? (
                   <span className="text-xs text-[var(--color-accent-700)]">
-                    หมายเหตุ: {line.note}
+                    {t("common.note", { note: line.note })}
                   </span>
                 ) : null}
                 {cancelled && line.cancelReason ? (
                   <span className="text-xs text-[var(--color-accent-700)]">
-                    ยกเลิก: {line.cancelReason}
+                    {t("pos.order.cancelReason", { reason: line.cancelReason })}
                   </span>
                 ) : null}
                 {!cancelled && canCancel ? <CancelItemForm orderItemId={line.id} /> : null}
@@ -480,7 +475,7 @@ async function OrderCard({
                   // ของที่ไม่ผูกสถานี = หยิบจากตู้เย็นหน้าร้าน ไม่เคยขึ้นจอครัว
                   // (ดู lib/server/cart.ts ตอน placeOrder) จึงบอกไว้ตรงนี้ให้ชัด
                   // ว่าไม่ต้องรอครัว
-                  <span className="kicker">Self-serve</span>
+                  <span className="kicker">{t("pos.order.selfServe")}</span>
                 )}
 
                 {/* ปุ่มเสิร์ฟอยู่ทั้งที่นี่และบนจอครัว — ที่นี่คือทางเดียวที่ปิด
@@ -495,7 +490,7 @@ async function OrderCard({
       </ul>
 
       <div className="flex items-baseline justify-between px-5 py-3">
-        <span className="kicker">Order total</span>
+        <span className="kicker">{t("pos.order.total")}</span>
         <span className="display text-[20px]">{formatMoney(order.subtotal, currency)}</span>
       </div>
     </article>

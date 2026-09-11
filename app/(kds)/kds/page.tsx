@@ -204,7 +204,7 @@ function TicketCard({
             <Elapsed since={queuedAt} initialMinutes={minutes} />
           </span>
           <span className="kicker">
-            {t(ticket.channel === "CUSTOMER_QR" ? "kds.channel.customer" : "kds.channel.staff")}
+            {t(ticket.channel === "CUSTOMER_QR" ? "order.channel.customer" : "order.channel.staff")}
           </span>
         </div>
       </header>

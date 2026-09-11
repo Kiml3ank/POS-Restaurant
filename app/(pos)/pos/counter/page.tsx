@@ -27,6 +27,7 @@ import { OpenSalePointForm } from "../_components/table-actions";
  * (คนที่รอนานที่สุดต้องอยู่บนสุดเสมอ เพราะเป็นคนที่กำลังจะถามว่า "ของผมถึงไหนแล้ว")
  */
 export default async function PosCounterQueuePage() {
+  const { t, tc } = await getT();
   const staff = await getCurrentStaff("pos");
 
   if (!staff || !canAccessScreen(staff.role, "pos")) {
@@ -47,9 +48,9 @@ export default async function PosCounterQueuePage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-2">
           <p className="kicker kicker-accent">
-            {readyCount > 0 ? `${readyCount} order(s) ready for pickup` : "Nothing waiting for pickup"}
+            {readyCount > 0 ? tc("pos.counter.readyForPickup", readyCount) : t("pos.counter.nothingWaiting")}
           </p>
-          <h1 className="display text-[28px] lg:text-[40px]">Takeaway</h1>
+          <h1 className="display text-[28px] lg:text-[40px]">{t(salePointKey("COUNTER"))}</h1>
         </div>
 
         <div className="flex flex-wrap items-end gap-4 lg:gap-8">
@@ -58,12 +59,12 @@ export default async function PosCounterQueuePage() {
           <LiveRefresh src="/api/realtime" className="text-[var(--color-accent-700)]" />
 
           <div className="flex flex-col gap-1">
-            <span className="kicker">Open bills</span>
+            <span className="kicker">{t("pos.counter.openBills")}</span>
             <span className="display text-[22px]">{queue.length}</span>
           </div>
 
           <div className="flex flex-col gap-1">
-            <span className="kicker">Total</span>
+            <span className="kicker">{t("common.total")}</span>
             <span className="display text-[22px]">{formatMoney(total, currency)}</span>
           </div>
         </div>
@@ -76,17 +77,14 @@ export default async function PosCounterQueuePage() {
       */}
       <section className="panel flex flex-col gap-4 p-5">
         <div className="flex flex-col gap-1">
-          <span className="kicker kicker-accent">Take a new order</span>
+          <span className="kicker kicker-accent">{t("pos.counter.newOrder")}</span>
           <p className="text-[var(--color-neutral-700)]">
-            Open a new bill every time a new customer arrives — each one gets its own queue number
-            and <strong>doesn&apos;t charge a service fee</strong>.
+            {t("pos.counter.newOrderHint")} <strong>{t("pos.counter.noServiceFee")}</strong>.
           </p>
         </div>
 
         {salePoints.length === 0 ? (
-          <p className="alert">
-            This branch has no takeaway sale points yet — add one from the back office.
-          </p>
+          <p className="alert">{t("pos.counter.noSalePoints")}</p>
         ) : (
           <div className="flex flex-wrap gap-3">
             {salePoints.map((point) => (
@@ -95,8 +93,8 @@ export default async function PosCounterQueuePage() {
                 tableId={point.id}
                 label={
                   salePoints.length === 1
-                    ? "Open a new takeaway bill"
-                    : `Open new bill · ${point.name}`
+                    ? t("pos.map.takeawayNew")
+                    : t("pos.counter.openAt", { name: point.name })
                 }
               />
             ))}
@@ -105,9 +103,7 @@ export default async function PosCounterQueuePage() {
       </section>
 
       {queue.length === 0 ? (
-        <p className="panel p-6 text-[var(--color-neutral-700)]">
-          No open takeaway bills — press the button above when a customer arrives.
-        </p>
+        <p className="panel p-6 text-[var(--color-neutral-700)]">{t("pos.counter.empty")}</p>
       ) : (
         <ul className="ink-grid ink-grid-sparse grid-cols-1 sm:grid-cols-2 xl:grid-cols-3">
           {queue.map((entry) => (
@@ -140,7 +136,7 @@ async function QueueCard({
   currency: Parameters<typeof formatMoney>[1];
   timezone: string;
 }) {
-  const { t } = await getT();
+  const { t, tc } = await getT();
   const ready = entry.readyItems > 0;
 
   return (
@@ -168,12 +164,12 @@ async function QueueCard({
 
         <span className={`text-xs ${ready ? "text-white/80" : "text-[var(--color-neutral-700)]"}`}>
           {ready
-            ? `${entry.readyItems} item(s) ready`
+            ? tc("pos.counter.itemsReady", entry.readyItems)
             : entry.pendingItems > 0
-              ? `Kitchen preparing ${entry.pendingItems} item(s)`
+              ? tc("pos.card.preparing", entry.pendingItems)
               : entry.draftCount > 0
-                ? "Not sent to kitchen yet"
-                : "No items yet"}
+                ? t("pos.cart.notSent")
+                : t("pos.cart.noItems")}
         </span>
 
         <span className="flex items-baseline justify-between gap-2">

@@ -89,7 +89,7 @@ export default async function PosCounterMenuItemPage({
             basePrice={item.basePrice}
             groups={groups}
             currency={currency}
-            submitLabel="Add to takeaway bill"
+            submitLabel={t("pos.item.addToTakeaway")}
             skin="pos"
           />
 
@@ -97,7 +97,7 @@ export default async function PosCounterMenuItemPage({
             href={`/pos/counter/${sessionId}?cat=${item.category.id}`}
             className="btn btn-secondary h-12 justify-center"
           >
-            ยกเลิก กลับไปหน้าเมนู
+            {t("pos.item.backToMenu")}
           </Link>
         </div>
       </div>

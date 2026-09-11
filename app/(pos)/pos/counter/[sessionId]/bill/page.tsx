@@ -60,7 +60,7 @@ export default async function PosCounterBillPage({
       staff={staff}
       detail={detail}
       base={`/pos/counter/${sessionId}`}
-      heading={`Checkout · ${salePointDisplayName(detail.table, detail.session, t)}`}
+      heading={`${t("pos.tab.checkout")} · ${salePointDisplayName(detail.table, detail.session, t)}`}
       sessionId={detail.session.id}
     />
   );

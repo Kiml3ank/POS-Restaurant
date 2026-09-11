@@ -1,4 +1,5 @@
 import { formatBp } from "@/lib/bill";
+import { intlLocale, type Locale } from "@/lib/i18n/locales";
 import { formatMoney } from "@/lib/money";
 import { paymentMethodKey } from "@/lib/payment-method";
 import { receiptKindTitleKey } from "@/lib/receipt";
@@ -30,7 +31,7 @@ import type { ReceiptDetail } from "@/lib/server/receipt";
  * ⚠ รูปแบบเอกสารนี้ไม่ใช่คำแนะนำทางกฎหมาย ต้องให้ผู้สอบบัญชี/สรรพากรตรวจก่อนใช้จริง
  */
 export async function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
-  const { t } = await getT();
+  const { t, tc, locale } = await getT();
   const { receipt, payment, lines } = detail;
   const currency = payment.currency;
   const isTaxDoc = receipt.kind === "TAX_ABB";
@@ -57,14 +58,14 @@ export async function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
         ) : null}
 
         {receipt.sellerPhone ? (
-          <span className="text-[11px] leading-snug">โทร. {receipt.sellerPhone}</span>
+          <span className="text-[11px] leading-snug">{t("receipt.phone", { phone: receipt.sellerPhone })}</span>
         ) : null}
 
         {/* เลขผู้เสียภาษีถูกตัดตั้งแต่ตอนเขียนลงฐานสำหรับสาขานอกไทย (receipt-issue.ts)
             เงื่อนไขตรงนี้จึงเป็นชั้นที่สอง ไม่ใช่ชั้นเดียวที่กันไว้ */}
         {isTaxDoc && receipt.sellerTaxId ? (
           <span className="text-[11px] leading-snug">
-            เลขประจำตัวผู้เสียภาษี {receipt.sellerTaxId}
+            {t("receipt.taxId", { id: receipt.sellerTaxId })}
           </span>
         ) : null}
       </header>
@@ -84,8 +85,11 @@ export async function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
 
       {/* ── ข้อมูลใบ ─────────────────────────────────────────────────── */}
       <dl className="flex flex-col gap-1 text-[11px]">
-        <Line label="เลขที่" value={receipt.number} strong />
-        <Line label="วันที่" value={formatDateTime(payment.paidAt, payment.branch.timezone)} />
+        <Line label={t("receipt.number")} value={receipt.number} strong />
+        <Line
+          label={t("receipt.date")}
+          value={formatDateTime(payment.paidAt, payment.branch.timezone, locale)}
+        />
         {/*
           ป้ายกับค่าต้องเปลี่ยนตามช่องทาง ไม่ใช่เขียน "โต๊ะ" ตายตัว —
           บิลซื้อกลับเคยพิมพ์ออกมาว่า "โต๊ะ: เคาน์เตอร์ซื้อกลับ" ซึ่งผิดสองชั้น
@@ -105,10 +109,13 @@ export async function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
           กระดาษ 80mm ที่มีจำกัด
         */}
         {isDineIn ? (
-          <Line label="จำนวนลูกค้า" value={`${payment.tableSession.pax} คน`} />
+          <Line label={t("receipt.guests")} value={tc("common.guests", payment.tableSession.pax)} />
         ) : null}
-        {payment.paidByStaff ? <Line label="พนักงาน" value={payment.paidByStaff.name} /> : null}
-        <Line label="อ้างอิงบิล" value={orderNumbers.map((number) => `#${dailyOrderNumber(number)}`).join(" ")} />
+        {payment.paidByStaff ? <Line label={t("receipt.staff")} value={payment.paidByStaff.name} /> : null}
+        <Line
+          label={t("receipt.orderRef")}
+          value={orderNumbers.map((number) => `#${dailyOrderNumber(number)}`).join(" ")}
+        />
       </dl>
 
       <div className="my-3 border-t-2 border-dashed border-[var(--color-text)]" />
@@ -137,7 +144,7 @@ export async function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
 
       {/* ── ยอดเงิน — ทุกตัวเป็น snapshot ใน Payment ห้ามคิดใหม่ตรงนี้ ──── */}
       <dl className="flex flex-col gap-1 text-[11px]">
-        <Line label="ค่าอาหาร" value={formatMoney(payment.subtotal, currency)} />
+        <Line label={t("bill.subtotal")} value={formatMoney(payment.subtotal, currency)} />
 
         {/*
           ส่วนลดพนักงาน (บทที่ 13) — **ชื่อคนกินอยู่บนเอกสารที่ลูกค้าถือ**
@@ -148,10 +155,11 @@ export async function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
           <Line
             label={
               payment.staffCustomer
-                ? `ส่วนลดพนักงาน · ${payment.staffCustomer.name}${
-                    payment.discountBp > 0 ? ` ${formatBp(payment.discountBp)}` : ""
-                  }`
-                : "ส่วนลด"
+                ? t("bill.staffDiscount", {
+                    name: payment.staffCustomer.name,
+                    pct: payment.discountBp > 0 ? formatBp(payment.discountBp) : "",
+                  }).trim()
+                : t("bill.discount")
             }
             value={`-${formatMoney(payment.discountAmount, currency)}`}
           />
@@ -159,8 +167,22 @@ export async function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
 
         {payment.serviceChargeBp > 0 ? (
           <Line
-            label={`เซอร์วิสชาร์จ ${formatBp(payment.serviceChargeBp)}`}
+            label={t("bill.serviceCharge", { pct: formatBp(payment.serviceChargeBp) })}
             value={formatMoney(payment.serviceChargeAmount, currency)}
+          />
+        ) : null}
+
+        {/*
+          ใบที่ไม่ใช่เอกสารภาษี + VAT บวกเพิ่มจากราคา (สาขาเวียดนาม) → ต้องมีบรรทัด VAT
+          ไม่งั้นบรรทัดบนใบ (ค่าอาหาร + เซอร์วิสชาร์จ) บวกกันไม่ได้ยอด "รวมทั้งสิ้น"
+          แล้วลูกค้าจะคิดว่าถูกคิดเงินเกิน · เป็นแค่บรรทัดยอดเงินธรรมดา ไม่มีถ้อยคำของ
+          ใบกำกับภาษี (มูลค่าก่อน VAT/ข้อความรวม-ไม่รวม) ซึ่งยังเป็นของเอกสารไทยเท่านั้น
+          · ถ้า VAT รวมอยู่ในราคาแล้ว บรรทัดบนใบบวกกันได้ยอดอยู่แล้ว จึงไม่ต้องมี
+        */}
+        {!isTaxDoc && !payment.pricesIncludeVat && payment.vatAmount > 0 ? (
+          <Line
+            label={t("bill.vat", { pct: formatBp(payment.vatRateBp) })}
+            value={formatMoney(payment.vatAmount, currency)}
           />
         ) : null}
       </dl>
@@ -168,7 +190,7 @@ export async function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
       <div className="my-2 border-t border-[var(--color-text)]" />
 
       <div className="flex items-baseline justify-between gap-2">
-        <span className="display text-[13px]">รวมทั้งสิ้น</span>
+        <span className="display text-[13px]">{t("bill.grandTotal")}</span>
         <span className="display text-[18px] tabular-nums">
           {formatMoney(payment.grandTotal, currency)}
         </span>
@@ -187,15 +209,13 @@ export async function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
       */}
       {isTaxDoc ? (
         <dl className="flex flex-col gap-1 text-[11px]">
-          <Line label="มูลค่าสินค้า" value={formatMoney(payment.netAmount, currency)} />
+          <Line label={t("bill.netAmount")} value={formatMoney(payment.netAmount, currency)} />
           <Line
-            label={`ภาษีมูลค่าเพิ่ม ${formatBp(payment.vatRateBp)}`}
+            label={t("bill.vat", { pct: formatBp(payment.vatRateBp) })}
             value={formatMoney(payment.vatAmount, currency)}
           />
           <p className="mt-1 leading-snug">
-            {payment.pricesIncludeVat
-              ? "ราคาสินค้ารวมภาษีมูลค่าเพิ่มแล้ว"
-              : "ภาษีมูลค่าเพิ่มคิดเพิ่มจากราคาสินค้า"}
+            {t(payment.pricesIncludeVat ? "bill.vatIncluded" : "bill.vatAdded")}
           </p>
         </dl>
       ) : null}
@@ -204,13 +224,13 @@ export async function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
 
       {/* ── การชำระเงิน ─────────────────────────────────────────────── */}
       <dl className="flex flex-col gap-1 text-[11px]">
-        <Line label="ชำระโดย" value={t(paymentMethodKey(payment.method))} />
+        <Line label={t("bill.paidBy")} value={t(paymentMethodKey(payment.method))} />
 
         {payment.receivedAmount !== null ? (
           <>
-            <Line label="รับเงิน" value={formatMoney(payment.receivedAmount, currency)} />
+            <Line label={t("bill.cashReceived")} value={formatMoney(payment.receivedAmount, currency)} />
             <Line
-              label="เงินทอน"
+              label={t("bill.change")}
               value={formatMoney(payment.changeAmount ?? 0, currency)}
               strong
             />
@@ -228,17 +248,17 @@ export async function ReceiptDocument({ detail }: { detail: ReceiptDetail }) {
           · null = ใบเก่าก่อนมีคอลัมน์นี้ หรือร้านยังไม่ได้ตั้ง → ใช้ข้อความเริ่มต้น
         */}
         <span className="leading-snug whitespace-pre-line">
-          {receipt.sellerFooter ?? "ขอบคุณที่ใช้บริการ"}
+          {/* ข้อความที่ร้านตั้งเอง = ข้อมูล แสดงตามที่เก็บ ไม่แปล · ค่าเริ่มต้นเท่านั้นที่แปล */}
+          {receipt.sellerFooter ?? t("receipt.defaultFooter")}
         </span>
         {/*
           โหมดสาธิตต้องเขียนไว้บนตัวเอกสาร ไม่ใช่แค่บนหน้าจอ — ใบที่พิมพ์ออกมาแล้ว
           จะถูกอ่านโดยคนที่ไม่เคยเห็นหน้าจอนี้ และต้องรู้ได้เองว่ามันไม่ใช่ของจริง
+          (ร้านแก้ข้อความนี้ไม่ได้ — มาจากพจนานุกรม ไม่ใช่จากหน้าตั้งค่า)
         */}
-        <span className="leading-snug">
-          เอกสารตัวอย่างจากระบบสาธิต — ไม่ใช่หลักฐานทางภาษีที่ใช้ได้จริง
-        </span>
+        <span className="leading-snug">{t("receipt.demoNotice")}</span>
         {receipt.printCount > 0 ? (
-          <span className="leading-snug">พิมพ์ครั้งที่ {receipt.printCount}</span>
+          <span className="leading-snug">{t("receipt.printCount", { count: receipt.printCount })}</span>
         ) : null}
       </footer>
     </article>
@@ -262,8 +282,8 @@ function Line({ label, value, strong = false }: { label: string; value: string; 
  * server ที่เดียวแล้วส่งเป็น HTML — component นี้ไม่มี "use client" จึงไม่มีการ
  * render ซ้ำฝั่ง browser ที่จะทำให้ hydration ไม่ตรง
  */
-function formatDateTime(at: Date, timezone: string): string {
-  return new Intl.DateTimeFormat("en-GB", {
+function formatDateTime(at: Date, timezone: string, locale: Locale): string {
+  return new Intl.DateTimeFormat(intlLocale(locale), {
     timeZone: timezone,
     dateStyle: "medium",
     timeStyle: "medium",

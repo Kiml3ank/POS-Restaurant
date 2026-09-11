@@ -1,5 +1,7 @@
 import Link from "next/link";
 
+import { LocaleSwitcher } from "@/components/locale-switcher";
+import { getT } from "@/lib/server/locale";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
 import { logoutAction } from "./pos/actions";
@@ -26,6 +28,7 @@ import { PosSidebar } from "./pos/_components/pos-sidebar";
 export default async function PosLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const { t } = await getT();
   const staff = await getCurrentStaff("pos");
 
   if (!staff) {
@@ -45,19 +48,27 @@ export default async function PosLayout({
           className="flex flex-none items-center gap-2 border-r-2 border-[var(--color-text)] px-4 lg:w-[268px] lg:gap-3 lg:px-6"
         >
           <span className="size-3.5 flex-none bg-[var(--color-accent)]" />
-          <span className="display text-[17px]">POS</span>
+          <span className="display text-[17px]">{t("nav.pos")}</span>
           {/* ชื่อสาขาเป็นข้อมูลยืนยัน ไม่ใช่ข้อมูลที่ต้องอ่านทุกวินาที — จอแคบตัดทิ้งก่อน */}
           <span className="kicker hidden truncate sm:inline">{staff.branch.name}</span>
         </Link>
 
         <div className="flex min-w-0 flex-1 items-center justify-end gap-3 px-4 lg:gap-6 lg:px-6">
           {/* รหัสพนักงานซ้ำกับชื่อที่อยู่ข้าง ๆ อยู่แล้ว จอแคบเก็บแค่ชื่อไว้ */}
-          <span className="kicker hidden whitespace-nowrap lg:inline">Code {staff.code}</span>
+          <span className="kicker hidden whitespace-nowrap lg:inline">
+            {t("pos.header.code", { code: staff.code })}
+          </span>
           <span className="display truncate text-[15px]">{staff.name}</span>
+
+          {/* ซ่อนที่ <div> ครอบ ไม่ใช่ที่ตัวปุ่ม (กฎ specificity ของ .pos-skin) —
+              จอแคบกว่า sm สลับภาษาได้ที่หน้าล็อกจอ (เหตุผลเดียวกับแถบจอครัว) */}
+          <div className="hidden flex-none sm:block">
+            <LocaleSwitcher />
+          </div>
 
           <form action={logoutAction} className="flex-none">
             <button type="submit" className="btn btn-secondary h-[38px] whitespace-nowrap">
-              Lock screen
+              {t("staff.lockScreen")}
             </button>
           </form>
         </div>

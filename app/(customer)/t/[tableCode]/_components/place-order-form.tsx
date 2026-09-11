@@ -46,7 +46,7 @@ export function PlaceOrderForm({
       ) : null}
 
       <SubmitButton
-        pendingLabel={t("customer.place.pending")}
+        pendingLabel={t("common.sendingToKitchen")}
         disabled={itemCount === 0}
         className="rounded-lg bg-neutral-900 px-4 py-4 text-center text-base font-medium text-white"
       >

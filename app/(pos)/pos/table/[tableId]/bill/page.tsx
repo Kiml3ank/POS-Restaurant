@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { canAccessScreen } from "@/lib/rbac";
 import { getTableBill } from "@/lib/server/billing";
+import { getT } from "@/lib/server/locale";
 import { getPayment } from "@/lib/server/payment";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
@@ -20,6 +21,7 @@ export default async function PosBillPage({
   params: Promise<{ tableId: string }>;
   searchParams: Promise<{ paid?: string }>;
 }) {
+  const { t } = await getT();
   const staff = await getCurrentStaff("pos");
 
   if (!staff || !canAccessScreen(staff.role, "pos")) {
@@ -53,7 +55,7 @@ export default async function PosBillPage({
       staff={staff}
       detail={detail}
       base={base}
-      heading={`Checkout · Table ${detail.table.name}`}
+      heading={`${t("pos.tab.checkout")} · ${t("salePoint.tableNamed", { name: detail.table.name })}`}
     />
   );
 }

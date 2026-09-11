@@ -5,6 +5,8 @@ import { LiveRefresh } from "@/components/live-refresh";
 import type { Currency } from "@/lib/generated/prisma/enums";
 import { formatMoney } from "@/lib/money";
 import { canAccessScreen } from "@/lib/rbac";
+import { salePointKey } from "@/lib/sale-point";
+import { getT, type Translator } from "@/lib/server/locale";
 import {
   getOpenSalePointSessions,
   getPosTables,
@@ -26,6 +28,8 @@ import { getCurrentStaff } from "@/lib/server/staff-session";
  * อ่านง่ายกว่าเพราะตาจับ "ใบที่ต่างจากพวก" ได้เร็วกว่าจับเฉดสี
  */
 export default async function PosTableMapPage() {
+  const i18n = await getT();
+  const { t, tc } = i18n;
   const staff = await getCurrentStaff("pos");
 
   if (!staff || !canAccessScreen(staff.role, "pos")) {
@@ -47,10 +51,10 @@ export default async function PosTableMapPage() {
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="flex flex-col gap-2">
           <p className="kicker kicker-accent">
-            {needAttention > 0 ? `${needAttention} table(s) have food waiting` : "Nothing waiting to be served"}
+            {needAttention > 0 ? tc("pos.map.waiting", needAttention) : t("pos.map.nothingWaiting")}
           </p>
           {/* หัวเรื่องย่อลงบนจอแคบ เพราะ 40px กินความสูงไปหนึ่งแถวโต๊ะเต็ม ๆ */}
-          <h1 className="display text-[28px] lg:text-[40px]">Table map</h1>
+          <h1 className="display text-[28px] lg:text-[40px]">{t("pos.map.title")}</h1>
         </div>
 
         <div className="flex flex-wrap items-end gap-4 lg:gap-8">
@@ -62,13 +66,13 @@ export default async function PosTableMapPage() {
           <LiveRefresh src="/api/realtime" className="text-[var(--color-accent-700)]" />
 
           <div className="flex flex-col gap-1">
-            <span className="kicker">Open</span>
+            <span className="kicker">{t("pos.map.open")}</span>
             <span className="display text-[22px]">
-              {openTables.length}/{tables.length} tables
+              {t("pos.map.openCount", { open: openTables.length, total: tables.length })}
             </span>
           </div>
           <div className="flex flex-col gap-1">
-            <span className="kicker">Total on tables</span>
+            <span className="kicker">{t("pos.map.totalOnTables")}</span>
             <span className="display text-[22px]">{formatMoney(totalOnFloor, currency)}</span>
           </div>
         </div>
@@ -94,18 +98,18 @@ export default async function PosTableMapPage() {
       >
         <span className="flex min-w-0 flex-col gap-1">
           <span className={`kicker ${takeawayReady > 0 ? "text-white/80" : "kicker-accent"}`}>
-            Takeaway
+            {t(salePointKey("COUNTER"))}
           </span>
           <span className="display text-[19px]">
             {takeawayQueue.length === 0
-              ? "Open a new takeaway bill"
-              : `${takeawayQueue.length} open bill(s)`}
+              ? t("pos.map.takeawayNew")
+              : tc("pos.map.takeawayOpen", takeawayQueue.length)}
           </span>
         </span>
 
         <span className="flex items-baseline gap-4 whitespace-nowrap lg:gap-6">
           {takeawayReady > 0 ? (
-            <span className="display text-[17px]">{takeawayReady} order(s) ready</span>
+            <span className="display text-[17px]">{tc("pos.map.takeawayReady", takeawayReady)}</span>
           ) : null}
           <span className="display text-[22px]">›</span>
         </span>
@@ -114,27 +118,32 @@ export default async function PosTableMapPage() {
       <div className="rule" />
 
       {tables.length === 0 ? (
-        <p className="text-[var(--color-neutral-700)]">
-          This branch has no tables yet — add one from the back office.
-        </p>
+        <p className="text-[var(--color-neutral-700)]">{t("pos.map.noTables")}</p>
       ) : (
         <ul className="ink-grid ink-grid-sparse grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
           {tables.map((table) => (
             <li key={table.id}>
-              <TableCard table={table} currency={currency} />
+              <TableCard table={table} currency={currency} i18n={i18n} />
             </li>
           ))}
         </ul>
       )}
 
-      <p className="kicker mt-auto">
-        Checkout/payment is inside each table screen · move/merge tables from there too · splitting a bill isn&apos;t built yet
-      </p>
+      <p className="kicker mt-auto">{t("pos.map.footer")}</p>
     </main>
   );
 }
 
-function TableCard({ table, currency }: { table: PosTableSummary; currency: Currency }) {
+function TableCard({
+  table,
+  currency,
+  i18n: { t, tc },
+}: {
+  table: PosTableSummary;
+  currency: Currency;
+  /** รับจาก page — การ์ดเป็น server component ธรรมดา เรียก getT() ซ้ำทุกใบไม่คุ้ม */
+  i18n: Translator;
+}) {
   const isOpen = table.session !== null;
   const needsAttention = table.readyItems > 0;
 
@@ -150,26 +159,26 @@ function TableCard({ table, currency }: { table: PosTableSummary; currency: Curr
       <div className="flex items-start justify-between gap-3">
         <span className="display text-[28px]">{table.name}</span>
         {needsAttention ? (
-          <span className="tag tag-solid">{table.readyItems} ready</span>
+          <span className="tag tag-solid">{t("pos.card.ready", { count: table.readyItems })}</span>
         ) : isOpen ? (
-          <span className="tag tag-outline">{table.session?.pax} guests</span>
+          <span className="tag tag-outline">{tc("common.guests", table.session?.pax ?? 0)}</span>
         ) : (
-          <span className="kicker">{table.seats} seats</span>
+          <span className="kicker">{tc("pos.card.seats", table.seats)}</span>
         )}
       </div>
 
       {isOpen ? (
         <>
           <div className="flex flex-1 flex-col gap-1 text-[var(--color-neutral-700)]">
-            {table.pendingItems > 0 ? <span>Kitchen is preparing {table.pendingItems} item(s)</span> : null}
-            {table.draftCount > 0 ? <span>Cart not sent to kitchen yet</span> : null}
+            {table.pendingItems > 0 ? <span>{tc("pos.card.preparing", table.pendingItems)}</span> : null}
+            {table.draftCount > 0 ? <span>{t("pos.card.cartPending")}</span> : null}
             {table.pendingItems === 0 && table.draftCount === 0 && !needsAttention ? (
-              <span>All served — awaiting checkout</span>
+              <span>{t("pos.card.allServed")}</span>
             ) : null}
           </div>
 
           <div className="flex items-baseline justify-between gap-3">
-            <span className="kicker">Running total</span>
+            <span className="kicker">{t("pos.card.runningTotal")}</span>
             <span className="display text-[24px]">{formatMoney(table.runningTotal, currency)}</span>
           </div>
 
@@ -177,13 +186,13 @@ function TableCard({ table, currency }: { table: PosTableSummary; currency: Curr
               ตัวนี้จึงเป็น <span> ที่หน้าตาเป็นปุ่ม ไม่ใช่ <button> ซ้อนในลิงก์
               มีไว้เพราะการ์ดที่เปิดอยู่ไม่เคยบอกเลยว่ากดแล้วเจออะไร */}
           <span className="btn btn-secondary btn-block h-11">
-            {table.draftCount > 0 ? "View cart / order more" : "Order / view bill"}
+            {table.draftCount > 0 ? t("pos.card.viewCart") : t("pos.card.order")}
           </span>
         </>
       ) : (
         <>
-          <div className="flex flex-1 items-start text-[var(--color-neutral-600)]">Empty</div>
-          <span className="btn btn-secondary btn-block h-11">Open table</span>
+          <div className="flex flex-1 items-start text-[var(--color-neutral-600)]">{t("pos.card.empty")}</div>
+          <span className="btn btn-secondary btn-block h-11">{t("pos.openTable")}</span>
         </>
       )}
     </Link>

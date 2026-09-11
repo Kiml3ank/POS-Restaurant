@@ -84,7 +84,7 @@ export default async function CartPage({
                   ) : null}
 
                   {line.note ? (
-                    <span className="text-sm text-amber-700">{t("customer.cart.note", { note: line.note })}</span>
+                    <span className="text-sm text-amber-700">{t("common.note", { note: line.note })}</span>
                   ) : null}
 
                   <span className="text-sm text-neutral-600">
@@ -112,7 +112,7 @@ export default async function CartPage({
             <span className="text-neutral-600">{t("customer.cart.subtotal")}</span>
             <span className="text-lg font-semibold">{formatMoney(cart?.subtotal ?? 0, currency)}</span>
           </div>
-          <p className="pb-2 text-xs text-neutral-500">{t("customer.cart.taxHint")}</p>
+          <p className="pb-2 text-xs text-neutral-500">{t("common.taxHint")}</p>
 
           <PlaceOrderForm
             tableCode={tableCode}

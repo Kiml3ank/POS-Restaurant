@@ -23,7 +23,7 @@ export default async function PosReceiptPage({
 }: {
   params: Promise<{ receiptId: string }>;
 }) {
-  const { t } = await getT();
+  const { t, tc } = await getT();
   const staff = await getCurrentStaff("pos");
 
   if (!staff || !canAccessScreen(staff.role, "pos")) {
@@ -53,24 +53,26 @@ export default async function PosReceiptPage({
         className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--color-text)] bg-[var(--color-bg)] px-4 py-3 lg:px-6"
       >
         <div className="flex min-w-0 flex-col">
-          <span className="display text-[17px]">Receipt {detail.receipt.number}</span>
+          <span className="display text-[17px]">
+            {t("pos.receipt.title", { number: detail.receipt.number })}
+          </span>
           <span className="kicker">
-            {salePointDisplayName(table, detail.payment.tableSession, t)} · printed{" "}
-            {detail.receipt.printCount} time(s)
+            {salePointDisplayName(table, detail.payment.tableSession, t)} ·{" "}
+            {tc("pos.receipt.printed", detail.receipt.printCount)}
           </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <Link href={`${base}/bill?paid=${detail.payment.id}`} className="btn btn-ghost h-10 text-[14px]">
-            ‹ Back to payment summary
+            {t("pos.receipt.backToSummary")}
           </Link>
           {showsInTableMap(table.kind) ? (
             <Link href="/pos" className="btn btn-secondary h-10 text-[14px]">
-              Table map
+              {t("pos.map.title")}
             </Link>
           ) : (
             <Link href="/pos/counter" className="btn btn-secondary h-10 text-[14px]">
-              Takeaway queue
+              {t("pos.receipt.takeawayQueue")}
             </Link>
           )}
 
@@ -84,7 +86,7 @@ export default async function PosReceiptPage({
               className="btn btn-primary h-10 text-[14px]"
             />
           ) : (
-            <span className="kicker">Your role can&apos;t print receipts</span>
+            <span className="kicker">{t("pos.receipt.cannotPrint")}</span>
           )}
         </div>
       </div>

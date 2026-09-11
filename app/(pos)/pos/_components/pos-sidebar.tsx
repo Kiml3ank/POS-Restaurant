@@ -4,8 +4,9 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 
 import { useT } from "@/components/i18n-provider";
-import { canAccessScreen, staffRoleKey, type StaffScreen } from "@/lib/rbac";
 import type { StaffRole } from "@/lib/generated/prisma/enums";
+import type { MessageKey } from "@/lib/i18n/vi";
+import { canAccessScreen, staffRoleKey, type StaffScreen } from "@/lib/rbac";
 
 /**
  * แถบโมดูลด้านซ้ายของเครื่องพนักงาน (ตาม design "Cafe POS")
@@ -22,12 +23,13 @@ import type { StaffRole } from "@/lib/generated/prisma/enums";
  */
 type Module = {
   num: string;
-  label: string;
+  /** คีย์ข้อความ — ตัวคำอยู่ในพจนานุกรม (แถบนี้เปลี่ยนภาษาตามปุ่มได้) */
+  label: MessageKey;
   href?: string;
   /** true เมื่อ pathname ปัจจุบันถือว่าอยู่ในโมดูลนี้ */
   isCurrent?: (pathname: string) => boolean;
-  /** บทที่จะมาทำ — ใส่เมื่อยังไม่มี href */
-  todo?: string;
+  /** เลขบทที่จะมาทำ — ใส่เมื่อยังไม่มี href */
+  todo?: number;
   /**
    * ข้อความบอกทางเมื่อโมดูล "ทำเสร็จแล้วแต่ไม่มีหน้าเดี่ยวของตัวเอง"
    *
@@ -35,7 +37,7 @@ type Module = {
    * URL ที่กดจากตรงนี้ได้ตรง ๆ — แต่ถ้าปล่อยเป็น "บทที่ 10-11" ต่อไปจะกลายเป็น
    * คำโกหก เพราะสองบทนั้นทำเสร็จแล้ว ที่ถูกคือบอกว่าเข้าถึงได้จากที่ไหน
    */
-  hint?: string;
+  hint?: MessageKey;
   /**
    * หน้าจอที่โมดูลนี้พาไป — ใส่เมื่อมันอยู่คนละ route group แล้วมี RBAC ของตัวเอง
    *
@@ -49,7 +51,7 @@ type Module = {
 const MODULES: Module[] = [
   {
     num: "01",
-    label: "Table map / Order",
+    label: "pos.module.tables",
     href: "/pos",
     /**
      * `/pos/counter` (ซื้อกลับ) นับเป็นโมดูลเดียวกับผังโต๊ะโดยตั้งใจ
@@ -63,21 +65,21 @@ const MODULES: Module[] = [
   },
   {
     num: "02",
-    label: "Kitchen display",
+    label: "pos.module.kds",
     href: "/kds",
     isCurrent: (pathname) => pathname.startsWith("/kds"),
     screen: "kds",
   },
-  { num: "03", label: "Checkout / Payment", hint: "Pick a table from the map" },
+  { num: "03", label: "pos.module.checkout", hint: "pos.module.checkoutHint" },
   {
     num: "04",
-    label: "Menu & items",
+    label: "pos.module.menu",
     href: "/admin/menu",
     isCurrent: (pathname) => pathname.startsWith("/admin"),
     screen: "admin",
   },
-  { num: "05", label: "Inventory", todo: "Chapter 14" },
-  { num: "06", label: "Reports / Shift close", todo: "Chapter 15" },
+  { num: "05", label: "pos.module.inventory", todo: 14 },
+  { num: "06", label: "pos.module.reports", todo: 15 },
 ];
 
 /**
@@ -137,14 +139,18 @@ export function PosSidebar({ role }: { role: StaffRole }) {
                   }`}
                 >
                   <span className="w-3.5 text-[11px] font-bold opacity-65">{module.num}</span>
-                  <span className="display text-[15px]">{module.label}</span>
+                  <span className="display text-[15px]">{t(module.label)}</span>
                 </Link>
               ) : (
                 <div className="flex w-full items-baseline gap-3 px-4 py-3.5 opacity-40">
                   <span className="w-3.5 text-[11px] font-bold">{module.num}</span>
-                  <span className="display text-[15px]">{module.label}</span>
+                  <span className="display text-[15px]">{t(module.label)}</span>
                   <span className="kicker ml-auto whitespace-nowrap">
-                    {module.hint ?? module.todo ?? "No access"}
+                    {module.hint
+                      ? t(module.hint)
+                      : module.todo
+                        ? t("pos.module.todo", { n: module.todo })
+                        : t("pos.module.noAccess")}
                   </span>
                 </div>
               )}
@@ -153,7 +159,7 @@ export function PosSidebar({ role }: { role: StaffRole }) {
         })}
 
         <div className="mt-auto flex flex-col gap-1 border-t-2 border-[var(--color-text)] p-4">
-          <span className="kicker">Role</span>
+          <span className="kicker">{t("pos.module.role")}</span>
           <span className="display text-[14px]">{t(staffRoleKey(role))}</span>
         </div>
       </nav>
@@ -176,7 +182,7 @@ export function PosSidebar({ role }: { role: StaffRole }) {
       */}
       <nav
         data-print-hide
-        aria-label="Modules"
+        aria-label={t("pos.module.aria")}
         className="flex flex-none gap-[2px] border-t-2 border-[var(--color-text)] bg-[var(--color-text)] lg:hidden"
       >
         {barModules.map((module) => {
@@ -194,7 +200,7 @@ export function PosSidebar({ role }: { role: StaffRole }) {
             >
               <span className="text-[10px] font-bold opacity-65">{module.num}</span>
               <span className="display text-center text-[13px] leading-tight">
-                {module.label}
+                {t(module.label)}
               </span>
             </Link>
           );

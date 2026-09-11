@@ -1,7 +1,9 @@
 import { redirect } from "next/navigation";
 
+import { LocaleSwitcher } from "@/components/locale-switcher";
 import { PinForm } from "@/components/pin-form";
-import { canAccessScreen } from "@/lib/rbac";
+import { canAccessScreen, staffRoleKey } from "@/lib/rbac";
+import { getT } from "@/lib/server/locale";
 import { getCurrentStaff, readLastStaffOnDevice } from "@/lib/server/staff-session";
 
 import { loginAction } from "../actions";
@@ -23,10 +25,14 @@ import { loginAction } from "../actions";
  * ตอบคำถาม "รับกะต่อจากใคร" ได้โดยไม่กลายเป็นรายชื่อให้ไล่สุ่ม
  * รายละเอียดการแลกได้แลกเสียอยู่ที่ lib/last-staff-cookie.ts
  *
- * หัวเรื่องใหญ่คงเป็นตัวโรมันตาม design เพราะเป็น wordmark ไม่ใช่ข้อความที่ต้องอ่าน
- * และ line-height 0.92 ของ design ตัดหัว-หางสระไทยขาดถ้าเอาตัวไทยมาวางตรงนี้
+ * หัวเรื่องใหญ่แปลตามภาษาแล้ว ("ĐIỂM / BÁN HÀNG") — เดิมตรึงเป็นอังกฤษเพราะ
+ * line-height 0.92 ตัดหัว-หางสระไทยขาด ส่วนวรรณยุกต์ซ้อนของเวียดนาม (Ể Ế) ตรวจจาก
+ * screenshot จริงแล้วว่าวาดครบ: เครื่องหมายบรรทัดแรกล้นขึ้นไปในช่องว่างเหนือหัวเรื่อง
+ * และบรรทัดสองไม่ชนบรรทัดแรกเพราะตัวพิมพ์ใหญ่ไม่มีหาง · **ถ้าลด gap เหนือหัวเรื่อง
+ * หรือใส่ overflow-hidden ให้กล่องนี้ ต้องถ่ายภาพตรวจใหม่** ตัววัดตัวเลขมองไม่เห็นเรื่องนี้
  */
 export default async function PosLoginPage() {
+  const { t } = await getT();
   const staff = await getCurrentStaff("pos");
   const lastStaff = await readLastStaffOnDevice("pos");
 
@@ -38,25 +44,28 @@ export default async function PosLoginPage() {
     <main className="grid flex-1 grid-cols-1 xl:grid-cols-[1fr_620px]">
       <div className="flex min-w-0 flex-col justify-between gap-10 border-b-2 border-[var(--color-text)] p-6 sm:p-10 xl:border-r-2 xl:border-b-0 xl:p-16">
         <div className="flex flex-col gap-4">
-          <p className="kicker kicker-accent">Staff terminal · Counter 01</p>
+          {/* ต้องเลือกภาษาได้ตั้งแต่หน้านี้ — คนที่อ่านหน้าล็อกอินไม่ออกไปถึงปุ่มในแถบหัวจอไม่ได้ */}
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <p className="kicker kicker-accent">{t("pos.login.kicker")}</p>
+            <LocaleSwitcher />
+          </div>
           <p className="display text-[40px] leading-[0.92] tracking-[-0.03em] sm:text-[56px] xl:text-[76px]">
-            POINT OF
+            {t("pos.login.hero1")}
             <br />
-            SALE
+            {t("pos.login.hero2")}
           </p>
           <p className="max-w-[420px] leading-relaxed text-[var(--color-neutral-700)]">
-            Enter your PIN to start your shift. Every bill, cancellation, and closed table is
-            recorded under your name until you lock the screen.
+            {t("pos.login.intro")}
           </p>
         </div>
 
         <div className="flex flex-col gap-3">
           <div className="rule" />
           <div className="kicker flex flex-wrap justify-between gap-3">
-            <span>Dev staff code / PIN (4 digits)</span>
-            <span>001 · 1234 Owner</span>
-            <span>002 · 2345 Cashier</span>
-            <span>003 · 3456 Server</span>
+            <span>{t("login.devHint")}</span>
+            <span>001 · 1234 {t(staffRoleKey("OWNER"))}</span>
+            <span>002 · 2345 {t(staffRoleKey("CASHIER"))}</span>
+            <span>003 · 3456 {t(staffRoleKey("SERVER"))}</span>
           </div>
         </div>
       </div>

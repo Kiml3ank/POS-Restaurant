@@ -57,7 +57,7 @@ export function StaffMealPanel({
     return (
       <div className="flex flex-col gap-2 border-2 border-[var(--color-accent)] bg-[var(--color-accent-100)] p-3">
         <div className="flex items-baseline justify-between gap-2">
-          <span className="kicker kicker-accent">Staff meal discount {discountLabel}</span>
+          <span className="kicker kicker-accent">{t("meal.flagged", { pct: discountLabel })}</span>
         </div>
         <span className="display text-[15px]">
           {currentStaffCustomer.name}
@@ -68,8 +68,8 @@ export function StaffMealPanel({
           <form action={clearAction}>
             <input type="hidden" name="tableId" value={tableId} />
             <input type="hidden" name="sessionId" value={sessionId ?? ""} />
-            <SubmitButton pendingLabel="Clearing…" className="btn btn-secondary h-9 w-full text-[13px]">
-              Clear flag (charge full price)
+            <SubmitButton pendingLabel={t("meal.clearing")} className="btn btn-secondary h-9 w-full text-[13px]">
+              {t("meal.clear")}
             </SubmitButton>
           </form>
         ) : null}
@@ -107,7 +107,7 @@ export function StaffMealPanel({
         ที่หน้าตาเหมือนป้ายมาวางต่อท้ายจึงถูกอ่านเป็นแถวยอดเงินโดยอัตโนมัติ
         — ประโยคคำถามอ่านผิดแบบนั้นไม่ได้
       */}
-      <span className="kicker">Is this a staff meal?</span>
+      <span className="kicker">{t("meal.question")}</span>
       <input type="hidden" name="tableId" value={tableId} />
             <input type="hidden" name="sessionId" value={sessionId ?? ""} />
 
@@ -120,11 +120,11 @@ export function StaffMealPanel({
           name="staffCustomerId"
           required
           defaultValue=""
-          aria-label="Staff member eating"
+          aria-label={t("meal.whoEats")}
           className="input h-9 min-w-0 flex-1 text-[13px]"
         >
           <option value="" disabled>
-            Select staff member…
+            {t("meal.select")}
           </option>
           {staffOptions.map((option) => (
             <option key={option.id} value={option.id}>
@@ -135,10 +135,10 @@ export function StaffMealPanel({
 
         {/* เปอร์เซ็นต์อยู่บน "ปุ่ม" ไม่ใช่บนหัวข้อ — บอกว่ากดแล้วจะเกิดอะไร ไม่ใช่บอกว่าเกิดไปแล้ว */}
         <SubmitButton
-          pendingLabel="Saving…"
+          pendingLabel={t("common.saving")}
           className="btn btn-secondary h-9 flex-none px-3 text-[13px] whitespace-nowrap"
         >
-          Apply {discountLabel} off
+          {t("meal.apply", { pct: discountLabel })}
         </SubmitButton>
       </div>
 

@@ -30,7 +30,11 @@ export function ReceiptPrintButton({
 }) {
   const { t } = useT();
   const [pending, startTransition] = useTransition();
-  const [error, setError] = useState<string | null>(null);
+  /**
+   * เก็บ **คีย์** ไม่ใช่ประโยค — ถ้าเก็บประโยคที่แปลแล้ว กดสลับภาษาทีหลัง
+   * ข้อความ error จะค้างอยู่ในภาษาเดิม (เหตุผลเดียวกับ FormState)
+   */
+  const [error, setError] = useState<{ key: MessageKey; params?: MessageParams } | null>(null);
 
   return (
     <>
@@ -45,7 +49,7 @@ export function ReceiptPrintButton({
             const result = await action();
 
             if (!result.ok) {
-              setError(t(result.errorKey ?? "error.print_record_failed", result.params));
+              setError({ key: result.errorKey ?? "error.print_record_failed", params: result.params });
               return;
             }
 
@@ -57,12 +61,12 @@ export function ReceiptPrintButton({
           });
         }}
       >
-        {pending ? "กำลังบันทึก…" : "พิมพ์ใบเสร็จ"}
+        {pending ? t("common.saving") : t("receipt.print")}
       </button>
 
       {error ? (
         <p role="alert" className="alert" data-print-hide>
-          {error}
+          {t(error.key, error.params)}
         </p>
       ) : null}
     </>

@@ -4,6 +4,7 @@ import { notFound, redirect } from "next/navigation";
 import { ItemOptionsForm, type OptionGroupView } from "@/components/item-options-form";
 import { formatMoney } from "@/lib/money";
 import { canAccessScreen } from "@/lib/rbac";
+import { getT } from "@/lib/server/locale";
 import { getCustomerMenuItem } from "@/lib/server/menu";
 import { getPosTable } from "@/lib/server/pos";
 import { getCurrentStaff } from "@/lib/server/staff-session";
@@ -27,6 +28,7 @@ export default async function PosMenuItemPage({
 }: {
   params: Promise<{ tableId: string; itemId: string }>;
 }) {
+  const { t } = await getT();
   const staff = await getCurrentStaff("pos");
 
   if (!staff || !canAccessScreen(staff.role, "pos")) {
@@ -70,7 +72,7 @@ export default async function PosMenuItemPage({
         <div className="flex flex-none items-baseline justify-between gap-4 border-b-2 border-[var(--color-text)] p-4 lg:p-6">
           <div className="flex min-w-0 flex-col gap-1">
             <span className="kicker truncate">
-              โต๊ะ {detail.table.name} · {item.category.name}
+              {t("salePoint.tableNamed", { name: detail.table.name })} · {item.category.name}
             </span>
             <h1 className="display text-[28px] leading-tight">{item.name}</h1>
           </div>
@@ -84,7 +86,7 @@ export default async function PosMenuItemPage({
             basePrice={item.basePrice}
             groups={groups}
             currency={currency}
-            submitLabel="Add to table cart"
+            submitLabel={t("pos.item.addToTable")}
             skin="pos"
           />
 
@@ -92,7 +94,7 @@ export default async function PosMenuItemPage({
             href={`/pos/table/${tableId}?cat=${item.category.id}`}
             className="btn btn-secondary h-12 justify-center"
           >
-            ยกเลิก กลับไปหน้าเมนู
+            {t("pos.item.backToMenu")}
           </Link>
         </div>
       </div>

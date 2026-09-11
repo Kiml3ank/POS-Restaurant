@@ -47,7 +47,7 @@ export function OpenSessionForm({
         >
           {PAX_OPTIONS.map((pax) => (
             <option key={pax} value={pax}>
-              {tc("customer.open.guests", pax)}
+              {tc("common.guests", pax)}
             </option>
           ))}
         </select>
@@ -61,7 +61,7 @@ export function OpenSessionForm({
       ) : null}
 
       <SubmitButton
-        pendingLabel={t("customer.open.pending")}
+        pendingLabel={t("common.openingTable")}
         className="rounded-lg bg-neutral-900 px-4 py-3 text-center font-medium text-white"
       >
         {t("customer.open.submit")}
