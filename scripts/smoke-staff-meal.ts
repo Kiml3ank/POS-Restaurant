@@ -215,10 +215,11 @@ async function main() {
 
   const clash = await setStaffMeal(owner, OTHER_TABLE_ID, kitchen.id);
   check("เอาชื่อคนเดิมไปแปะอีกโต๊ะพร้อมกันไม่ได้", !clash.ok, clash.ok ? "" : clash.errorKey);
+  // ชั้น server คืนคีย์ + params ไม่ใช่ประโยค — ชื่อโต๊ะที่ติดค้างต้องอยู่ใน params
   check(
     "ข้อความบอกด้วยว่าติดค้างอยู่โต๊ะไหน",
-    !clash.ok && clash.errorKey.includes("B1"),
-    clash.ok ? "" : clash.errorKey,
+    !clash.ok && clash.errorKey === "error.staff_meal_other_bill" && clash.params?.table === "B1",
+    clash.ok ? "" : `${clash.errorKey} ${JSON.stringify(clash.params)}`,
   );
 
   const otherPerson = await setStaffMeal(owner, OTHER_TABLE_ID, server.id);

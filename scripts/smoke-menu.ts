@@ -233,7 +233,10 @@ async function main() {
   }
 
   const created = await prisma.menuItem.findUniqueOrThrow({ where: { id: item1.id } });
-  check("ราคาถูกแปลงเป็นจำนวนเต็มหน่วยย่อย", created.basePrice === 12_050, String(created.basePrice));
+  // ข้อความเดียวกันแปลเป็นหน่วยย่อยต่างกันตามสกุลเงินของสาขา (THB "120.50" = 12050 สตางค์)
+  // จึงเทียบกับตัวแปลงที่ทดสอบแยกไว้ในข้อ 2 แทนการฮาร์ดโค้ดเลขของสกุลใดสกุลหนึ่ง
+  const unitsOf = (text: string) => parseMoneyInput(text, branch.currency);
+  check("ราคาถูกแปลงเป็นจำนวนเต็มหน่วยย่อย", created.basePrice === unitsOf("120.50"), String(created.basePrice));
   check("ของใหม่ต่อท้ายลิสต์เสมอ", created.sortOrder >= 1);
 
   // ── 4. ของหมด / มีของ ────────────────────────────────────────────────
@@ -386,7 +389,7 @@ async function main() {
   check("ตัวเลือกถูกบันทึกครบ 3 อย่าง", savedGroup?.modifiers.length === 3);
   check(
     "ส่วนต่างราคาติดลบถูกเก็บเป็นค่าติดลบจริง",
-    savedGroup?.modifiers.find((m) => m.name === "ไม่เอาเนื้อ")?.priceDelta === -1_000,
+    savedGroup?.modifiers.find((m) => m.name === "ไม่เอาเนื้อ")?.priceDelta === unitsOf("-10"),
     String(savedGroup?.modifiers.find((m) => m.name === "ไม่เอาเนื้อ")?.priceDelta),
   );
 
@@ -469,7 +472,7 @@ async function main() {
     );
     check(
       "snapshot ราคาต่อหน่วยของบิลเก่ายังเป็นราคาเดิม",
-      payment.orders[0].items[0].unitPriceSnapshot === 8_000,
+      payment.orders[0].items[0].unitPriceSnapshot === unitsOf("80"),
       String(payment.orders[0].items[0].unitPriceSnapshot),
     );
   }

@@ -15,6 +15,7 @@ import {
   salePointKey,
   showsInTableMap,
 } from "@/lib/sale-point";
+import { calculateBill } from "@/lib/bill";
 import { branchDayKey } from "@/lib/branch-day";
 import { addToCart, placeOrder } from "@/lib/server/cart";
 import { getSessionBill, getTableBill } from "@/lib/server/billing";
@@ -293,13 +294,26 @@ async function main() {
       counterBill.bill.serviceChargeBp === 0,
       String(counterBill.bill.serviceChargeBp),
     );
+    /**
+     * ยอดคาดหวัง = calculateBill() ด้วยอัตราจริงของสาขาแต่เซอร์วิสชาร์จ 0
+     * ไม่ถือว่า "grandTotal = subtotal" เพราะจริงแค่กับสาขาที่ราคารวม VAT แล้ว
+     * (สาขา VND ตั้ง `pricesIncludeVat: false` = VAT บวกเพิ่มท้ายบิล)
+     */
+    const expectedCounter = calculateBill({
+      subtotal: counterBill.bill.subtotal,
+      rates: {
+        serviceChargeBp: 0,
+        vatRateBp: counterBill.branch.vatRateBp,
+        pricesIncludeVat: counterBill.branch.pricesIncludeVat,
+      },
+    });
     check(
-      "grandTotal = ค่าอาหารพอดี (ราคารวม VAT แล้ว จึงไม่มีอะไรบวกเพิ่ม)",
-      counterBill.bill.grandTotal === counterBill.bill.subtotal,
-      `${counterBill.bill.grandTotal} vs ${counterBill.bill.subtotal}`,
+      "grandTotal = ค่าอาหาร + VAT ตามอัตราสาขา โดยไม่มีเซอร์วิสชาร์จ",
+      counterBill.bill.grandTotal === expectedCounter.grandTotal,
+      `${counterBill.bill.grandTotal} vs ${expectedCounter.grandTotal}`,
     );
     check(
-      "ยังถอด VAT ออกมาแสดงตามปกติ",
+      "ยังแสดง VAT ตามปกติ",
       counterBill.bill.vatAmount > 0 &&
         counterBill.bill.netAmount + counterBill.bill.vatAmount === counterBill.bill.grandTotal,
       `net=${counterBill.bill.netAmount} vat=${counterBill.bill.vatAmount}`,

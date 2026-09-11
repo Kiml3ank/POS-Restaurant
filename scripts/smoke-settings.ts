@@ -313,9 +313,16 @@ async function main() {
       receipt2.sellerFooter === "ขอบคุณครับ · Wi-Fi: posdemo",
       String(receipt2.sellerFooter),
     );
+    /**
+     * ใบเก่าต้องเก็บข้อความท้ายใบ "ณ วันที่ออก" — seed ตั้ง footer ไว้แล้ว จึงไม่ใช่ null
+     * เสมอไป ต้องเทียบกับค่าของสาขาก่อนเทสต์แก้ (และค่านั้นต้องต่างจากค่าใหม่
+     * ไม่งั้นเคสนี้ผ่านได้โดยไม่ได้พิสูจน์อะไร)
+     */
+    const oldFooter = (await prisma.receipt.findUniqueOrThrow({ where: { id: receipt.id } })).sellerFooter;
     check(
-      "ใบเก่าไม่มีข้อความท้ายใบ (ออกก่อนมีคอลัมน์นี้) และต้องไม่พังตอนแสดงผล",
-      receipt.sellerFooter === null,
+      "ใบเก่ายังเป็นข้อความท้ายใบเดิม ไม่เปลี่ยนตามการตั้งค่าใหม่",
+      oldFooter === original.receiptFooter && oldFooter !== receipt2.sellerFooter,
+      `${String(oldFooter)} vs ${String(receipt2.sellerFooter)}`,
     );
 
     console.log("\n── 7. สถานีครัว ──────────────────────────────────────────────────\n");

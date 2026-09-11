@@ -278,7 +278,7 @@ async function main() {
   });
   check(
     "เจ้าของร้านปิดบัญชีตัวเองไม่ได้ (ถูกด่าน 'ห้ามแก้บัญชีตัวเอง' ปฏิเสธ)",
-    closeLastOwner.ok === false && closeLastOwner.errorKey.includes("บัญชีของตัวเอง"),
+    closeLastOwner.ok === false && closeLastOwner.errorKey === "error.cannot_edit_own_account",
     closeLastOwner.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : closeLastOwner.errorKey,
   );
 

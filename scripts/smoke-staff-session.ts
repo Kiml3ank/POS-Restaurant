@@ -111,10 +111,14 @@ async function main() {
    * ในครั้งที่ 6 จะเข้าได้ทั้งที่ควรถูกล็อกอยู่
    */
   const blocked = await loginStaff(CASHIER_CODE, "1234", "pos");
+  const blockedParams = !blocked.ok && "params" in blocked ? blocked.params : undefined;
   check(
     "loginStaff() ปฏิเสธตอนถูกล็อก แม้จะกรอก PIN มาถูกก็ตาม",
-    blocked.ok === false && blocked.errorKey.includes("ลองใหม่ในอีก"),
-    blocked.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : blocked.errorKey,
+    // คีย์นับจำนวน (.one/.other ตามจำนวนนาทีที่เหลือ) + นาทีที่เหลือต้องมากกว่า 0
+    blocked.ok === false &&
+      blocked.errorKey.startsWith("error.locked_out.") &&
+      Number(blockedParams?.count) > 0,
+    blocked.ok ? "ผ่าน ซึ่งไม่ควรผ่าน" : `${blocked.errorKey} ${JSON.stringify(blockedParams)}`,
   );
 
   await clearLoginThrottle(branchId, CASHIER_CODE);

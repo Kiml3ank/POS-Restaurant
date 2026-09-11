@@ -263,14 +263,21 @@ async function main() {
 
   const detail = await getTableBill(branch.id, BILL_TABLE_ID);
 
-  // กะเพรา 60.00 × 2 + น้ำเปล่า 20.00 = 140.00
-  check("บิลรวมทุกบรรทัดของรอบโต๊ะ", detail?.bill.subtotal === 14_000, `ได้ ${detail?.bill.subtotal}`);
+  // ยอดคาดหวังคิดจากราคาใน DB ไม่ฮาร์ดโค้ด — seed เปลี่ยนราคา/สกุลเงินได้โดยเทสต์ไม่ต้องแก้
+  const krapaoItem = await prisma.menuItem.findUniqueOrThrow({ where: { id: KRAPAO } });
+  const waterItem = await prisma.menuItem.findUniqueOrThrow({ where: { id: WATER } });
+  const krapaoMods = await prisma.modifier.findMany({ where: { id: { in: KRAPAO_OPTIONS } } });
+  const krapaoUnit = krapaoItem.basePrice + krapaoMods.reduce((sum, m) => sum + m.priceDelta, 0);
+  const round1Subtotal = krapaoUnit * 2 + waterItem.basePrice;
+  const round2Subtotal = round1Subtotal + waterItem.basePrice * 2;
+
+  check("บิลรวมทุกบรรทัดของรอบโต๊ะ", detail?.bill.subtotal === round1Subtotal, `ได้ ${detail?.bill.subtotal} คาด ${round1Subtotal}`);
   check("แสดง 3 ชิ้นจาก 2 บรรทัด", detail?.lines.length === 2);
   check(
     "ยอดตรงกับที่ calculateBill คิดให้",
     detail?.bill.grandTotal ===
       calculateBill({
-        subtotal: 14_000,
+        subtotal: round1Subtotal,
         rates: {
           serviceChargeBp: branch.serviceChargeBp,
           vatRateBp: branch.vatRateBp,
@@ -292,8 +299,8 @@ async function main() {
   const detail2 = await getTableBill(branch.id, BILL_TABLE_ID);
   check(
     "สั่งเพิ่มอีกรอบ = บิลใบเดิมยอดโตขึ้น ไม่ใช่บิลใบที่สอง",
-    detail2?.bill.subtotal === 18_000,
-    `ได้ ${detail2?.bill.subtotal}`,
+    detail2?.bill.subtotal === round2Subtotal,
+    `ได้ ${detail2?.bill.subtotal} คาด ${round2Subtotal}`,
   );
   check("บรรทัดแยกตามรอบที่สั่ง ไม่ยุบรวมกัน", detail2?.lines.length === 3);
 
@@ -322,8 +329,8 @@ async function main() {
   );
   check(
     "expired round keeps its full amount",
-    expiredBill?.bill.subtotal === 18_000,
-    `got ${expiredBill?.bill.subtotal}`,
+    expiredBill?.bill.subtotal === round2Subtotal,
+    `got ${expiredBill?.bill.subtotal}, expected ${round2Subtotal}`,
   );
 
   const expiredDetail = await getPosTable(branch.id, BILL_TABLE_ID);

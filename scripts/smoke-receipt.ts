@@ -12,6 +12,7 @@ import {
   receiptKindForCurrency,
   receiptKindTitleKey,
 } from "@/lib/receipt";
+import { getTableBill } from "@/lib/server/billing";
 import { addToCart, placeOrder } from "@/lib/server/cart";
 import { prisma } from "@/lib/server/db";
 import { takePayment } from "@/lib/server/payment";
@@ -185,14 +186,23 @@ async function main() {
     issued.number === formatReceiptNumber(branch.code, issued.seq),
     issued.number,
   );
-  check("สาขา THB ได้ชนิด TAX_ABB", issued.kind === "TAX_ABB");
+  check(
+    "ชนิดใบตามสกุลเงินของสาขา",
+    issued.kind === receiptKindForCurrency(branch.currency),
+    `${branch.currency} → ${issued.kind}`,
+  );
   check("ใบยังไม่เคยถูกพิมพ์", issued.printCount === 0 && issued.firstPrintedAt === null);
   check("ตัวเดินเลขขยับตาม", (await currentSeq(branch.id)) === issued.seq);
 
   // ── 4. snapshot ตัวตนผู้ขายลงใบ ไม่ใช่ join สด ──────────────────────────
   const tenant = await prisma.tenant.findUniqueOrThrow({ where: { id: branch.tenantId } });
   check("snapshot ชื่อร้าน", issued.sellerName === tenant.name, issued.sellerName);
-  check("snapshot เลขผู้เสียภาษี", issued.sellerTaxId === tenant.taxId, issued.sellerTaxId ?? "-");
+  // เลขผู้เสียภาษีติดไปเฉพาะใบกำกับภาษี (TAX_ABB) — ใบเสร็จธรรมดาต้องเป็น null เสมอ
+  check(
+    "snapshot เลขผู้เสียภาษี (เฉพาะใบกำกับภาษี)",
+    issued.sellerTaxId === (issued.kind === "TAX_ABB" ? tenant.taxId : null),
+    `${issued.kind}: ${issued.sellerTaxId ?? "null"}`,
+  );
   check("snapshot ชื่อสาขา", issued.sellerBranchName === branch.name);
   check("snapshot ที่อยู่", issued.sellerAddress === branch.addressLine);
   check("snapshot เบอร์โทร", issued.sellerPhone === branch.phone);
@@ -332,7 +342,9 @@ async function main() {
   for (let round = 0; round < 2; round++) {
     await resetTable(TABLE_ID);
     await seedOrder(TABLE_ID, branch.id, branch.timezone);
-    const result = await takePayment(cashier, TABLE_ID, { method: "CASH", receivedAmount: 100_000 });
+    // จ่ายเงินสดพอดียอด — อ่านยอดจากบิลจริง ไม่ฮาร์ดโค้ด (สกุลเงินของสาขาเปลี่ยนได้)
+    const due = (await getTableBill(branch.id, TABLE_ID))?.bill.grandTotal ?? 0;
+    const result = await takePayment(cashier, TABLE_ID, { method: "CASH", receivedAmount: due });
     if (!result.ok) throw new Error(`รับเงินรอบ ${round} ไม่สำเร็จ: ${result.errorKey}`);
     const next = await prisma.receipt.findUniqueOrThrow({ where: { paymentId: result.paymentId } });
     seqSeries.push(next.seq);
@@ -377,50 +389,67 @@ async function main() {
     );
   }
 
-  // ── 12. สาขาสกุลเงินเวียดนาม — ห้ามมีคำว่าภาษี ห้ามมีเลขผู้เสียภาษีไทย ───
+  // ── 12. สลับสกุลเงินชั่วคราว — ต้องได้เอกสารอีกชนิดหนึ่ง ────────────────
+  /**
+   * ข้อ 3-4 ตรวจชนิดใบของสกุลเงินที่ seed ตั้งไว้ (ตอนนี้ VND = RECEIPT)
+   * ข้อนี้สลับไปอีกฝั่งเพื่อให้ทั้งสองชนิดถูกออกจริงในทุกการรัน ไม่ว่า seed
+   * จะตั้งสาขาเป็นสกุลไหน: VND/LAK → THB (TAX_ABB + เลขผู้เสียภาษี) · THB → VND
+   */
   const originalCurrency: Currency = branch.currency;
+  const flippedCurrency: Currency = originalCurrency === "THB" ? "VND" : "THB";
   try {
-    await prisma.branch.update({ where: { id: branch.id }, data: { currency: "VND" } });
-    const vndBranch = await prisma.branch.findUniqueOrThrow({ where: { id: branch.id } });
-    const vndCashier = await loadStaff("seed-staff-cashier");
+    await prisma.branch.update({ where: { id: branch.id }, data: { currency: flippedCurrency } });
+    const flippedBranch = await prisma.branch.findUniqueOrThrow({ where: { id: branch.id } });
+    const flippedCashier = await loadStaff("seed-staff-cashier");
 
     await resetTable(TABLE_ID);
-    await seedOrder(TABLE_ID, vndBranch.id, vndBranch.timezone);
-    const vndPaid = await takePayment(vndCashier, TABLE_ID, { method: "QR" });
-    check("รับเงินที่สาขา VND ได้", vndPaid.ok);
+    await seedOrder(TABLE_ID, flippedBranch.id, flippedBranch.timezone);
+    const flippedPaid = await takePayment(flippedCashier, TABLE_ID, { method: "QR" });
+    check(`รับเงินที่สาขา ${flippedCurrency} ได้`, flippedPaid.ok);
 
-    if (vndPaid.ok) {
-      const vndReceipt = await prisma.receipt.findUniqueOrThrow({
-        where: { paymentId: vndPaid.paymentId },
+    if (flippedPaid.ok) {
+      const flippedReceipt = await prisma.receipt.findUniqueOrThrow({
+        where: { paymentId: flippedPaid.paymentId },
       });
-      check("สาขา VND ได้ชนิด RECEIPT ไม่ใช่ TAX_ABB", vndReceipt.kind === "RECEIPT");
+      const expectedKind = receiptKindForCurrency(flippedCurrency);
       check(
-        "ใบของสาขา VND ต้องไม่มีเลขผู้เสียภาษีไทยติดไปด้วย",
-        vndReceipt.sellerTaxId === null,
-        vndReceipt.sellerTaxId ?? "null",
+        `สาขา ${flippedCurrency} ได้ชนิด ${expectedKind}`,
+        flippedReceipt.kind === expectedKind,
+        flippedReceipt.kind,
+      );
+      check(
+        expectedKind === "TAX_ABB"
+          ? "ใบกำกับภาษีต้องมีเลขผู้เสียภาษีของร้าน"
+          : "ใบเสร็จธรรมดาต้องไม่มีเลขผู้เสียภาษีติดไปด้วย",
+        flippedReceipt.sellerTaxId === (expectedKind === "TAX_ABB" ? tenant.taxId : null),
+        flippedReceipt.sellerTaxId ?? "null",
       );
       check(
         "เลขที่ยังเดินสายเดียวกัน ไม่ได้แยกตามสกุลเงิน",
-        vndReceipt.series === RECEIPT_SERIES,
+        flippedReceipt.series === RECEIPT_SERIES,
       );
 
-      const vndDetail = await getReceipt(branch.id, vndReceipt.id);
-      check("ยอดบนใบ VND ใช้สกุล VND", vndDetail?.payment.currency === "VND");
-      /**
-       * VND คั่นหลักพันด้วย **จุด** และสัญลักษณ์อยู่ท้าย — "6.000 ₫" คือหกพันดอง
-       * ไม่ใช่หกดองจุดศูนย์ (ดู lib/money.ts) เคสนี้จึงตรึงรูปแบบไว้ตรง ๆ
-       * แทนที่จะเช็คว่า "ไม่มีจุด" ซึ่งเป็นความเข้าใจผิดคนละเรื่องกัน
-       */
-      check("VND คั่นหลักพันด้วยจุด สัญลักษณ์อยู่ท้าย", formatMoney(6_000, "VND") === "6.000 ₫", formatMoney(6_000, "VND"));
+      const flippedDetail = await getReceipt(branch.id, flippedReceipt.id);
       check(
-        "ยอดจริงบนใบ VND ไม่มีเศษทศนิยม (หน่วยย่อยที่สุดคือ 1 ₫)",
-        Number.isInteger(vndDetail?.payment.grandTotal),
-        formatMoney(vndDetail?.payment.grandTotal ?? 0, "VND"),
+        `ยอดบนใบใช้สกุล ${flippedCurrency}`,
+        flippedDetail?.payment.currency === flippedCurrency,
+      );
+      check(
+        "ยอดจริงบนใบเป็นจำนวนเต็มหน่วยย่อย",
+        Number.isInteger(flippedDetail?.payment.grandTotal),
+        formatMoney(flippedDetail?.payment.grandTotal ?? 0, flippedCurrency),
       );
     }
   } finally {
     await prisma.branch.update({ where: { id: branch.id }, data: { currency: originalCurrency } });
   }
+
+  /**
+   * VND คั่นหลักพันด้วย **จุด** และสัญลักษณ์อยู่ท้าย — "6.000 ₫" คือหกพันดอง
+   * ไม่ใช่หกดองจุดศูนย์ (ดู lib/money.ts) เคสนี้จึงตรึงรูปแบบไว้ตรง ๆ
+   * แทนที่จะเช็คว่า "ไม่มีจุด" ซึ่งเป็นความเข้าใจผิดคนละเรื่องกัน
+   */
+  check("VND คั่นหลักพันด้วยจุด สัญลักษณ์อยู่ท้าย", formatMoney(6_000, "VND") === "6.000 ₫", formatMoney(6_000, "VND"));
 
   // ── 13. ลิสต์ย้อนหลัง /admin/receipts ───────────────────────────────────
   const deniedList = await listReceipts(cashier, {});

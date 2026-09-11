@@ -89,11 +89,39 @@ async function main() {
   const krapao = cart!.items.find((item) => item.menuItemId === "seed-item-krapao")!;
   check("รวมบรรทัดซ้ำเป็น qty 3", krapao.quantity === 3, `ได้ ${krapao.quantity}`);
   check("trim หมายเหตุ", krapao.note === "ไม่ใส่ผักชี", `ได้ ${JSON.stringify(krapao.note)}`);
-  // 6000 (กะเพรา) + 2000 (พิเศษ) + 1500 (ไข่ดาว) = 9500 สตางค์ ต่อหน่วย
-  check("modifierTotal = 3500", krapao.modifierTotal === 3500, `ได้ ${krapao.modifierTotal}`);
-  check("lineTotal = 9500 x 3", krapao.lineTotal === 28500, `ได้ ${krapao.lineTotal}`);
-  // 28500 + น้ำเปล่า 2000 x 2 = 32500
-  check("subtotal = 32500", cart!.subtotal === 32500, `ได้ ${cart!.subtotal}`);
+
+  /**
+   * ราคาอ่านจาก DB ไม่ใช่ตัวเลขตายตัว — seed เปลี่ยนสกุลเงินและราคาได้ (ชุดเดิมพัง
+   * ทั้งชุดตอนย้ายร้านเป็นดอง) สิ่งที่ต้องตรวจคือ **สูตร** ฐาน + ส่วนต่างตัวเลือก
+   * แล้ว × จำนวน ไม่ใช่เลขชุดใดชุดหนึ่ง · ตรวจด้วยว่าส่วนต่างไม่เป็นศูนย์
+   * ไม่งั้นเทสต์จะผ่านได้ทั้งที่ไม่ได้บวกตัวเลือกเลย
+   */
+  const [krapaoItem, waterItem, pickedMods] = await Promise.all([
+    prisma.menuItem.findUniqueOrThrow({ where: { id: "seed-item-krapao" } }),
+    prisma.menuItem.findUniqueOrThrow({ where: { id: "seed-item-water" } }),
+    prisma.modifier.findMany({
+      where: { id: { in: ["seed-mod-spice-hot", "seed-mod-size-large", "seed-mod-top-egg"] } },
+    }),
+  ]);
+  const expectedModTotal = pickedMods.reduce((sum, modifier) => sum + modifier.priceDelta, 0);
+  const expectedLine = (krapaoItem.basePrice + expectedModTotal) * 3;
+
+  check("ตัวเลือกที่เลือกมีส่วนต่างราคาจริง (เทสต์นี้ต้องบวกตัวเลือก)", expectedModTotal > 0, String(expectedModTotal));
+  check(
+    "modifierTotal = ผลรวมส่วนต่างของตัวเลือกที่เลือก",
+    krapao.modifierTotal === expectedModTotal,
+    `ได้ ${krapao.modifierTotal} · ควรได้ ${expectedModTotal}`,
+  );
+  check(
+    "lineTotal = (ราคาฐาน + ส่วนต่าง) × 3",
+    krapao.lineTotal === expectedLine,
+    `ได้ ${krapao.lineTotal} · ควรได้ ${expectedLine}`,
+  );
+  check(
+    "subtotal = บรรทัดแรก + น้ำ × 2",
+    cart!.subtotal === expectedLine + waterItem.basePrice * 2,
+    `ได้ ${cart!.subtotal} · ควรได้ ${expectedLine + waterItem.basePrice * 2}`,
+  );
   check("orderNumber มีรูปแบบ YYYYMMDD-NNNN", /^\d{8}-\d{4}$/.test(cart!.orderNumber), cart!.orderNumber);
 
   // 6. แก้จำนวน แล้วลบทิ้ง
@@ -102,7 +130,11 @@ async function main() {
   await setCartLineQuantity(session.id, krapao.id, 0);
   const afterEdit = await getCart(session.id);
   check("ลบบรรทัดแล้วเหลือ 1 บรรทัด", afterEdit?.items.length === 1, `ได้ ${afterEdit?.items.length}`);
-  check("subtotal คิดใหม่ = 2000", afterEdit!.subtotal === 2000, `ได้ ${afterEdit!.subtotal}`);
+  check(
+    "subtotal คิดใหม่ = น้ำ × 1",
+    afterEdit!.subtotal === waterItem.basePrice,
+    `ได้ ${afterEdit!.subtotal} · ควรได้ ${waterItem.basePrice}`,
+  );
 
   // 7. แก้บรรทัดของ session อื่นไม่ได้
   const stranger = await setCartLineQuantity("ไม่มี-session-นี้", afterEdit!.items[0].id, 5);

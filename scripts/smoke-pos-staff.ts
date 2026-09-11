@@ -180,11 +180,27 @@ async function main() {
   });
   check("สั่งเมนูที่มีตัวเลือกบังคับ => ok", addedTea.ok, addedTea.ok ? "" : addedTea.errorKey);
 
+  /**
+   * ราคาและชื่อสถานีอ่านจาก DB — ไม่ฮาร์ดโค้ดตัวเลขชุดใดชุดหนึ่ง (seed เปลี่ยนสกุลเงิน
+   * และภาษาของข้อมูลได้ ชุดเดิมพังตอนย้ายร้านเป็นดอง) ที่ต้องตรวจคือ "สูตร"
+   */
+  const [waterItem, teaItem, teaMods, barStation] = await Promise.all([
+    prisma.menuItem.findUniqueOrThrow({ where: { id: "seed-item-water" } }),
+    prisma.menuItem.findUniqueOrThrow({ where: { id: "seed-item-thai-tea" } }),
+    prisma.modifier.findMany({ where: { id: { in: ["seed-mod-sweet-50", "seed-mod-size-regular"] } } }),
+    prisma.station.findUniqueOrThrow({ where: { id: "seed-station-bar" } }),
+  ]);
+  const waterLineTotal = waterItem.basePrice * 2;
+  const teaLineTotal = teaItem.basePrice + teaMods.reduce((sum, modifier) => sum + modifier.priceDelta, 0);
+
   const tablesWithDraft = await getPosTables(branchId);
   const cardDraft = tablesWithDraft.find((row) => row.id === MAIN_TABLE_ID);
   check("ผังโต๊ะขึ้นว่ามีตะกร้าค้าง", cardDraft?.draftCount === 1, `ได้ ${cardDraft?.draftCount}`);
-  // น้ำเปล่า 2000 x 2 + ชาเย็น 4500 (ตัวเลือกไม่มีส่วนต่างราคา) = 8500 สตางค์
-  check("runningTotal = 8500", cardDraft?.runningTotal === 8500, `ได้ ${cardDraft?.runningTotal}`);
+  check(
+    "runningTotal = น้ำ × 2 + ชา 1 แก้ว (รวมส่วนต่างตัวเลือก)",
+    cardDraft?.runningTotal === waterLineTotal + teaLineTotal,
+    `ได้ ${cardDraft?.runningTotal} · ควรได้ ${waterLineTotal + teaLineTotal}`,
+  );
 
   const placed = await placeOrder(sessionId);
   check("ส่งเข้าครัว => ok", placed.ok, placed.ok ? String(placed.data.orderNumber) : placed.errorKey);
@@ -219,7 +235,11 @@ async function main() {
 
   // ฐานของ KDS บทที่ 8: สถานีถูก snapshot ลงบรรทัดตั้งแต่ตอนสั่ง
   check("ชาเย็น snapshot สถานี = บาร์น้ำ", teaLine.stationId === "seed-station-bar", `ได้ ${teaLine.stationId}`);
-  check("อ่านชื่อสถานีได้โดยไม่ต้อง join เมนูสด", teaLine.station?.name === "Beverage Bar", teaLine.station?.name);
+  check(
+    "อ่านชื่อสถานีได้โดยไม่ต้อง join เมนูสด",
+    teaLine.station?.name === barStation.name,
+    `${teaLine.station?.name} · ควรได้ ${barStation.name}`,
+  );
   check("น้ำเปล่าไม่ผูกสถานี => ไม่ขึ้นจอครัว", waterLine.stationId === null, `ได้ ${waterLine.stationId}`);
   check("บรรทัดเก็บตัวเลือกที่เลือกไว้", teaLine.modifiers.length === 2, `ได้ ${teaLine.modifiers.length}`);
 
@@ -245,8 +265,12 @@ async function main() {
   check("บันทึกเวลาที่ยกเลิก", cancelledItem.cancelledAt !== null);
 
   const afterCancel = await prisma.order.findUniqueOrThrow({ where: { id: cancelledItem.orderId } });
-  // 8500 - น้ำเปล่าที่ถูกยกเลิก 4000 = 4500 (เหลือชาเย็น)
-  check("subtotal ของบิลถูกคิดใหม่เป็น 4500", afterCancel.subtotal === 4500, `ได้ ${afterCancel.subtotal}`);
+  // ยอดเดิมลบน้ำที่ถูกยกเลิกออก = เหลือชาแก้วเดียว
+  check(
+    "subtotal ของบิลถูกคิดใหม่ (เหลือแต่ชา)",
+    afterCancel.subtotal === teaLineTotal,
+    `ได้ ${afterCancel.subtotal} · ควรได้ ${teaLineTotal}`,
+  );
 
   const log = await prisma.auditLog.findFirst({
     where: { entityId: orderItemId, action: "order_item.cancel" },
@@ -254,7 +278,8 @@ async function main() {
   check("เขียน AuditLog พร้อมเหตุผลและคนกด", log?.staffId === owner.id, log?.action);
   check(
     "AuditLog เก็บ snapshot ยอดเงิน ณ ตอนกด",
-    (log?.metadata as { lineTotal?: number } | null)?.lineTotal === 4000,
+    (log?.metadata as { lineTotal?: number } | null)?.lineTotal === waterLineTotal,
+    `ได้ ${(log?.metadata as { lineTotal?: number } | null)?.lineTotal} · ควรได้ ${waterLineTotal}`,
   );
 
   const again = await cancelOrderItemByStaff(owner, orderItemId, "กดซ้ำ");

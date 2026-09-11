@@ -275,10 +275,14 @@ async function main() {
       ),
       live.data.topItems.map((item) => `${item.name} ${item.quantity}`).join(" · "),
     );
+    // เมนูขายดีจัดกลุ่มด้วย nameSnapshot — หาชื่อจาก DB ด้วย id แทนการฮาร์ดโค้ดชื่อเมนู
+    // (seed เปลี่ยนภาษา/ชื่อเมนูได้ เทสต์ที่เทียบชื่อตรง ๆ พังมาแล้วสองรอบ)
+    const krapaoName = (await prisma.menuItem.findUniqueOrThrow({ where: { id: "seed-item-krapao" } })).name;
+    const krapaoTop = live.data.topItems.find((item) => item.name === krapaoName);
     check(
       "นับของที่ส่งเข้าครัวแล้ว ไม่ใช่เฉพาะบิลที่จ่ายแล้ว (ไม่งั้นช่วงเย็นจะดูเหมือนขายไม่ออก)",
-      (live.data.topItems.find((item) => item.name.includes("Kra Pao"))?.quantity ?? 0) >= 6,
-      String(live.data.topItems.find((item) => item.name.includes("Kra Pao"))?.quantity),
+      (krapaoTop?.quantity ?? 0) >= 6,
+      `${krapaoName}: ${String(krapaoTop?.quantity)}`,
     );
 
     console.log("\n── 7. เหตุการณ์ที่ต้องจับตา ─────────────────────────────────────\n");
