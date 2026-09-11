@@ -1,17 +1,21 @@
 import "dotenv/config";
 
-import { randomBytes } from "node:crypto";
-
 import { prisma } from "@/lib/server/db";
+import { openOrJoinTableSession } from "@/lib/server/table-session";
 
 /**
- * เครื่องมือ dev: เปิดรอบโต๊ะให้โต๊ะที่ระบุแล้วพิมพ์ token ออกมา
+ * เครื่องมือ dev: เปิด (หรือเข้าร่วม) รอบโต๊ะที่ระบุแล้วพิมพ์ token ออกมา
  * ใช้เวลาต้องทดสอบหน้าจอลูกค้าด้วย curl/httpie โดยไม่ต้องกดผ่านเบราว์เซอร์
  *
  *   npx tsx --conditions=react-server scripts/dev-open-session.ts a1x7qk
  *
  * (ต้องมี --conditions=react-server เพราะ lib/server/* มี `import "server-only"`
  * ซึ่งจะ throw ถ้ารันนอก React Server Components)
+ *
+ * ⚠ ต้องผ่าน `openOrJoinTableSession()` เท่านั้น — รุ่นก่อน `create` รอบใหม่ตรง ๆ
+ * แล้วสั่งกับโต๊ะที่มีรอบเปิดอยู่แล้ว = **สองรอบ OPEN บนโต๊ะนั่งตัวเดียว**
+ * (ใบเก่ามองไม่เห็นแต่ยังบล็อกการคิดเงิน — กฎที่ CLAUDE.md บันทึกไว้) เจอจริง
+ * ใน dev DB ตอนทำงาน i18n เพราะเครื่องมือตัวนี้เอง
  */
 async function main() {
   const tableCode = process.argv[2] ?? "a1x7qk";
@@ -20,15 +24,18 @@ async function main() {
     where: { tableCode },
   });
 
-  const session = await prisma.tableSession.create({
-    data: {
-      branchId: table.branchId,
-      tableId: table.id,
-      token: `dev-${randomBytes(12).toString("hex")}`,
-      pax: 2,
-      expiresAt: new Date(Date.now() + 3 * 60 * 60 * 1000),
-    },
+  const session = await openOrJoinTableSession({
+    tableId: table.id,
+    branchId: table.branchId,
+    pax: 2,
   });
+
+  // เข้าร่วมรอบที่หมดอายุแล้ว = token ใช้เป็นลูกค้าไม่ได้ (resolveSessionByToken กรองอายุ)
+  if (session.expiresAt.getTime() <= Date.now()) {
+    console.error(
+      `⚠ โต๊ะนี้มีรอบเปิดค้างที่หมดอายุแล้ว — token ด้านล่างใช้เป็นลูกค้าไม่ได้ · ล้างด้วย npm run dev:reset-table ${tableCode}`,
+    );
+  }
 
   console.log(session.token);
 }
