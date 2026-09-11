@@ -88,7 +88,7 @@ export function AvailabilityToggle({
           available ? "btn-secondary" : "is-active"
         }`}
       >
-        {available ? "In stock" : "Out of stock"}
+        {t(available ? "admin.toggle.on" : "admin.toggle.off")}
       </SubmitButton>
 
       {state.status === "error" ? (
@@ -119,6 +119,7 @@ function MoveButton({
   id: string;
   direction: "up" | "down";
 }) {
+  const { t } = useT();
   const [, formAction] = useActionState<FormState, FormData>(
     moveSortOrderAction,
     IDLE_FORM_STATE,
@@ -141,7 +142,7 @@ function MoveButton({
         className="btn btn-secondary relative size-9 p-0 text-[13px]"
       >
         <span aria-hidden>{direction === "up" ? "↑" : "↓"}</span>
-        <span className="sr-only">{direction === "up" ? "Move up" : "Move down"}</span>
+        <span className="sr-only">{t(direction === "up" ? "admin.move.up" : "admin.move.down")}</span>
       </SubmitButton>
     </form>
   );
@@ -163,6 +164,7 @@ export function DeleteButton({
   id: string;
   name: string;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     deleteEntityAction,
     IDLE_FORM_STATE,
@@ -172,7 +174,7 @@ export function DeleteButton({
     <form
       action={formAction}
       onSubmit={(event) => {
-        if (!window.confirm(`Permanently delete "${name}"?`)) {
+        if (!window.confirm(t("admin.delete.confirm", { name }))) {
           event.preventDefault();
         }
       }}
@@ -181,8 +183,8 @@ export function DeleteButton({
       <input type="hidden" name="entity" value={entity} />
       <input type="hidden" name="id" value={id} />
 
-      <SubmitButton pendingLabel="Deleting…" className="btn btn-secondary h-11">
-        Delete permanently
+      <SubmitButton pendingLabel={t("common.deleting")} className="btn btn-secondary h-11">
+        {t("admin.delete.button")}
       </SubmitButton>
 
       <FormError state={state} />
@@ -191,6 +193,7 @@ export function DeleteButton({
 }
 
 export function CategoryForm({ category }: { category: { id: string; name: string } | null }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     saveCategoryAction,
     IDLE_FORM_STATE,
@@ -203,7 +206,7 @@ export function CategoryForm({ category }: { category: { id: string; name: strin
 
       <div className="flex flex-col gap-2">
         <label htmlFor={nameId} className="kicker">
-          Category name
+          {t("admin.category.name")}
         </label>
         <input
           id={nameId}
@@ -211,15 +214,15 @@ export function CategoryForm({ category }: { category: { id: string; name: strin
           defaultValue={category?.name ?? ""}
           required
           autoComplete="off"
-          placeholder="e.g. Stir-fry · Soup · Drinks"
+          placeholder={t("admin.category.placeholder")}
           className="input display h-12 text-[16px]"
         />
       </div>
 
       <FormError state={state} />
 
-      <SubmitButton pendingLabel="Saving…" className="btn btn-primary display h-12">
-        {category ? "Save changes" : "Add category"}
+      <SubmitButton pendingLabel={t("common.saving")} className="btn btn-primary display h-12">
+        {t(category ? "common.saveChanges" : "admin.category.add")}
       </SubmitButton>
     </form>
   );
@@ -244,6 +247,7 @@ export function MenuItemForm({
   stations: { id: string; name: string }[];
   currency: Currency;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     saveMenuItemAction,
     IDLE_FORM_STATE,
@@ -257,7 +261,7 @@ export function MenuItemForm({
 
       <div className="flex flex-col gap-2">
         <label htmlFor={`${fieldId}-name`} className="kicker">
-          Item name
+          {t("admin.item.name")}
         </label>
         <input
           id={`${fieldId}-name`}
@@ -272,7 +276,9 @@ export function MenuItemForm({
       <div className="grid gap-4 sm:grid-cols-2">
         <div className="flex flex-col gap-2">
           <label htmlFor={`${fieldId}-price`} className="kicker">
-            Price ({formatMoney(0, currency).replace(/[\d.,]/g, "") || currency})
+            {t("admin.item.price", {
+              symbol: formatMoney(0, currency).replace(/[\d.,\s]/g, "") || currency,
+            })}
           </label>
           {/*
             inputMode="decimal" ไม่ใช่ type="number" — เหตุผลเดียวกับช่องรับเงินสด
@@ -293,7 +299,7 @@ export function MenuItemForm({
 
         <div className="flex flex-col gap-2">
           <label htmlFor={`${fieldId}-category`} className="kicker">
-            Category
+            {t("admin.item.category")}
           </label>
           <select
             id={`${fieldId}-category`}
@@ -305,7 +311,7 @@ export function MenuItemForm({
             {categories.map((category) => (
               <option key={category.id} value={category.id}>
                 {category.name}
-                {category.isAvailable ? "" : " (category disabled)"}
+                {category.isAvailable ? "" : ` ${t("admin.item.categoryDisabled")}`}
               </option>
             ))}
           </select>
@@ -314,7 +320,7 @@ export function MenuItemForm({
 
       <div className="flex flex-col gap-2">
         <label htmlFor={`${fieldId}-station`} className="kicker">
-          Kitchen station
+          {t("admin.item.station")}
         </label>
         <select
           id={`${fieldId}-station`}
@@ -327,7 +333,7 @@ export function MenuItemForm({
             ของพวกนี้ (น้ำขวด ขนมซอง) ข้ามไป READY ตั้งแต่ตอนกดส่ง เพราะไม่มีใคร
             ต้องทำมัน — ถ้าเลือกผิดเป็นสถานีครัว มันจะไปค้างรอครัวกดบนจอที่ไม่มีใครดู
           */}
-          <option value="">No kitchen station (self-serve)</option>
+          <option value="">{t("admin.item.noStation")}</option>
           {stations.map((station) => (
             <option key={station.id} value={station.id}>
               {station.name}
@@ -338,7 +344,7 @@ export function MenuItemForm({
 
       <div className="flex flex-col gap-2">
         <label htmlFor={`${fieldId}-description`} className="kicker">
-          Description (optional)
+          {t("admin.item.description")}
         </label>
         <textarea
           id={`${fieldId}-description`}
@@ -351,7 +357,7 @@ export function MenuItemForm({
 
       <div className="flex flex-col gap-2">
         <label htmlFor={`${fieldId}-image`} className="kicker">
-          Image URL (https:// or a /file in public)
+          {t("admin.item.image")}
         </label>
         <input
           id={`${fieldId}-image`}
@@ -380,8 +386,8 @@ export function MenuItemForm({
 
       <FormError state={state} />
 
-      <SubmitButton pendingLabel="Saving…" className="btn btn-primary display h-12">
-        {item ? "Save changes" : "Add item"}
+      <SubmitButton pendingLabel={t("common.saving")} className="btn btn-primary display h-12">
+        {t(item ? "common.saveChanges" : "admin.item.add")}
       </SubmitButton>
     </form>
   );
@@ -411,7 +417,7 @@ export function MenuItemGroupsForm({
 
   if (groups.length === 0) {
     return (
-      <p className="kicker">No modifier groups in this branch yet — create one on the &ldquo;Modifiers&rdquo; page first</p>
+      <p className="kicker">{t("admin.item.noGroups", { page: t("admin.nav.options") })}</p>
     );
   }
 
@@ -431,8 +437,8 @@ export function MenuItemGroupsForm({
                 className="size-5 flex-none accent-[var(--color-accent)]"
               />
               <span className="display text-[15px]">{group.name}</span>
-              {group.required ? <span className="tag tag-accent">Required</span> : null}
-              {group.isActive ? null : <span className="tag tag-neutral">Disabled</span>}
+              {group.required ? <span className="tag tag-accent">{t("item.required")}</span> : null}
+              {group.isActive ? null : <span className="tag tag-neutral">{t("common.disabled")}</span>}
             </label>
           </li>
         ))}
@@ -446,8 +452,8 @@ export function MenuItemGroupsForm({
         </p>
       ) : null}
 
-      <SubmitButton pendingLabel="Saving…" className="btn btn-secondary h-11">
-        Save this item&apos;s modifier groups
+      <SubmitButton pendingLabel={t("common.saving")} className="btn btn-secondary h-11">
+        {t("admin.item.saveGroups")}
       </SubmitButton>
     </form>
   );
@@ -479,6 +485,7 @@ export function ModifierGroupForm({
   } | null;
   currency: Currency;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     saveModifierGroupAction,
     IDLE_FORM_STATE,
@@ -505,7 +512,7 @@ export function ModifierGroupForm({
 
       <div className="flex flex-col gap-2">
         <label htmlFor={`${fieldId}-name`} className="kicker">
-          Group name
+          {t("admin.mod.name")}
         </label>
         <input
           id={`${fieldId}-name`}
@@ -513,7 +520,7 @@ export function ModifierGroupForm({
           defaultValue={group?.name ?? ""}
           required
           autoComplete="off"
-          placeholder="e.g. Spice level · Size"
+          placeholder={t("admin.mod.namePlaceholder")}
           className="input display h-12 text-[16px]"
         />
       </div>
@@ -526,13 +533,13 @@ export function ModifierGroupForm({
             defaultChecked={group?.required ?? false}
             className="size-5 flex-none accent-[var(--color-accent)]"
           />
-          <span className="display text-[15px]">Required before adding to cart</span>
+          <span className="display text-[15px]">{t("admin.mod.required")}</span>
         </label>
 
         <div className="grid gap-3 sm:grid-cols-2">
           <div className="flex flex-col gap-2">
             <label htmlFor={`${fieldId}-min`} className="kicker">
-              Minimum selections
+              {t("admin.mod.min")}
             </label>
             <input
               id={`${fieldId}-min`}
@@ -547,7 +554,7 @@ export function ModifierGroupForm({
 
           <div className="flex flex-col gap-2">
             <label htmlFor={`${fieldId}-max`} className="kicker">
-              Maximum selections
+              {t("admin.mod.max")}
             </label>
             <input
               id={`${fieldId}-max`}
@@ -561,15 +568,13 @@ export function ModifierGroupForm({
           </div>
         </div>
 
-        <p className="kicker">
-          Maximum = 1 means single choice · more than 1 allows multiple selections
-        </p>
+        <p className="kicker">{t("admin.mod.maxHint")}</p>
       </div>
 
       <div className="flex flex-col gap-3">
         <div className="flex items-baseline justify-between gap-3">
-          <span className="kicker">Options in this group</span>
-          <span className="kicker">Price delta can be negative, e.g. -10</span>
+          <span className="kicker">{t("admin.mod.options")}</span>
+          <span className="kicker">{t("admin.mod.deltaHint")}</span>
         </div>
 
         {rows.map((row, index) => (
@@ -578,7 +583,7 @@ export function ModifierGroupForm({
 
             <div className="flex min-w-0 flex-1 flex-col gap-1">
               <label htmlFor={`${fieldId}-mod-${index}`} className="sr-only">
-                Option {index + 1} name
+                {t("admin.mod.optionName", { n: index + 1 })}
               </label>
               <input
                 id={`${fieldId}-mod-${index}`}
@@ -586,14 +591,14 @@ export function ModifierGroupForm({
                 value={row.name}
                 onChange={(event) => updateRow(row.key, { name: event.target.value })}
                 autoComplete="off"
-                placeholder="e.g. Mild"
+                placeholder={t("admin.mod.optionPlaceholder")}
                 className="input h-11 text-[15px]"
               />
             </div>
 
             <div className="flex w-[110px] flex-none flex-col gap-1">
               <label htmlFor={`${fieldId}-price-${index}`} className="sr-only">
-                Option {index + 1} price delta
+                {t("admin.mod.optionPrice", { n: index + 1 })}
               </label>
               <input
                 id={`${fieldId}-price-${index}`}
@@ -610,7 +615,7 @@ export function ModifierGroupForm({
               type="button"
               onClick={() => setRows((current) => current.filter((item) => item.key !== row.key))}
               disabled={rows.length === 1}
-              aria-label={`Remove option ${index + 1}`}
+              aria-label={t("admin.mod.removeOption", { n: index + 1 })}
               className="btn btn-secondary size-11 flex-none p-0"
             >
               ✕
@@ -633,21 +638,21 @@ export function ModifierGroupForm({
           }
           className="btn btn-secondary h-11"
         >
-          + Add option
+          {t("admin.mod.addOption")}
         </button>
 
         {group ? (
           <p className="kicker">
-            Options removed from this list are <strong>disabled</strong>, not deleted,
-            because past bills still reference them.
+            {t("admin.mod.removedLead")} <strong>{t("admin.mod.removedStrong")}</strong>
+            {t("admin.mod.removedTail")}
           </p>
         ) : null}
       </div>
 
       <FormError state={state} />
 
-      <SubmitButton pendingLabel="Saving…" className="btn btn-primary display h-12">
-        {group ? "Save changes" : "Create modifier group"}
+      <SubmitButton pendingLabel={t("common.saving")} className="btn btn-primary display h-12">
+        {t(group ? "common.saveChanges" : "admin.mod.create")}
       </SubmitButton>
     </form>
   );

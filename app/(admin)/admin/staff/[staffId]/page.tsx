@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import type { StaffRole, StaffScreenKind } from "@/lib/generated/prisma/enums";
+import type { MessageKey } from "@/lib/i18n/vi";
 import {
   canAccessScreen,
   canAssignRole,
@@ -31,18 +32,20 @@ import {
  * → ดูว่ามีเครื่องไหนค้าง → เตะออก → รีเซ็ต PIN ถ้ายังไม่มั่นใจ
  * แยกหน้ากันเมื่อไหร่ ขั้นตอนกลางจะถูกข้ามทุกครั้ง
  */
-const SCREEN_LABEL: Record<StaffScreenKind, string> = {
-  POS: "Staff terminal (POS)",
-  KDS: "Kitchen display",
-  ADMIN: "Back office",
-};
+/** คีย์ป้ายของหน้าจอที่ session ผูกอยู่ — ชนิดเป็น MessageKey เพิ่มค่าใน enum แล้วลืมแปล tsc ฟ้อง */
+function screenKey(screen: StaffScreenKind): MessageKey {
+  return `staffScreen.${screen}`;
+}
 
-/** เหตุผลที่ session ถูกปิด — ค่าดิบมาจาก SESSION_REVOKE_REASONS */
-const REVOKE_LABEL: Record<string, string> = {
-  logout: "Locked screen",
-  revoked_all: "Signed out",
-  pin_reset: "PIN reset",
-  deactivated: "Account deactivated",
+/**
+ * เหตุผลที่ session ถูกปิด — ค่าดิบมาจาก SESSION_REVOKE_REASONS (string ในฐาน)
+ * ค่าที่ยังไม่มีป้าย **แสดงดิบ** ไม่ใช่ซ่อน (กติกาเดียวกับ AuditLog)
+ */
+const REVOKE_KEYS: Record<string, MessageKey> = {
+  logout: "revokeReason.logout",
+  revoked_all: "revokeReason.revoked_all",
+  pin_reset: "revokeReason.pin_reset",
+  deactivated: "revokeReason.deactivated",
 };
 
 const ALL_ROLES: StaffRole[] = ["OWNER", "MANAGER", "CASHIER", "SERVER", "KITCHEN"];
@@ -52,7 +55,7 @@ export default async function StaffDetailPage({
 }: {
   params: Promise<{ staffId: string }>;
 }) {
-  const { t } = await getT();
+  const { t, tc } = await getT();
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -67,10 +70,11 @@ export default async function StaffDetailPage({
 
   // ตำแหน่งที่คนกดตั้งให้คนอื่นได้จริง — กรองที่ server ไม่ใช่ซ่อนด้วย CSS
   const assignableRoles = ALL_ROLES.filter((role) => canAssignRole(staff.role, role));
+  const backLabel = t("admin.staff.back");
 
   if (staffId === "new") {
     return (
-      <Shell title="Add staff member" subtitle="Set code, name, role, and initial PIN">
+      <Shell title={t("admin.staff.add")} subtitle={t("admin.staff.addSubtitle")} backLabel={backLabel}>
         <section className="panel flex flex-col gap-4 p-5">
           <CreateStaffForm roles={assignableRoles} />
         </section>
@@ -87,21 +91,26 @@ export default async function StaffDetailPage({
   const isSelf = detail.staff.id === staff.id;
   const canEditTarget = canManageStaffMember(staff.role, detail.staff.role);
 
+  // ข้อความเดียวกับที่ server คืนเมื่อถูกปฏิเสธ (lib/server/staff-admin.ts) — ใช้คีย์ร่วมกัน
   const disabledReason = isSelf
-    ? "You can't edit your own account from this screen — have another authorized user do it"
+    ? t("error.cannot_edit_own_account")
     : !canEditTarget
-      ? "You can't edit an account of this role"
+      ? t("error.cannot_edit_this_role")
       : undefined;
+
+  const revokeLabel = (reason: string | null) =>
+    reason && Object.hasOwn(REVOKE_KEYS, reason) ? t(REVOKE_KEYS[reason]) : (reason ?? t("admin.staff.closed"));
 
   return (
     <Shell
       title={`${detail.staff.code} · ${detail.staff.name}`}
-      subtitle={`${t(staffRoleKey(detail.staff.role))} · ${
-        detail.staff.isActive ? "Active" : "Deactivated"
-      }`}
+      subtitle={`${t(staffRoleKey(detail.staff.role))} · ${t(
+        detail.staff.isActive ? "common.active" : "common.deactivated",
+      )}`}
+      backLabel={backLabel}
     >
       <section className="panel flex flex-col gap-4 p-5">
-        <span className="display text-[17px]">Account info</span>
+        <span className="display text-[17px]">{t("admin.staff.accountInfo")}</span>
         <EditStaffForm
           staffId={detail.staff.id}
           code={detail.staff.code}
@@ -115,21 +124,19 @@ export default async function StaffDetailPage({
 
       <section className="panel flex flex-col gap-4 p-5">
         <div className="flex flex-col gap-1">
-          <span className="display text-[17px]">PIN</span>
-          <span className="kicker">
-            Setting a new PIN signs this person out of every device immediately — they must enter the new PIN to get back in.
-          </span>
+          <span className="display text-[17px]">{t("pin.pin")}</span>
+          <span className="kicker">{t("admin.staff.pinHint")}</span>
         </div>
         <ResetPinForm staffId={detail.staff.id} disabled={!canEditTarget && !isSelf} />
       </section>
 
       <section className="panel flex flex-col gap-4 p-5">
         <div className="flex flex-col gap-1">
-          <span className="display text-[17px]">Signed-in devices</span>
+          <span className="display text-[17px]">{t("admin.staff.devicesTitle")}</span>
           <span className="kicker">
             {detail.sessions.length === 0
-              ? "No devices currently signed in"
-              : `${detail.sessions.length} device(s)`}
+              ? t("msg.no_active_sessions")
+              : tc("admin.staff.devices", detail.sessions.length)}
           </span>
         </div>
 
@@ -140,9 +147,11 @@ export default async function StaffDetailPage({
                 key={session.id}
                 className="flex flex-wrap items-baseline justify-between gap-2 border-b border-[var(--color-divider)] pb-2 last:border-b-0"
               >
-                <span>{SCREEN_LABEL[session.screen]}</span>
+                <span>{t(screenKey(session.screen))}</span>
                 <span className="kicker tabular-nums">
-                  Signed in {formatDateTime(session.createdAt, staff.branch.timezone)}
+                  {t("admin.staff.signedInAt", {
+                    time: formatDateTime(session.createdAt, staff.branch.timezone),
+                  })}
                   {session.ipAddress ? ` · ${session.ipAddress}` : ""}
                 </span>
               </li>
@@ -155,12 +164,12 @@ export default async function StaffDetailPage({
 
       <section className="panel flex flex-col gap-4 p-5">
         <div className="flex flex-col gap-1">
-          <span className="display text-[17px]">Sign-in history</span>
-          <span className="kicker">Last {detail.history.length} entries</span>
+          <span className="display text-[17px]">{t("admin.staff.history")}</span>
+          <span className="kicker">{tc("admin.staff.historyCount", detail.history.length)}</span>
         </div>
 
         {detail.history.length === 0 ? (
-          <p className="text-[var(--color-neutral-700)]">Never signed in</p>
+          <p className="text-[var(--color-neutral-700)]">{t("admin.staff.neverSignedIn")}</p>
         ) : (
           <ul className="flex flex-col">
             {detail.history.map((entry) => (
@@ -170,16 +179,17 @@ export default async function StaffDetailPage({
               >
                 <span className="tabular-nums">
                   {formatDateTime(entry.createdAt, staff.branch.timezone)} ·{" "}
-                  {SCREEN_LABEL[entry.screen]}
+                  {t(screenKey(entry.screen))}
                 </span>
                 <span className="kicker">
                   {entry.revokedAt
-                    ? `${REVOKE_LABEL[entry.revokedReason ?? ""] ?? entry.revokedReason ?? "Closed"}${
-                        entry.revokedBy ? ` by ${entry.revokedBy.name}` : ""
-                      }`
-                    : entry.stillValid
-                      ? "Still active"
-                      : "Expired"}
+                    ? entry.revokedBy
+                      ? t("admin.staff.revokedBy", {
+                          reason: revokeLabel(entry.revokedReason),
+                          name: entry.revokedBy.name,
+                        })
+                      : revokeLabel(entry.revokedReason)
+                    : t(entry.stillValid ? "admin.staff.stillActive" : "admin.staff.expired")}
                 </span>
               </li>
             ))}
@@ -193,10 +203,13 @@ export default async function StaffDetailPage({
 function Shell({
   title,
   subtitle,
+  backLabel,
   children,
 }: {
   title: string;
   subtitle: string;
+  /** แปลแล้วจากตัวแม่ — Shell เป็น server component ธรรมดา */
+  backLabel: string;
   children: React.ReactNode;
 }) {
   return (
@@ -208,7 +221,7 @@ function Shell({
         </div>
 
         <Link href="/admin/staff" className="btn btn-ghost h-10 text-[14px]">
-          ‹ Back to list
+          {backLabel}
         </Link>
       </header>
 

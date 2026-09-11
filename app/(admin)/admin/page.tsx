@@ -8,7 +8,7 @@ import { paymentMethodKey } from "@/lib/payment-method";
 import { canAccessScreen, canReadAuditLog, canViewDashboard } from "@/lib/rbac";
 import { salePointKey } from "@/lib/sale-point";
 import { getDashboard } from "@/lib/server/dashboard";
-import { getT } from "@/lib/server/locale";
+import { getT, type Translator } from "@/lib/server/locale";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
 /**
@@ -28,7 +28,8 @@ import { getCurrentStaff } from "@/lib/server/staff-session";
  * ร้านที่ปิดตีสองต้องเห็นยอดของกะเดียวกันทั้งกะ (เหตุผลเดียวกับเลขบิล/เลขคิว)
  */
 export default async function AdminHomePage() {
-  const { t } = await getT();
+  const i18n = await getT();
+  const { t, tc } = i18n;
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -52,7 +53,7 @@ export default async function AdminHomePage() {
     <main className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--color-text)] px-4 py-3 lg:px-6">
         <div className="flex items-baseline gap-3">
-          <span className="display text-[19px]">Today&apos;s summary</span>
+          <span className="display text-[19px]">{t("admin.dash.title")}</span>
           <span className="kicker tabular-nums">{day}</span>
         </div>
 
@@ -69,15 +70,15 @@ export default async function AdminHomePage() {
           <section className="panel flex flex-col gap-4 p-5">
             <div className="flex flex-wrap items-end justify-between gap-4">
               <div className="flex flex-col gap-1">
-                <span className="kicker">Today&apos;s sales (received)</span>
+                <span className="kicker">{t("admin.dash.sales")}</span>
                 <span className="display text-[38px] leading-none tabular-nums">
                   {money(sales.total)}
                 </span>
               </div>
 
               <div className="flex gap-6">
-                <Stat label="Bills" value={`${sales.billCount}`} />
-                <Stat label="Average/bill" value={money(sales.average)} />
+                <Stat label={t("admin.dash.bills")} value={`${sales.billCount}`} />
+                <Stat label={t("admin.dash.avg")} value={money(sales.average)} />
               </div>
             </div>
 
@@ -85,7 +86,8 @@ export default async function AdminHomePage() {
 
             <div className="grid gap-4 sm:grid-cols-2">
               <Breakdown
-                title="Payment method"
+                i18n={i18n}
+                title={t("bill.paymentMethod")}
                 rows={sales.byMethod.map((row) => ({
                   label: t(paymentMethodKey(row.method as PaymentMethod)),
                   count: row.count,
@@ -94,7 +96,8 @@ export default async function AdminHomePage() {
                 money={money}
               />
               <Breakdown
-                title="Sales channel"
+                i18n={i18n}
+                title={t("admin.dash.channel")}
                 rows={sales.byChannel.map((row) => ({
                   label: t(salePointKey(row.kind as SalePointKind)),
                   count: row.count,
@@ -106,45 +109,58 @@ export default async function AdminHomePage() {
 
             {sales.staffMeal.billCount > 0 ? (
               <p className="kicker">
-                ในนี้เป็นบิลพนักงาน {sales.staffMeal.billCount} ใบ · ส่วนลดรวม{" "}
-                {money(sales.staffMeal.discountAmount)}
+                {tc("admin.dash.staffMeal", sales.staffMeal.billCount, {
+                  amount: money(sales.staffMeal.discountAmount),
+                })}
               </p>
             ) : null}
           </section>
 
           <section className="panel flex flex-col gap-4 p-5">
-            <span className="display text-[17px]">ตอนนี้ที่หน้าร้าน</span>
+            <span className="display text-[17px]">{t("admin.dash.now")}</span>
 
             <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
               <Stat
-                label="บิลที่เปิดอยู่"
+                label={t("admin.dash.openBills")}
                 value={`${now.openBills}`}
-                hint={`นั่ง ${now.openDineIn} · ซื้อกลับ ${now.openTakeaway}`}
+                hint={`${t(salePointKey("DINE_IN"))} ${now.openDineIn} · ${t(salePointKey("COUNTER"))} ${now.openTakeaway}`}
               />
-              <Stat label="ยังไม่ได้เก็บ" value={money(now.openSubtotal)} hint="ค่าอาหาร ยังไม่รวม VAT" />
-              <Stat label="ครัวกำลังทำ" value={`${now.kitchenPending}`} hint="ชิ้น" />
-              <Stat label="พร้อมเสิร์ฟ" value={`${now.kitchenReady}`} hint="ชิ้น รอยกไปให้ลูกค้า" />
+              <Stat
+                label={t("admin.dash.uncollected")}
+                value={money(now.openSubtotal)}
+                hint={t("admin.dash.uncollectedHint")}
+              />
+              <Stat
+                label={t("admin.dash.kitchenPending")}
+                value={`${now.kitchenPending}`}
+                hint={t("admin.dash.itemsUnit")}
+              />
+              <Stat
+                label={t("admin.dash.ready")}
+                value={`${now.kitchenReady}`}
+                hint={t("admin.dash.readyHint")}
+              />
             </div>
 
             <div className="flex flex-wrap gap-2">
               <Link href="/pos" className="btn btn-secondary h-10 text-[14px]">
-                ผังโต๊ะ
+                {t("pos.map.title")}
               </Link>
               <Link href="/pos/counter" className="btn btn-secondary h-10 text-[14px]">
-                คิวซื้อกลับ
+                {t("pos.receipt.takeawayQueue")}
               </Link>
               <Link href="/admin/receipts" className="btn btn-secondary h-10 text-[14px]">
-                ใบเสร็จวันนี้
+                {t("admin.dash.todayReceipts")}
               </Link>
             </div>
           </section>
 
           <div className="grid gap-5 lg:grid-cols-2">
             <section className="panel flex flex-col gap-4 p-5">
-              <span className="display text-[17px]">เมนูขายดีวันนี้</span>
+              <span className="display text-[17px]">{t("admin.dash.topItems")}</span>
 
               {topItems.length === 0 ? (
-                <p className="text-[var(--color-neutral-700)]">ยังไม่มีของที่ส่งเข้าครัววันนี้</p>
+                <p className="text-[var(--color-neutral-700)]">{t("admin.dash.noTopItems")}</p>
               ) : (
                 <ul className="flex flex-col">
                   {topItems.map((item) => (
@@ -164,26 +180,22 @@ export default async function AdminHomePage() {
             </section>
 
             <section className="panel flex flex-col gap-4 p-5">
-              <span className="display text-[17px]">ที่ต้องจับตาวันนี้</span>
+              <span className="display text-[17px]">{t("admin.dash.watch")}</span>
 
               <div className="flex items-baseline gap-3">
                 <span className="display text-[38px] leading-none tabular-nums">
                   {sensitiveEvents}
                 </span>
-                <span className="kicker">
-                  ยกเลิกรายการ · ติดธงส่วนลดพนักงาน · ปิดรอบทิ้ง · แก้อัตราภาษี · จัดการบัญชีพนักงาน
-                </span>
+                <span className="kicker">{t("admin.dash.watchList")}</span>
               </div>
 
               {canReadAuditLog(staff.role) ? (
                 <Link href="/admin/audit-logs" className="btn btn-secondary h-10 text-[14px]">
-                  เปิดบันทึกการใช้งาน
+                  {t("admin.dash.openAudit")}
                 </Link>
               ) : null}
 
-              <p className="kicker">
-                เครื่องที่ล็อกอินค้างอยู่ {now.activeStaffSessions} เครื่อง
-              </p>
+              <p className="kicker">{tc("admin.dash.devices", now.activeStaffSessions)}</p>
             </section>
           </div>
 
@@ -191,10 +203,7 @@ export default async function AdminHomePage() {
             บอกตรง ๆ ว่าอะไรยังไม่มีและเพราะอะไร ดีกว่าปล่อยช่องว่างหรือใส่ตัวเลขปลอม
             — ช่องที่ขึ้น "—" ตลอดกาลทำให้คนเลิกดูทั้งหน้า
           */}
-          <p className="kicker">
-            ยังไม่มีบนหน้านี้: กำไรขั้นต้น (ต้องมีต้นทุนต่อเมนูก่อน) · ของใกล้หมด (บทที่ 14) ·
-            กราฟย้อนหลังหลายวัน (บทที่ 15)
-          </p>
+          <p className="kicker">{t("admin.dash.notYet")}</p>
         </div>
       </div>
     </main>
@@ -212,10 +221,13 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 }
 
 function Breakdown({
+  i18n: { t, tc },
   title,
   rows,
   money,
 }: {
+  /** รับจาก page — component นี้เป็น server component ธรรมดา */
+  i18n: Translator;
   title: string;
   rows: { label: string; count: number; amount: number }[];
   money: (amount: number) => string;
@@ -225,7 +237,7 @@ function Breakdown({
       <span className="kicker">{title}</span>
 
       {rows.length === 0 ? (
-        <span className="text-[var(--color-neutral-700)]">ยังไม่มีบิลที่ปิดวันนี้</span>
+        <span className="text-[var(--color-neutral-700)]">{t("admin.dash.noClosedBills")}</span>
       ) : (
         <ul className="flex flex-col">
           {rows.map((row) => (
@@ -235,7 +247,7 @@ function Breakdown({
             >
               <span>
                 {row.label}
-                <span className="kicker"> · {row.count} ใบ</span>
+                <span className="kicker"> · {tc("admin.dash.billCount", row.count)}</span>
               </span>
               <span className="tabular-nums">{money(row.amount)}</span>
             </li>

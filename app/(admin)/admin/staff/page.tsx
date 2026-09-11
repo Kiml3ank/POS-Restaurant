@@ -19,7 +19,7 @@ import { getCurrentStaff } from "@/lib/server/staff-session";
  * คำถามระดับสาขา ไม่ใช่ระดับคน
  */
 export default async function StaffListPage() {
-  const { t } = await getT();
+  const { t, tc } = await getT();
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -30,14 +30,12 @@ export default async function StaffListPage() {
     return (
       <main className="flex min-h-0 flex-1 flex-col">
         <header className="flex items-center justify-between gap-3 border-b-2 border-[var(--color-text)] px-4 py-3 lg:px-6">
-          <span className="display text-[19px]">พนักงาน</span>
+          <span className="display text-[19px]">{t("admin.nav.staff")}</span>
         </header>
         <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
           <div className="panel mx-auto mt-8 flex max-w-[520px] flex-col gap-2 p-6">
-            <span className="display text-[20px]">ดูหน้านี้ไม่ได้</span>
-            <p className="text-[var(--color-neutral-700)]">
-              เฉพาะเจ้าของร้านและผู้จัดการเท่านั้นที่จัดการบัญชีพนักงานได้
-            </p>
+            <span className="display text-[20px]">{t("common.cantViewPage")}</span>
+            <p className="text-[var(--color-neutral-700)]">{t("admin.staff.deniedDetail")}</p>
           </div>
         </div>
       </main>
@@ -52,14 +50,14 @@ export default async function StaffListPage() {
     <main className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--color-text)] px-4 py-3 lg:px-6">
         <div className="flex items-baseline gap-3">
-          <span className="display text-[19px]">พนักงาน</span>
+          <span className="display text-[19px]">{t("admin.nav.staff")}</span>
           <span className="kicker">
-            ใช้งานอยู่ {activeCount} คน · ล็อกอินค้างอยู่ {loggedIn} เครื่อง
+            {tc("admin.staff.activeCount", activeCount)} · {tc("admin.dash.devices", loggedIn)}
           </span>
         </div>
 
         <Link href="/admin/staff/new" className="btn btn-primary h-10 text-[14px]">
-          เพิ่มพนักงาน
+          {t("admin.staff.add")}
         </Link>
       </header>
 
@@ -77,18 +75,21 @@ export default async function StaffListPage() {
                   </span>
                   <span className="kicker">
                     {t(staffRoleKey(row.role))}
+                    {" · "}
                     {row.lastLoginAt
-                      ? ` · เข้าล่าสุด ${formatDateTime(row.lastLoginAt, staff.branch.timezone)}`
-                      : " · ยังไม่เคยเข้าใช้งาน"}
+                      ? t("admin.staff.lastLogin", {
+                          time: formatDateTime(row.lastLoginAt, staff.branch.timezone),
+                        })
+                      : t("admin.staff.neverLoggedIn")}
                   </span>
                 </div>
 
                 <div className="flex items-center gap-3">
                   {row.activeSessions > 0 ? (
-                    <span className="tag tag-solid">{row.activeSessions} เครื่อง</span>
+                    <span className="tag tag-solid">{tc("admin.staff.devices", row.activeSessions)}</span>
                   ) : null}
                   <span className={row.isActive ? "tag tag-neutral" : "tag"}>
-                    {row.isActive ? "ใช้งานอยู่" : "ปิดใช้งาน"}
+                    {t(row.isActive ? "common.active" : "common.deactivated")}
                   </span>
                 </div>
               </Link>

@@ -2,6 +2,10 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef } from "react";
+
+import { useT } from "@/components/i18n-provider";
+import type { MessageKey } from "@/lib/i18n/vi";
 
 /**
  * เมนูข้างของหลังร้าน
@@ -21,14 +25,23 @@ import { usePathname } from "next/navigation";
  * แล้วแถบจะโผล่ทั้งสองที่พร้อมกันโดยที่ tsc/build ไม่ฟ้อง (กับดักใน CLAUDE.md หัวข้อ 4)
  * ที่นี่จึงวาดเส้นด้วย utility ล้วน ๆ
  */
-const LINKS = [
-  { href: "/admin/menu", label: "Menu & items", short: "Menu", hint: "Categories · Items · Sold out" },
-  { href: "/admin/modifiers", label: "Option groups", short: "Options", hint: "Size · Spice · Toppings" },
-  { href: "/admin/receipts", label: "Receipts", short: "Receipts", hint: "Search past · Reprint" },
-  { href: "/admin/audit-logs", label: "Audit log", short: "Log", hint: "Who did what · When" },
-  { href: "/admin/staff", label: "Staff", short: "Staff", hint: "Accounts · PINs · Devices" },
-  { href: "/admin/settings", label: "Settings", short: "Settings", hint: "Tax · Store info · Stations" },
+type NavLink = { href: string; label: MessageKey; short: MessageKey; hint: MessageKey };
+
+const LINKS: NavLink[] = [
+  { href: "/admin/menu", label: "admin.nav.menu", short: "admin.nav.menuShort", hint: "admin.nav.menuHint" },
+  { href: "/admin/modifiers", label: "admin.nav.options", short: "admin.nav.optionsShort", hint: "admin.nav.optionsHint" },
+  { href: "/admin/receipts", label: "admin.nav.receipts", short: "admin.nav.receiptsShort", hint: "admin.nav.receiptsHint" },
+  { href: "/admin/audit-logs", label: "admin.nav.audit", short: "admin.nav.auditShort", hint: "admin.nav.auditHint" },
+  { href: "/admin/staff", label: "admin.nav.staff", short: "admin.nav.staffShort", hint: "admin.nav.staffHint" },
+  { href: "/admin/settings", label: "admin.nav.settings", short: "admin.nav.settingsShort", hint: "admin.nav.settingsHint" },
 ];
+
+const TODAY_LINK: NavLink = {
+  href: "/admin",
+  label: "admin.nav.today",
+  short: "admin.nav.todayShort",
+  hint: "admin.nav.todayHint",
+};
 
 export function AdminNav({
   canGoToPos,
@@ -42,7 +55,17 @@ export function AdminNav({
    */
   canViewDashboard: boolean;
 }) {
+  const { t } = useT();
   const pathname = usePathname();
+  const bottomBarRef = useRef<HTMLElement>(null);
+
+  // แถบล่างเลื่อนแนวนอนได้ (ดูคอมเมนต์ที่ตัวแถบ) — เลื่อนให้เห็นหน้าที่อยู่ตอนนี้เสมอ
+  // ไม่งั้นคนที่อยู่หน้า "ตั้งค่า" จะเห็นแถบที่ไม่มีอะไรไฮไลต์เลย
+  useEffect(() => {
+    bottomBarRef.current
+      ?.querySelector<HTMLElement>('[aria-current="page"]')
+      ?.scrollIntoView({ block: "nearest", inline: "nearest" });
+  }, [pathname]);
 
   /**
    * "สรุปวันนี้" ต้องเทียบแบบตรงตัวเท่านั้น — `startsWith("/admin/")` จะทำให้
@@ -51,9 +74,7 @@ export function AdminNav({
   const isCurrent = (href: string) =>
     href === "/admin" ? pathname === "/admin" : pathname === href || pathname.startsWith(`${href}/`);
 
-  const links = canViewDashboard
-    ? [{ href: "/admin", label: "Today", short: "Today", hint: "Sales · Floor right now" }, ...LINKS]
-    : LINKS;
+  const links = canViewDashboard ? [TODAY_LINK, ...LINKS] : LINKS;
 
   return (
     <>
@@ -73,7 +94,7 @@ export function AdminNav({
                 : "hover:bg-[var(--color-accent-100)]"
             }`}
           >
-            <span className="display text-[15px]">{link.label}</span>
+            <span className="display text-[15px]">{t(link.label)}</span>
             {/*
               ⚠ `.pos-skin .kicker` ตั้ง `color: var(--color-neutral-700)` (เทา)
               ไว้ด้วย specificity 0-2-0 ซึ่ง **ชนะ `text-white` ของ Tailwind (0-1-0)**
@@ -88,7 +109,7 @@ export function AdminNav({
                   : "kicker"
               }
             >
-              {link.hint}
+              {t(link.hint)}
             </span>
           </Link>
         ))}
@@ -107,7 +128,7 @@ export function AdminNav({
             className="mt-auto flex items-center gap-2 border-t-2 border-[var(--color-text)] px-4 py-3.5 transition-colors hover:bg-[var(--color-accent-100)]"
           >
             <span aria-hidden>‹</span>
-            <span className="display text-[15px]">Back to POS</span>
+            <span className="display text-[15px]">{t("admin.nav.backToPos")}</span>
           </Link>
         )}
 
@@ -116,20 +137,30 @@ export function AdminNav({
           จะลอยขึ้นไปติดเมนูแทนที่จะอยู่ก้นแถบ
         */}
         <div className={`flex flex-col gap-1 border-t-2 border-[var(--color-text)] p-4 ${canGoToPos ? "" : "mt-auto"}`}>
-          <span className="kicker">Not built yet</span>
-          <span className="kicker">Inventory (ch. 14) · Reports (ch. 15)</span>
+          <span className="kicker">{t("admin.nav.notBuilt")}</span>
+          <span className="kicker">{t("admin.nav.notBuiltList")}</span>
         </div>
       </nav>
 
-      {/* จอแคบ: แถบล่าง (นิ้วโป้งเอื้อมถึง — เหตุผลเดียวกับแถบของ POS) */}
+      {/*
+        จอแคบ: แถบล่าง (นิ้วโป้งเอื้อมถึง — เหตุผลเดียวกับแถบของ POS)
+
+        ⚠ `overflow-x-auto` ไม่ใช่ของประดับ — แถบมีเจ็ดช่อง (หน้าแรก + หกโมดูล) บวกปุ่มกลับ
+        ที่ 390px เหลือช่องละ ~46px แต่ป้ายคำเดียวที่ตัดบรรทัดไม่ได้ ("Settings") กว้างกว่านั้น
+        เดิมแถบจึงล้นขวาแล้วถูกเชลล์ `overflow-hidden` ตัดทิ้งเงียบ ๆ = **กดไปหน้าตั้งค่าไม่ได้เลย**
+        (วัดเจอด้วยข้อ 5 ของ audit:screens: อังกฤษล้น 78px · เวียดนาม 6px) ตอนนี้แถบเลื่อนได้
+        เมื่อไม่พอ และยังเต็มความกว้างเหมือนเดิมเมื่อพอ · `bg-local` ให้เส้นคั่น 2px (พื้นหมึก
+        ที่โผล่ตาม gap) ถูกวาดต่อไปในส่วนที่เลื่อนออกไปด้วย ไม่งั้นช่วงนั้นจะไม่มีเส้น
+      */}
       <nav
+        ref={bottomBarRef}
         data-print-hide
-        className="flex flex-none gap-[2px] border-t-2 border-[var(--color-text)] bg-[var(--color-text)] lg:hidden"
+        className="flex flex-none gap-[2px] overflow-x-auto border-t-2 border-[var(--color-text)] bg-[var(--color-text)] bg-local lg:hidden"
       >
         {canGoToPos && (
           <Link
             href="/pos"
-            aria-label="Back to POS"
+            aria-label={t("admin.nav.backToPos")}
             className="flex min-h-[56px] w-14 flex-none items-center justify-center bg-[var(--color-neutral-100)] text-xl leading-none"
           >
             ‹
@@ -151,7 +182,7 @@ export function AdminNav({
               ~55px ที่จอ 390px ป้ายเต็มจะตัดเป็นสามบรรทัดจนอ่านไม่ออก
               (เพิ่มโมดูลที่เจ็ดเมื่อไหร่ ต้องกลับมาคิดใหม่ว่าแถบล่างยังไหวไหม)
             */}
-            <span className="display text-[13px] leading-tight">{link.short}</span>
+            <span className="display text-[13px] leading-tight">{t(link.short)}</span>
           </Link>
         ))}
       </nav>

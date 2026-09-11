@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { canAccessScreen, canEditMenu } from "@/lib/rbac";
+import { getT } from "@/lib/server/locale";
 import { getMenuItemForEdit } from "@/lib/server/menu-admin";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
@@ -24,6 +25,7 @@ export default async function AdminMenuItemPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const { t } = await getT();
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -52,9 +54,11 @@ export default async function AdminMenuItemPage({
     <main className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
       <div className="mx-auto flex w-full max-w-[560px] flex-col gap-5">
         <div className="flex items-center justify-between gap-3">
-          <span className="display text-[22px]">{isNew ? "เพิ่มเมนู" : "แก้เมนู"}</span>
+          <span className="display text-[22px]">
+            {t(isNew ? "admin.item.addTitle" : "admin.item.editTitle")}
+          </span>
           <Link href="/admin/menu" className="btn btn-ghost h-10 text-[14px]">
-            ยกเลิก
+            {t("common.cancel")}
           </Link>
         </div>
 
@@ -82,7 +86,7 @@ export default async function AdminMenuItemPage({
         {item ? (
           <>
             <div className="panel flex flex-col gap-3 p-4 sm:p-5">
-              <span className="kicker">กลุ่มตัวเลือกของเมนูนี้</span>
+              <span className="kicker">{t("admin.item.groupsTitle")}</span>
               <MenuItemGroupsForm
                 menuItemId={item.id}
                 groups={groups}
@@ -91,18 +95,15 @@ export default async function AdminMenuItemPage({
             </div>
 
             <div className="panel flex flex-col gap-3 p-4 sm:p-5">
-              <span className="kicker">ลบเมนูนี้</span>
+              <span className="kicker">{t("admin.item.deleteTitle")}</span>
               <p className="text-[14px] text-[var(--color-neutral-700)]">
-                เมนูที่เคยถูกสั่งไปแล้วลบไม่ได้ เพราะบิลเก่าอ้างถึงอยู่ —
-                ใช้ปุ่ม “ของหมด” ที่หน้าลิสต์แทนเพื่อเลิกขาย
+                {t("admin.item.deleteHint", { soldOut: t("admin.toggle.off") })}
               </p>
               <DeleteButton entity="menuItem" id={item.id} name={item.name} />
             </div>
           </>
         ) : (
-          <p className="kicker">
-            บันทึกเมนูก่อน แล้วจะผูกกลุ่มตัวเลือก (ขนาด/ความเผ็ด/ท็อปปิ้ง) ได้
-          </p>
+          <p className="kicker">{t("admin.item.saveFirst")}</p>
         )}
       </div>
     </main>

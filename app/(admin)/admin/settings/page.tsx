@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 
+import { formatBp } from "@/lib/bill";
 import { canAccessScreen, canEditSettings, canEditTaxSettings } from "@/lib/rbac";
 import { salePointKey } from "@/lib/sale-point";
 import { prisma } from "@/lib/server/db";
@@ -30,7 +31,7 @@ import {
  * ต้องรู้ว่าตอนนี้ร้านคิด VAT กี่เปอร์เซ็นต์เพื่อตอบลูกค้าได้ แค่แก้เองไม่ได้
  */
 export default async function SettingsPage() {
-  const { t } = await getT();
+  const { t, tc } = await getT();
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -41,14 +42,12 @@ export default async function SettingsPage() {
     return (
       <main className="flex min-h-0 flex-1 flex-col">
         <header className="flex items-center gap-3 border-b-2 border-[var(--color-text)] px-4 py-3 lg:px-6">
-          <span className="display text-[19px]">Settings</span>
+          <span className="display text-[19px]">{t("admin.nav.settings")}</span>
         </header>
         <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
           <div className="panel mx-auto mt-8 flex max-w-[520px] flex-col gap-2 p-6">
-            <span className="display text-[20px]">You can&apos;t view this page</span>
-            <p className="text-[var(--color-neutral-700)]">
-              Only owners and managers can change branch settings.
-            </p>
+            <span className="display text-[20px]">{t("common.cantViewPage")}</span>
+            <p className="text-[var(--color-neutral-700)]">{t("admin.settings.deniedDetail")}</p>
           </div>
         </div>
       </main>
@@ -86,22 +85,20 @@ export default async function SettingsPage() {
     <main className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--color-text)] px-4 py-3 lg:px-6">
         <div className="flex items-baseline gap-3">
-          <span className="display text-[19px]">Settings</span>
+          <span className="display text-[19px]">{t("admin.nav.settings")}</span>
           <span className="kicker">
             {branch.name} · {branch.currency} · {branch.timezone}
           </span>
         </div>
-        <span className="kicker">Changes apply to the next bill — never retroactively</span>
+        <span className="kicker">{t("admin.settings.note")}</span>
       </header>
 
       <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
         <div className="mx-auto flex w-full max-w-[840px] flex-col gap-5">
           <section className="panel flex flex-col gap-4 p-5">
             <div className="flex flex-col gap-1">
-              <span className="display text-[17px]">Tax &amp; service charge</span>
-              <span className="kicker">
-                Applies to open bills and the next one · closed bills keep their own rates
-              </span>
+              <span className="display text-[17px]">{t("admin.settings.taxTitle")}</span>
+              <span className="kicker">{t("admin.settings.taxNote")}</span>
             </div>
 
             <TaxSettingsForm
@@ -115,19 +112,19 @@ export default async function SettingsPage() {
               disabledReason={
                 canEditRates
                   ? undefined
-                  : `Currently VAT ${branch.vatRateBp / 100}% · service charge ${
-                      branch.serviceChargeBp / 100
-                    }% · staff discount ${branch.staffMealDiscountBp / 100}% — owner only`
+                  : t("admin.settings.ratesReadonly", {
+                      vat: formatBp(branch.vatRateBp),
+                      service: formatBp(branch.serviceChargeBp),
+                      meal: formatBp(branch.staffMealDiscountBp),
+                    })
               }
             />
           </section>
 
           <section className="panel flex flex-col gap-4 p-5">
             <div className="flex flex-col gap-1">
-              <span className="display text-[17px]">Business details on receipts</span>
-              <span className="kicker">
-                Issued receipts snapshot these values — editing here never changes an old one
-              </span>
+              <span className="display text-[17px]">{t("admin.settings.businessTitle")}</span>
+              <span className="kicker">{t("admin.settings.businessNote")}</span>
             </div>
 
             <BusinessInfoForm
@@ -142,11 +139,8 @@ export default async function SettingsPage() {
 
           <section className="panel flex flex-col gap-4 p-5">
             <div className="flex flex-col gap-1">
-              <span className="display text-[17px]">Kitchen stations</span>
-              <span className="kicker">
-                The kitchen display splits tickets by the station linked to each item · renaming is
-                safe for tickets already on screen
-              </span>
+              <span className="display text-[17px]">{t("admin.settings.stationsTitle")}</span>
+              <span className="kicker">{t("admin.settings.stationsNote")}</span>
             </div>
 
             <ul className="flex flex-col gap-4">
@@ -158,10 +152,10 @@ export default async function SettingsPage() {
                     </span>
                     <span className="flex items-center gap-2">
                       <span className={station.isActive ? "tag tag-neutral" : "tag"}>
-                        {station.isActive ? "Active" : "Disabled"}
+                        {t(station.isActive ? "common.active" : "common.disabled")}
                       </span>
                       {usedStationIds.has(station.id) ? (
-                        <span className="kicker">Already used — can&apos;t delete</span>
+                        <span className="kicker">{t("admin.settings.used")}</span>
                       ) : (
                         <DeleteStationForm stationId={station.id} />
                       )}
@@ -174,7 +168,7 @@ export default async function SettingsPage() {
             </ul>
 
             <div className="flex flex-col gap-2">
-              <span className="kicker">Add a station</span>
+              <span className="kicker">{t("admin.settings.addStation")}</span>
               <StationForm />
             </div>
           </section>
@@ -188,11 +182,8 @@ export default async function SettingsPage() {
           */}
           <section className="panel flex flex-col gap-4 p-5">
             <div className="flex flex-col gap-1">
-              <span className="display text-[17px]">Tables &amp; sale points</span>
-              <span className="kicker">
-                Each dine-in table carries its own QR code · reissuing one kills the printed QR
-                immediately
-              </span>
+              <span className="display text-[17px]">{t("admin.settings.tablesTitle")}</span>
+              <span className="kicker">{t("admin.settings.tablesNote")}</span>
             </div>
 
             <ul className="flex flex-col gap-4">
@@ -203,7 +194,7 @@ export default async function SettingsPage() {
                       <span className="display text-[15px]">{table.name}</span>
                       <span className="kicker">
                         {t(salePointKey(table.kind))}
-                        {table.kind === "DINE_IN" ? ` · ${table.seats} seats` : ""}
+                        {table.kind === "DINE_IN" ? ` · ${tc("pos.card.seats", table.seats)}` : ""}
                       </span>
                       {/*
                         โชว์รหัส QR เป็นตัวหนังสือด้วย ไม่ใช่แค่รูป — พนักงานต้องพิมพ์
@@ -216,9 +207,11 @@ export default async function SettingsPage() {
                     </span>
 
                     <span className="flex flex-wrap items-center gap-2">
-                      {table.hasOpenSession ? <span className="tag">Open bill</span> : null}
+                      {table.hasOpenSession ? (
+                        <span className="tag">{t("admin.settings.openBill")}</span>
+                      ) : null}
                       <span className={table.isActive ? "tag tag-neutral" : "tag"}>
-                        {table.isActive ? "Active" : "Disabled"}
+                        {t(table.isActive ? "common.active" : "common.disabled")}
                       </span>
                       {table.kind === "DINE_IN" ? (
                         <RotateQrForm tableId={table.id} tableName={table.name} />
@@ -226,7 +219,7 @@ export default async function SettingsPage() {
                       {table.deletable ? (
                         <DeleteTableForm tableId={table.id} />
                       ) : (
-                        <span className="kicker">Has history — can&apos;t delete</span>
+                        <span className="kicker">{t("admin.settings.hasHistory")}</span>
                       )}
                     </span>
                   </div>
@@ -247,7 +240,7 @@ export default async function SettingsPage() {
             </ul>
 
             <div className="flex flex-col gap-2">
-              <span className="kicker">Add a table or sale point</span>
+              <span className="kicker">{t("admin.settings.addTable")}</span>
               <TableForm />
             </div>
           </section>

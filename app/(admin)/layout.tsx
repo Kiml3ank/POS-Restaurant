@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { LocaleSwitcher } from "@/components/locale-switcher";
 import { canAccessScreen, canEditMenu, canViewDashboard, staffRoleKey } from "@/lib/rbac";
 import { getT } from "@/lib/server/locale";
 import { getCurrentStaff } from "@/lib/server/staff-session";
@@ -40,7 +41,7 @@ export default async function AdminLayout({
           className="flex flex-none items-center gap-2 border-r-2 border-[var(--color-text)] px-4 transition-colors hover:bg-[var(--color-accent-100)] lg:gap-3 lg:px-6"
         >
           <span className="size-3.5 flex-none bg-[var(--color-accent)]" />
-          <span className="display text-[17px]">Back office</span>
+          <span className="display text-[17px] whitespace-nowrap">{t("admin.brand")}</span>
           <span className="kicker hidden truncate sm:inline">{staff.branch.name}</span>
         </Link>
 
@@ -50,16 +51,21 @@ export default async function AdminLayout({
             — คนที่กดปุ่มไม่เจอจะได้รู้ทันทีว่าเป็นเพราะสิทธิ์ ไม่ใช่เพราะระบบเสีย
           */}
           <span className="kicker hidden whitespace-nowrap sm:inline">
-            {canEditMenu(staff.role) ? "Full edit access" : "Sold-out toggle only"}
+            {t(canEditMenu(staff.role) ? "admin.access.full" : "admin.access.soldOut")}
           </span>
           <span className="kicker hidden whitespace-nowrap lg:inline">
             {t(staffRoleKey(staff.role))}
           </span>
           <span className="display hidden truncate text-[15px] sm:inline">{staff.name}</span>
 
+          {/* ซ่อนที่ <div> ครอบ (กฎ specificity ของ .pos-skin) — จอแคบสลับภาษาที่หน้าล็อกจอ */}
+          <div className="hidden flex-none sm:block">
+            <LocaleSwitcher />
+          </div>
+
           <form action={adminLogoutAction} className="flex-none">
             <button type="submit" className="btn btn-secondary h-[38px] whitespace-nowrap">
-              Lock screen
+              {t("staff.lockScreen")}
             </button>
           </form>
         </div>

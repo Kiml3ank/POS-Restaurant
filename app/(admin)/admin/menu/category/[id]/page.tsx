@@ -3,6 +3,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { canAccessScreen, canEditMenu } from "@/lib/rbac";
 import { prisma } from "@/lib/server/db";
+import { getT } from "@/lib/server/locale";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
 import { CategoryForm, DeleteButton } from "../../../_components/menu-forms";
@@ -19,6 +20,7 @@ export default async function AdminCategoryPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const { t, tc } = await getT();
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -49,9 +51,11 @@ export default async function AdminCategoryPage({
     <main className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
       <div className="mx-auto flex w-full max-w-[560px] flex-col gap-5">
         <div className="flex items-center justify-between gap-3">
-          <span className="display text-[22px]">{isNew ? "เพิ่มหมวดเมนู" : "แก้หมวดเมนู"}</span>
+          <span className="display text-[22px]">
+            {t(isNew ? "admin.category.addTitle" : "admin.category.editTitle")}
+          </span>
           <Link href="/admin/menu" className="btn btn-ghost h-10 text-[14px]">
-            ยกเลิก
+            {t("common.cancel")}
           </Link>
         </div>
 
@@ -61,11 +65,11 @@ export default async function AdminCategoryPage({
 
         {category ? (
           <div className="panel flex flex-col gap-3 p-4 sm:p-5">
-            <span className="kicker">ลบหมวดนี้</span>
+            <span className="kicker">{t("admin.category.deleteTitle")}</span>
             <p className="text-[14px] text-[var(--color-neutral-700)]">
               {category._count.items > 0
-                ? `หมวดนี้มีเมนูอยู่ ${category._count.items} รายการ ต้องย้ายหรือลบเมนูออกก่อนถึงจะลบหมวดได้`
-                : "หมวดนี้ไม่มีเมนูอยู่ ลบได้"}
+                ? tc("admin.category.hasItems", category._count.items)
+                : t("admin.category.canDelete")}
             </p>
             <DeleteButton entity="category" id={category.id} name={category.name} />
           </div>

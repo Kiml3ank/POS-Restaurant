@@ -6,7 +6,8 @@ import { useActionState } from "react";
 import { SubmitButton } from "@/components/submit-button";
 import type { Currency } from "@/lib/generated/prisma/enums";
 import { IDLE_FORM_STATE, type FormState } from "@/lib/form-state";
-import { CURRENCIES } from "@/lib/money";
+import type { MessageKey } from "@/lib/i18n/vi";
+import { CURRENCIES, currencyKey } from "@/lib/money";
 
 import {
   deleteStationAction,
@@ -71,6 +72,7 @@ export function TaxSettingsForm({
   currencyLocked: boolean;
   disabledReason?: string;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     updateTaxSettingsAction,
     IDLE_FORM_STATE,
@@ -84,7 +86,7 @@ export function TaxSettingsForm({
     <form action={formAction} className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1">
-          <span className="kicker">VAT rate (%)</span>
+          <span className="kicker">{t("admin.settings.vat")}</span>
           <input
             name="vatRatePercent"
             type="text"
@@ -96,7 +98,7 @@ export function TaxSettingsForm({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">Service charge (%)</span>
+          <span className="kicker">{t("admin.settings.service")}</span>
           <input
             name="serviceChargePercent"
             type="text"
@@ -108,7 +110,7 @@ export function TaxSettingsForm({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">Staff meal discount (%)</span>
+          <span className="kicker">{t("admin.settings.meal")}</span>
           <input
             name="staffMealDiscountPercent"
             type="text"
@@ -120,28 +122,26 @@ export function TaxSettingsForm({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">Currency</span>
+          <span className="kicker">{t("audit.field.currency")}</span>
           <select
             name="currency"
             defaultValue={currency}
             disabled={currencyLocked}
             className="input h-12 disabled:opacity-60"
           >
-            {Object.keys(CURRENCIES).map((code) => (
+            {(Object.keys(CURRENCIES) as Currency[]).map((code) => (
               <option key={code} value={code}>
-                {code}
+                {code} · {t(currencyKey(code))}
               </option>
             ))}
           </select>
           {currencyLocked ? (
-            <span className="kicker">
-              This branch has already taken payments, so the currency can&apos;t change — stored amounts are in units of the current currency.
-            </span>
+            <span className="kicker">{t("admin.settings.currencyLocked")}</span>
           ) : null}
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">Branch timezone (used to cut off the day for bill numbers/reports)</span>
+          <span className="kicker">{t("admin.settings.timezone")}</span>
           <input
             name="timezone"
             type="text"
@@ -159,10 +159,8 @@ export function TaxSettingsForm({
             className="size-5"
           />
           <span>
-            Menu prices already include VAT
-            <span className="kicker block">
-              Checked = VAT is extracted for display · Unchecked = VAT is added on top of the bill (different totals)
-            </span>
+            {t("admin.settings.pricesIncludeVat")}
+            <span className="kicker block">{t("admin.settings.pricesIncludeVatHint")}</span>
           </span>
         </label>
       </div>
@@ -172,8 +170,8 @@ export function TaxSettingsForm({
 
       <Message state={state} />
 
-      <SubmitButton pendingLabel="Saving..." className="btn btn-primary h-12">
-        Save rates
+      <SubmitButton pendingLabel={t("common.saving")} className="btn btn-primary h-12">
+        {t("admin.settings.saveRates")}
       </SubmitButton>
     </form>
   );
@@ -196,6 +194,7 @@ export function BusinessInfoForm({
   receiptFooter: string | null;
   disabledReason?: string;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     updateBusinessInfoAction,
     IDLE_FORM_STATE,
@@ -209,7 +208,7 @@ export function BusinessInfoForm({
     <form action={formAction} className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1">
-          <span className="kicker">Business name (appears on receipts)</span>
+          <span className="kicker">{t("admin.settings.businessName")}</span>
           <input
             name="tenantName"
             type="text"
@@ -221,7 +220,7 @@ export function BusinessInfoForm({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">Tax ID (13 digits)</span>
+          <span className="kicker">{t("admin.settings.taxId")}</span>
           <input
             name="taxId"
             type="text"
@@ -233,7 +232,7 @@ export function BusinessInfoForm({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">Branch name</span>
+          <span className="kicker">{t("admin.settings.branchName")}</span>
           <input
             name="branchName"
             type="text"
@@ -245,7 +244,7 @@ export function BusinessInfoForm({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">Phone</span>
+          <span className="kicker">{t("admin.settings.phone")}</span>
           <input
             name="phone"
             type="text"
@@ -256,7 +255,7 @@ export function BusinessInfoForm({
         </label>
 
         <label className="flex flex-col gap-1 sm:col-span-2">
-          <span className="kicker">Business address</span>
+          <span className="kicker">{t("admin.settings.address")}</span>
           <input
             name="addressLine"
             type="text"
@@ -267,25 +266,23 @@ export function BusinessInfoForm({
         </label>
 
         <label className="flex flex-col gap-1 sm:col-span-2">
-          <span className="kicker">Receipt footer text</span>
+          <span className="kicker">{t("admin.settings.footer")}</span>
           <input
             name="receiptFooter"
             type="text"
             maxLength={200}
-            placeholder="Thank you for your visit"
+            placeholder={t("receipt.defaultFooter")}
             defaultValue={receiptFooter ?? ""}
             className="input h-12"
           />
-          <span className="kicker">
-            Leave blank to use the default text · already-issued receipts keep the text as it was when printed.
-          </span>
+          <span className="kicker">{t("admin.settings.footerHint")}</span>
         </label>
       </div>
 
       <Message state={state} />
 
-      <SubmitButton pendingLabel="Saving..." className="btn btn-primary h-12">
-        Save business info
+      <SubmitButton pendingLabel={t("common.saving")} className="btn btn-primary h-12">
+        {t("admin.settings.saveBusiness")}
       </SubmitButton>
     </form>
   );
@@ -298,6 +295,7 @@ export function StationForm({
   station?: { id: string; code: string; name: string; sortOrder: number; isActive: boolean };
   disabled?: boolean;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     upsertStationAction,
     IDLE_FORM_STATE,
@@ -313,7 +311,7 @@ export function StationForm({
 
       <div className="grid gap-3 sm:grid-cols-4">
         <label className="flex flex-col gap-1">
-          <span className="kicker">Code</span>
+          <span className="kicker">{t("admin.settings.code")}</span>
           <input
             name="code"
             type="text"
@@ -325,7 +323,7 @@ export function StationForm({
         </label>
 
         <label className="flex flex-col gap-1 sm:col-span-2">
-          <span className="kicker">Station name</span>
+          <span className="kicker">{t("admin.settings.stationName")}</span>
           <input
             name="name"
             type="text"
@@ -337,7 +335,7 @@ export function StationForm({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">Sort order</span>
+          <span className="kicker">{t("admin.settings.sortOrder")}</span>
           <input
             name="sortOrder"
             type="number"
@@ -355,13 +353,13 @@ export function StationForm({
           defaultChecked={station?.isActive ?? true}
           className="size-5"
         />
-        <span>Active (disabled stations don&apos;t appear on the kitchen display)</span>
+        <span>{t("admin.settings.stationActive")}</span>
       </label>
 
       <Message state={state} />
 
-      <SubmitButton pendingLabel="Saving..." className="btn btn-secondary h-11">
-        {station ? "Save station" : "Add station"}
+      <SubmitButton pendingLabel={t("common.saving")} className="btn btn-secondary h-11">
+        {t(station ? "admin.settings.saveStation" : "admin.settings.addStation")}
       </SubmitButton>
     </form>
   );
@@ -374,6 +372,7 @@ export function StationForm({
  * ที่นี่แค่ไม่วาดปุ่มเมื่อรู้อยู่แล้วว่ากดไปก็ไม่ผ่าน (การซ่อนปุ่มไม่ใช่การกันสิทธิ์)
  */
 export function DeleteStationForm({ stationId }: { stationId: string }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     deleteStationAction,
     IDLE_FORM_STATE,
@@ -385,8 +384,8 @@ export function DeleteStationForm({ stationId }: { stationId: string }) {
 
       <Message state={state} />
 
-      <SubmitButton pendingLabel="Deleting..." className="btn btn-ghost h-9 text-[13px]">
-        Delete station
+      <SubmitButton pendingLabel={t("common.deleting")} className="btn btn-ghost h-9 text-[13px]">
+        {t("admin.settings.deleteStation")}
       </SubmitButton>
     </form>
   );
@@ -405,11 +404,11 @@ export function DeleteStationForm({ stationId }: { stationId: string }) {
  * ท่าเดียวกับหน้าจัดการพนักงานในบทที่ 13b ที่แยก "แก้ข้อมูล" ออกจาก "รีเซ็ต PIN"
  */
 
-const SALE_POINT_OPTIONS = [
-  { value: "DINE_IN", label: "Dine-in table (shows on the table map)" },
-  { value: "COUNTER", label: "Takeaway counter (queue number, no service charge)" },
-  { value: "DELIVERY", label: "Delivery slot (queue number, no service charge)" },
-] as const;
+const SALE_POINT_OPTIONS: { value: string; label: MessageKey }[] = [
+  { value: "DINE_IN", label: "admin.settings.kind.DINE_IN" },
+  { value: "COUNTER", label: "admin.settings.kind.COUNTER" },
+  { value: "DELIVERY", label: "admin.settings.kind.DELIVERY" },
+];
 
 export function TableForm({
   table,
@@ -427,6 +426,7 @@ export function TableForm({
   };
   disabled?: boolean;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     upsertTableAction,
     IDLE_FORM_STATE,
@@ -445,20 +445,20 @@ export function TableForm({
 
       <div className="grid gap-3 sm:grid-cols-4">
         <label className="flex flex-col gap-1 sm:col-span-2">
-          <span className="kicker">Name</span>
+          <span className="kicker">{t("admin.settings.tableName")}</span>
           <input
             name="name"
             type="text"
             required
             maxLength={40}
-            placeholder="e.g. A4"
+            placeholder={t("admin.settings.tablePlaceholder")}
             defaultValue={table?.name ?? ""}
             className="input h-11"
           />
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">Seats</span>
+          <span className="kicker">{t("admin.settings.seats")}</span>
           <input
             name="seats"
             type="number"
@@ -470,7 +470,7 @@ export function TableForm({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">Sort order</span>
+          <span className="kicker">{t("admin.settings.sortOrder")}</span>
           <input
             name="sortOrder"
             type="number"
@@ -482,7 +482,7 @@ export function TableForm({
       </div>
 
       <label className="flex flex-col gap-1">
-        <span className="kicker">Type</span>
+        <span className="kicker">{t("admin.settings.type")}</span>
         <select
           name="kind"
           defaultValue={table?.kind ?? "DINE_IN"}
@@ -491,16 +491,11 @@ export function TableForm({
         >
           {SALE_POINT_OPTIONS.map((option) => (
             <option key={option.value} value={option.value}>
-              {option.label}
+              {t(option.label)}
             </option>
           ))}
         </select>
-        {table?.locked ? (
-          <span className="kicker">
-            Locked — this sale point already has sales history. Changing the type would rewrite what
-            past bills meant (service charge, queue numbers). Create a new one instead.
-          </span>
-        ) : null}
+        {table?.locked ? <span className="kicker">{t("admin.settings.kindLocked")}</span> : null}
       </label>
 
       <label className="flex items-center gap-3">
@@ -510,13 +505,13 @@ export function TableForm({
           defaultChecked={table?.isActive ?? true}
           className="size-5"
         />
-        <span>Active (disabled sale points don&apos;t appear on the POS)</span>
+        <span>{t("admin.settings.tableActive")}</span>
       </label>
 
       <Message state={state} />
 
-      <SubmitButton pendingLabel="Saving..." className="btn btn-secondary h-11">
-        {table ? "Save sale point" : "Add sale point"}
+      <SubmitButton pendingLabel={t("common.saving")} className="btn btn-secondary h-11">
+        {t(table ? "admin.settings.saveTable" : "admin.settings.addTableButton")}
       </SubmitButton>
     </form>
   );
@@ -529,6 +524,7 @@ export function TableForm({
  * ตัวที่กันจริงคือ `canEditSettings()` ฝั่ง server (ท่าเดียวกับปุ่มลบเมนูในโมดูล 04)
  */
 export function RotateQrForm({ tableId, tableName }: { tableId: string; tableName: string }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     rotateTableCodeAction,
     IDLE_FORM_STATE,
@@ -538,11 +534,7 @@ export function RotateQrForm({ tableId, tableName }: { tableId: string; tableNam
     <form
       action={formAction}
       onSubmit={(event) => {
-        if (
-          !window.confirm(
-            `Issue a new QR code for ${tableName}?\n\nThe printed QR on that table stops working immediately and has to be reprinted.`,
-          )
-        ) {
+        if (!window.confirm(t("admin.settings.rotateConfirm", { name: tableName }))) {
           event.preventDefault();
         }
       }}
@@ -552,8 +544,8 @@ export function RotateQrForm({ tableId, tableName }: { tableId: string; tableNam
 
       <Message state={state} />
 
-      <SubmitButton pendingLabel="Issuing..." className="btn btn-ghost h-9 text-[13px]">
-        New QR code
+      <SubmitButton pendingLabel={t("admin.settings.issuing")} className="btn btn-ghost h-9 text-[13px]">
+        {t("admin.settings.newQr")}
       </SubmitButton>
     </form>
   );
@@ -564,6 +556,7 @@ export function RotateQrForm({ tableId, tableName }: { tableId: string; tableNam
  * ตัวที่กันจริงคือ `deleteTable()` ที่นับ `Order` **และ** `TableSession` ก่อนเสมอ
  */
 export function DeleteTableForm({ tableId }: { tableId: string }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     deleteTableAction,
     IDLE_FORM_STATE,
@@ -575,8 +568,8 @@ export function DeleteTableForm({ tableId }: { tableId: string }) {
 
       <Message state={state} />
 
-      <SubmitButton pendingLabel="Deleting..." className="btn btn-ghost h-9 text-[13px]">
-        Delete
+      <SubmitButton pendingLabel={t("common.deleting")} className="btn btn-ghost h-9 text-[13px]">
+        {t("common.delete")}
       </SubmitButton>
     </form>
   );

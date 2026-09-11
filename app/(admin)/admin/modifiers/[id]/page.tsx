@@ -2,6 +2,7 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 
 import { canAccessScreen, canEditMenu } from "@/lib/rbac";
+import { getT } from "@/lib/server/locale";
 import { getModifierGroup } from "@/lib/server/menu-admin";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
@@ -20,6 +21,7 @@ export default async function AdminModifierGroupPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
+  const { t } = await getT();
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -43,10 +45,10 @@ export default async function AdminModifierGroupPage({
       <div className="mx-auto flex w-full max-w-[560px] flex-col gap-5">
         <div className="flex items-center justify-between gap-3">
           <span className="display text-[22px]">
-            {isNew ? "สร้างกลุ่มตัวเลือก" : "แก้กลุ่มตัวเลือก"}
+            {t(isNew ? "admin.mod.addTitle" : "admin.mod.editTitle")}
           </span>
           <Link href="/admin/modifiers" className="btn btn-ghost h-10 text-[14px]">
-            ยกเลิก
+            {t("common.cancel")}
           </Link>
         </div>
 
@@ -56,11 +58,8 @@ export default async function AdminModifierGroupPage({
 
         {group ? (
           <div className="panel flex flex-col gap-3 p-4 sm:p-5">
-            <span className="kicker">ลบกลุ่มนี้</span>
-            <p className="text-[14px] text-[var(--color-neutral-700)]">
-              ลบได้เฉพาะกลุ่มที่ไม่ได้ผูกกับเมนูไหนแล้ว และตัวเลือกข้างในยังไม่เคยถูกสั่ง —
-              ถ้าลบไม่ได้ให้กด “ปิดใช้งาน” ที่หน้าลิสต์แทน
-            </p>
+            <span className="kicker">{t("admin.mod.deleteTitle")}</span>
+            <p className="text-[14px] text-[var(--color-neutral-700)]">{t("admin.mod.deleteHint")}</p>
             <DeleteButton entity="modifierGroup" id={group.id} name={group.name} />
           </div>
         ) : null}

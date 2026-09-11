@@ -38,7 +38,7 @@ function RoleSelect({
 
   return (
     <label className="flex flex-col gap-1">
-      <span className="kicker">ตำแหน่ง</span>
+      <span className="kicker">{t("pos.module.role")}</span>
       <select name="role" defaultValue={defaultValue ?? roles[0]} className="input h-12">
         {roles.map((role) => (
           <option key={role} value={role}>
@@ -69,6 +69,7 @@ function Message({ state }: { state: FormState }) {
 }
 
 export function CreateStaffForm({ roles }: { roles: readonly StaffRole[] }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     createStaffAction,
     IDLE_FORM_STATE,
@@ -78,19 +79,19 @@ export function CreateStaffForm({ roles }: { roles: readonly StaffRole[] }) {
     <form action={formAction} className="flex flex-col gap-4">
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1">
-          <span className="kicker">รหัสพนักงาน (ใช้พิมพ์คู่กับ PIN)</span>
+          <span className="kicker">{t("admin.staff.codeHint")}</span>
           <input name="code" type="text" required maxLength={20} className="input h-12" />
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">ชื่อที่แสดงบนจอ</span>
+          <span className="kicker">{t("admin.staff.displayName")}</span>
           <input name="name" type="text" required maxLength={60} className="input h-12" />
         </label>
 
         <RoleSelect roles={roles} />
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">PIN ตั้งต้น (ตัวเลข 4-6 หลัก)</span>
+          <span className="kicker">{t("admin.staff.initialPin")}</span>
           <input
             name="pin"
             type="text"
@@ -106,8 +107,8 @@ export function CreateStaffForm({ roles }: { roles: readonly StaffRole[] }) {
 
       <Message state={state} />
 
-      <SubmitButton pendingLabel="กำลังเพิ่ม..." className="btn btn-primary h-12">
-        เพิ่มพนักงาน
+      <SubmitButton pendingLabel={t("common.adding")} className="btn btn-primary h-12">
+        {t("admin.staff.add")}
       </SubmitButton>
     </form>
   );
@@ -131,6 +132,7 @@ export function EditStaffForm({
   /** มีค่า = แก้ไม่ได้ และนี่คือเหตุผลที่แสดงแทนฟอร์ม */
   disabledReason?: string;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     updateStaffAction,
     IDLE_FORM_STATE,
@@ -146,7 +148,7 @@ export function EditStaffForm({
 
       <div className="grid gap-4 sm:grid-cols-2">
         <label className="flex flex-col gap-1">
-          <span className="kicker">รหัสพนักงาน</span>
+          <span className="kicker">{t("pin.staffCode")}</span>
           <input
             name="code"
             type="text"
@@ -158,7 +160,7 @@ export function EditStaffForm({
         </label>
 
         <label className="flex flex-col gap-1">
-          <span className="kicker">ชื่อที่แสดงบนจอ</span>
+          <span className="kicker">{t("admin.staff.displayName")}</span>
           <input
             name="name"
             type="text"
@@ -174,29 +176,30 @@ export function EditStaffForm({
         <label className="flex items-center gap-3 self-end pb-3">
           <input name="isActive" type="checkbox" defaultChecked={isActive} className="size-5" />
           <span>
-            เปิดใช้งาน
-            <span className="kicker block">ปิดแล้วเข้าระบบไม่ได้ และเครื่องที่ค้างอยู่หลุดทันที</span>
+            {t("common.active")}
+            <span className="kicker block">{t("admin.staff.activeHint")}</span>
           </span>
         </label>
       </div>
 
       <Message state={state} />
 
-      <SubmitButton pendingLabel="กำลังบันทึก..." className="btn btn-primary h-12">
-        บันทึกการแก้ไข
+      <SubmitButton pendingLabel={t("common.saving")} className="btn btn-primary h-12">
+        {t("common.saveChanges")}
       </SubmitButton>
     </form>
   );
 }
 
 export function ResetPinForm({ staffId, disabled }: { staffId: string; disabled?: boolean }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     resetStaffPinAction,
     IDLE_FORM_STATE,
   );
 
   if (disabled) {
-    return <p className="kicker">คุณรีเซ็ต PIN ของตำแหน่งนี้ไม่ได้</p>;
+    return <p className="kicker">{t("error.cannot_reset_this_pin")}</p>;
   }
 
   return (
@@ -204,7 +207,7 @@ export function ResetPinForm({ staffId, disabled }: { staffId: string; disabled?
       <input type="hidden" name="staffId" value={staffId} />
 
       <label className="flex flex-col gap-1">
-        <span className="kicker">PIN ใหม่ (ตัวเลข 4-6 หลัก)</span>
+        <span className="kicker">{t("admin.staff.newPin")}</span>
         <input
           name="pin"
           type="text"
@@ -219,8 +222,8 @@ export function ResetPinForm({ staffId, disabled }: { staffId: string; disabled?
 
       <Message state={state} />
 
-      <SubmitButton pendingLabel="กำลังตั้ง PIN..." className="btn btn-secondary h-12">
-        ตั้ง PIN ใหม่
+      <SubmitButton pendingLabel={t("admin.staff.settingPin")} className="btn btn-secondary h-12">
+        {t("admin.staff.setPin")}
       </SubmitButton>
     </form>
   );
@@ -233,6 +236,7 @@ export function RevokeSessionsForm({
   staffId: string;
   activeSessions: number;
 }) {
+  const { t } = useT();
   const [state, formAction] = useActionState<FormState, FormData>(
     revokeStaffSessionsAction,
     IDLE_FORM_STATE,
@@ -245,11 +249,13 @@ export function RevokeSessionsForm({
       <Message state={state} />
 
       <SubmitButton
-        pendingLabel="กำลังเตะออก..."
+        pendingLabel={t("admin.staff.revoking")}
         className="btn btn-secondary h-12"
         disabled={activeSessions === 0}
       >
-        {activeSessions === 0 ? "ไม่มีเครื่องที่ล็อกอินอยู่" : `เตะออกทุกเครื่อง (${activeSessions})`}
+        {activeSessions === 0
+          ? t("msg.no_active_sessions")
+          : t("admin.staff.revokeAll", { count: activeSessions })}
       </SubmitButton>
     </form>
   );

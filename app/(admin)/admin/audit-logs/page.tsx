@@ -32,7 +32,7 @@ export default async function AuditLogsPage({
     page?: string;
   }>;
 }) {
-  const { t } = await getT();
+  const { t, tc } = await getT();
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -71,16 +71,18 @@ export default async function AuditLogsPage({
     <main className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--color-text)] px-4 py-3 lg:px-6">
         <div className="flex items-baseline gap-3">
-          <span className="display text-[19px]">บันทึกการใช้งาน</span>
-          <span className="kicker">{result.ok ? `${result.total} รายการ` : "ไม่มีสิทธิ์"}</span>
+          <span className="display text-[19px]">{t("admin.nav.audit")}</span>
+          <span className="kicker">
+            {result.ok ? tc("admin.audit.count", result.total) : t("common.noAccess")}
+          </span>
         </div>
-        <span className="kicker">เขียนอย่างเดียว · แก้ไข/ลบไม่ได้</span>
+        <span className="kicker">{t("admin.audit.appendOnly")}</span>
       </header>
 
       {!result.ok ? (
         <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
           <div className="panel mx-auto mt-8 flex max-w-[520px] flex-col gap-2 p-6">
-            <span className="display text-[20px]">อ่านบันทึกการใช้งานไม่ได้</span>
+            <span className="display text-[20px]">{t("admin.audit.deniedTitle")}</span>
             <p className="text-[var(--color-neutral-700)]">{t(result.errorKey, result.params)}</p>
           </div>
         </div>
@@ -91,19 +93,19 @@ export default async function AuditLogsPage({
             className="flex flex-wrap items-end gap-3 border-b-2 border-[var(--color-text)] bg-[var(--color-neutral-100)] px-4 py-3 lg:px-6"
           >
             <label className="flex flex-col gap-1">
-              <span className="kicker">ตั้งแต่วันที่</span>
+              <span className="kicker">{t("admin.filter.from")}</span>
               <input type="date" name="from" defaultValue={query.from ?? ""} className="input h-10" />
             </label>
 
             <label className="flex flex-col gap-1">
-              <span className="kicker">ถึงวันที่</span>
+              <span className="kicker">{t("admin.filter.to")}</span>
               <input type="date" name="to" defaultValue={query.to ?? ""} className="input h-10" />
             </label>
 
             <label className="flex flex-col gap-1">
-              <span className="kicker">การกระทำ</span>
+              <span className="kicker">{t("admin.audit.action")}</span>
               <select name="action" defaultValue={query.action ?? ""} className="input h-10">
-                <option value="">ทั้งหมด</option>
+                <option value="">{t("common.all")}</option>
                 {/* รายการนี้มาจาก action ที่มีอยู่จริงในฐาน ไม่ได้ hardcode —
                     บทถัดไปที่เพิ่ม action ใหม่จะโผล่เองโดยไม่ต้องแก้ไฟล์นี้ */}
                 {result.actions.map((action) => (
@@ -115,9 +117,9 @@ export default async function AuditLogsPage({
             </label>
 
             <label className="flex flex-col gap-1">
-              <span className="kicker">พนักงาน</span>
+              <span className="kicker">{t("admin.audit.staff")}</span>
               <select name="staffId" defaultValue={query.staffId ?? ""} className="input h-10">
-                <option value="">ทุกคน</option>
+                <option value="">{t("admin.audit.everyone")}</option>
                 {result.staff.map((member) => (
                   <option key={member.id} value={member.id}>
                     {member.name}
@@ -127,22 +129,22 @@ export default async function AuditLogsPage({
             </label>
 
             <label className="flex min-w-[180px] flex-1 flex-col gap-1">
-              <span className="kicker">รหัสสิ่งที่ถูกกระทำ (entity id)</span>
+              <span className="kicker">{t("admin.audit.entity")}</span>
               <input
                 type="search"
                 name="entityId"
                 defaultValue={query.entityId ?? ""}
-                placeholder="วาง id ของบิล / ใบเสร็จ / รอบโต๊ะ"
+                placeholder={t("admin.audit.entityPlaceholder")}
                 className="input h-10"
               />
             </label>
 
             <div className="flex gap-2">
               <button type="submit" className="btn btn-primary h-10 text-[14px]">
-                ค้นหา
+                {t("common.search")}
               </button>
               <Link href="/admin/audit-logs" className="btn btn-secondary h-10 text-[14px]">
-                ล้าง
+                {t("common.clear")}
               </Link>
             </div>
           </form>
@@ -150,8 +152,8 @@ export default async function AuditLogsPage({
           <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
             {result.rows.length === 0 ? (
               <div className="flex flex-col items-center gap-2 p-10 text-center">
-                <p className="display text-[22px]">ไม่พบบันทึกที่ตรงกับตัวกรอง</p>
-                <p className="kicker">ลองขยายช่วงวัน หรือล้างตัวกรองแล้วค้นใหม่</p>
+                <p className="display text-[22px]">{t("admin.audit.none")}</p>
+                <p className="kicker">{t("admin.filter.tryWider")}</p>
               </div>
             ) : (
               <ul className="flex flex-col gap-3">
@@ -187,8 +189,8 @@ export default async function AuditLogsPage({
 
                       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1 border-b border-[var(--color-divider)] px-4 py-2 text-[13px]">
                         <span>
-                          <span className="kicker">ผู้กระทำ </span>
-                          {row.staffName ?? "— (บัญชีถูกลบแล้ว)"}
+                          <span className="kicker">{t("admin.audit.actor")} </span>
+                          {row.staffName ?? t("admin.audit.deletedAccount")}
                           {row.staffRole
                             ? ` · ${isStaffRole(row.staffRole) ? t(staffRoleKey(row.staffRole)) : row.staffRole}`
                             : ""}
@@ -229,17 +231,17 @@ export default async function AuditLogsPage({
             {result.pageCount > 1 ? (
               <nav className="mt-4 flex items-center justify-between gap-3">
                 <PageLink query={query} page={result.page - 1} disabled={result.page <= 1}>
-                  ‹ ก่อนหน้า
+                  {t("common.prev")}
                 </PageLink>
                 <span className="kicker tabular-nums">
-                  หน้า {result.page} / {result.pageCount}
+                  {t("common.page", { page: result.page, total: result.pageCount })}
                 </span>
                 <PageLink
                   query={query}
                   page={result.page + 1}
                   disabled={result.page >= result.pageCount}
                 >
-                  ถัดไป ›
+                  {t("common.next")}
                 </PageLink>
               </nav>
             ) : null}

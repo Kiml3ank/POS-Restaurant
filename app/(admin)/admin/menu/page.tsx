@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { LiveRefresh } from "@/components/live-refresh";
 import { formatMoney } from "@/lib/money";
 import { canAccessScreen, canEditMenu } from "@/lib/rbac";
+import { getT } from "@/lib/server/locale";
 import { getMenuTree } from "@/lib/server/menu-admin";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
@@ -24,6 +25,7 @@ import { AvailabilityToggle, MoveButtons } from "../_components/menu-forms";
  * ไม่งั้นจะเปิดกลับไม่ได้เลย — นี่คือเหตุผลที่ต้องมี lib/server/menu-admin.ts แยก
  */
 export default async function AdminMenuPage() {
+  const { t, tc } = await getT();
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -38,10 +40,8 @@ export default async function AdminMenuPage() {
     <main className="flex min-h-0 flex-1 flex-col">
       <div className="flex min-h-[58px] flex-none flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--color-text)] px-4 py-3 lg:px-6">
         <div className="flex items-baseline gap-3">
-          <span className="display text-[19px]">Menu &amp; items</span>
-          <span className="kicker">
-            {categories.length} {categories.length === 1 ? "category" : "categories"}
-          </span>
+          <span className="display text-[19px]">{t("admin.nav.menu")}</span>
+          <span className="kicker">{tc("admin.menu.categories", categories.length)}</span>
         </div>
 
         <div className="flex items-center gap-3">
@@ -49,12 +49,12 @@ export default async function AdminMenuPage() {
           <LiveRefresh src="/api/realtime" className="text-[var(--color-accent-700)]" />
           {editable ? (
             <Link href="/admin/menu/category/new" className="btn btn-secondary h-10 text-[14px]">
-              + Category
+              {t("admin.menu.addCategory")}
             </Link>
           ) : null}
           {editable && categories.length > 0 ? (
             <Link href="/admin/menu/item/new" className="btn btn-primary h-10 text-[14px]">
-              + Item
+              {t("admin.menu.addItem")}
             </Link>
           ) : null}
         </div>
@@ -63,16 +63,14 @@ export default async function AdminMenuPage() {
       <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
         {categories.length === 0 ? (
           <div className="flex flex-col items-center gap-3 p-10 text-center">
-            <p className="display text-[24px]">No menu categories yet</p>
-            <p className="text-[var(--color-neutral-700)]">
-              Every item has to live in a category, so create one first.
-            </p>
+            <p className="display text-[24px]">{t("admin.menu.emptyTitle")}</p>
+            <p className="text-[var(--color-neutral-700)]">{t("admin.menu.emptyDetail")}</p>
             {editable ? (
               <Link href="/admin/menu/category/new" className="btn btn-primary mt-2 h-11">
-                Create the first category
+                {t("admin.menu.createFirst")}
               </Link>
             ) : (
-              <p className="kicker">Your role can&apos;t create categories — ask a manager</p>
+              <p className="kicker">{t("admin.menu.cannotCreate")}</p>
             )}
           </div>
         ) : (
@@ -83,10 +81,10 @@ export default async function AdminMenuPage() {
                   <div className="flex min-w-0 items-baseline gap-3">
                     <span className="display text-[17px]">{category.name}</span>
                     <span className="kicker kicker-accent">
-                      {category.items.length} {category.items.length === 1 ? "item" : "items"}
+                      {tc("common.items", category.items.length)}
                     </span>
                     {category.isAvailable ? null : (
-                      <span className="tag tag-neutral">Whole category off</span>
+                      <span className="tag tag-neutral">{t("admin.menu.categoryOff")}</span>
                     )}
                   </div>
 
@@ -103,7 +101,7 @@ export default async function AdminMenuPage() {
                           href={`/admin/menu/category/${category.id}`}
                           className="btn btn-secondary h-9 px-3 text-[13px]"
                         >
-                          Edit
+                          {t("common.edit")}
                         </Link>
                       </>
                     ) : null}
@@ -111,7 +109,7 @@ export default async function AdminMenuPage() {
                 </header>
 
                 {category.items.length === 0 ? (
-                  <p className="kicker px-4 py-4">No items in this category yet</p>
+                  <p className="kicker px-4 py-4">{t("admin.menu.categoryEmpty")}</p>
                 ) : (
                   <ul className="flex flex-col">
                     {category.items.map((item) => (
@@ -124,11 +122,9 @@ export default async function AdminMenuPage() {
                           <span className="kicker">
                             {/* สถานีครัวต้องอ่านออกจากลิสต์ เพราะเมนูที่ตั้งสถานีผิด
                                 จะไปค้างรออยู่บนจอครัวที่ไม่มีใครดู */}
-                            {item.station?.name ?? "No kitchen station"}
+                            {item.station?.name ?? t("admin.menu.noStation")}
                             {item._count.modifierGroups > 0
-                              ? ` · ${item._count.modifierGroups} option ${
-                                  item._count.modifierGroups === 1 ? "group" : "groups"
-                                }`
+                              ? ` · ${tc("admin.menu.optionGroups", item._count.modifierGroups)}`
                               : ""}
                           </span>
                         </div>
@@ -151,7 +147,7 @@ export default async function AdminMenuPage() {
                                 href={`/admin/menu/item/${item.id}`}
                                 className="btn btn-secondary h-9 px-3 text-[13px]"
                               >
-                                Edit
+                                {t("common.edit")}
                               </Link>
                             </>
                           ) : null}

@@ -26,7 +26,7 @@ export default async function AdminReceiptPage({
 }: {
   params: Promise<{ receiptId: string }>;
 }) {
-  const { t } = await getT();
+  const { t, tc } = await getT();
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -37,11 +37,8 @@ export default async function AdminReceiptPage({
     return (
       <main className="flex min-h-0 flex-1 flex-col overflow-auto p-4 lg:p-6">
         <div className="panel mx-auto mt-8 flex max-w-[520px] flex-col gap-2 p-6">
-          <span className="display text-[20px]">ดูใบเสร็จย้อนหลังไม่ได้</span>
-          <p className="text-[var(--color-neutral-700)]">
-            ลิสต์ใบเสร็จแสดงยอดขายทั้งสาขา จึงจำกัดไว้ที่เจ้าของและผู้จัดการ —
-            ถ้าต้องพิมพ์ใบให้ลูกค้าที่ยืนอยู่ตรงหน้า ให้เปิดจากหน้าคิดเงินที่จอ POS
-          </p>
+          <span className="display text-[20px]">{t("admin.receipts.deniedTitle")}</span>
+          <p className="text-[var(--color-neutral-700)]">{t("admin.receipts.deniedDetail")}</p>
         </div>
       </main>
     );
@@ -61,16 +58,18 @@ export default async function AdminReceiptPage({
         className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--color-text)] bg-[var(--color-bg)] px-4 py-3 lg:px-6"
       >
         <div className="flex min-w-0 flex-col">
-          <span className="display text-[17px]">ใบเสร็จ {detail.receipt.number}</span>
+          <span className="display text-[17px]">
+            {t("pos.receipt.title", { number: detail.receipt.number })}
+          </span>
           <span className="kicker">
             {salePointDisplayName(detail.payment.tableSession.table, detail.payment.tableSession, t)}{" "}
-            · พิมพ์แล้ว {detail.receipt.printCount} ครั้ง
+            · {tc("pos.receipt.printed", detail.receipt.printCount)}
           </span>
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           <Link href="/admin/receipts" className="btn btn-ghost h-10 text-[14px]">
-            ‹ กลับไปลิสต์ใบเสร็จ
+            {t("admin.receipts.back")}
           </Link>
 
           {canReprintReceipt(staff.role) ? (
@@ -79,7 +78,7 @@ export default async function AdminReceiptPage({
               className="btn btn-primary h-10 text-[14px]"
             />
           ) : (
-            <span className="kicker">ตำแหน่งของคุณพิมพ์ใบเสร็จไม่ได้</span>
+            <span className="kicker">{t("pos.receipt.cannotPrint")}</span>
           )}
         </div>
       </div>

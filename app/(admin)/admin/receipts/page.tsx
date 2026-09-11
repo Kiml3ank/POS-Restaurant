@@ -31,7 +31,7 @@ export default async function AdminReceiptsPage({
 }: {
   searchParams: Promise<{ from?: string; to?: string; method?: string; q?: string; page?: string }>;
 }) {
-  const { t } = await getT();
+  const { t, tc } = await getT();
   const staff = await getCurrentStaff("admin");
 
   if (!staff || !canAccessScreen(staff.role, "admin")) {
@@ -55,8 +55,10 @@ export default async function AdminReceiptsPage({
     <main className="flex min-h-0 flex-1 flex-col">
       <header className="flex flex-wrap items-center justify-between gap-3 border-b-2 border-[var(--color-text)] px-4 py-3 lg:px-6">
         <div className="flex items-baseline gap-3">
-          <span className="display text-[19px]">ใบเสร็จ</span>
-          <span className="kicker">{result.ok ? `${result.total} ใบ` : "ไม่มีสิทธิ์"}</span>
+          <span className="display text-[19px]">{t("admin.nav.receipts")}</span>
+          <span className="kicker">
+            {result.ok ? tc("admin.receipts.count", result.total) : t("common.noAccess")}
+          </span>
         </div>
         {/* บิลใหม่เกิดได้ตลอดเวลาที่ร้านเปิด — ลิสต์ที่ค้างภาพทำให้กระทบยอดผิด */}
         <LiveRefresh src="/api/realtime" />
@@ -65,11 +67,9 @@ export default async function AdminReceiptsPage({
       {!result.ok ? (
         <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
           <div className="panel mx-auto mt-8 flex max-w-[520px] flex-col gap-2 p-6">
-            <span className="display text-[20px]">ดูใบเสร็จย้อนหลังไม่ได้</span>
+            <span className="display text-[20px]">{t("admin.receipts.deniedTitle")}</span>
             <p className="text-[var(--color-neutral-700)]">{t(result.errorKey, result.params)}</p>
-            <p className="kicker mt-2">
-              พิมพ์ใบให้ลูกค้าที่ยืนอยู่ตรงหน้าได้จากหน้าคิดเงินที่จอ POS
-            </p>
+            <p className="kicker mt-2">{t("admin.receipts.deniedHint")}</p>
           </div>
         </div>
       ) : (
@@ -79,19 +79,19 @@ export default async function AdminReceiptsPage({
             className="flex flex-wrap items-end gap-3 border-b-2 border-[var(--color-text)] bg-[var(--color-neutral-100)] px-4 py-3 lg:px-6"
           >
             <label className="flex flex-col gap-1">
-              <span className="kicker">ตั้งแต่วันที่</span>
+              <span className="kicker">{t("admin.filter.from")}</span>
               <input type="date" name="from" defaultValue={query.from ?? ""} className="input h-10" />
             </label>
 
             <label className="flex flex-col gap-1">
-              <span className="kicker">ถึงวันที่</span>
+              <span className="kicker">{t("admin.filter.to")}</span>
               <input type="date" name="to" defaultValue={query.to ?? ""} className="input h-10" />
             </label>
 
             <label className="flex flex-col gap-1">
-              <span className="kicker">วิธีจ่าย</span>
+              <span className="kicker">{t("bill.paymentMethod")}</span>
               <select name="method" defaultValue={method ?? ""} className="input h-10">
-                <option value="">ทั้งหมด</option>
+                <option value="">{t("common.all")}</option>
                 {METHOD_OPTIONS.map((option) => (
                   <option key={option} value={option}>
                     {t(paymentMethodKey(option))}
@@ -101,22 +101,22 @@ export default async function AdminReceiptsPage({
             </label>
 
             <label className="flex min-w-[180px] flex-1 flex-col gap-1">
-              <span className="kicker">เลขที่ใบ · ชื่อโต๊ะ · เลขคิว</span>
+              <span className="kicker">{t("admin.receipts.searchLabel")}</span>
               <input
                 type="search"
                 name="q"
                 defaultValue={query.q ?? ""}
-                placeholder="เช่น HQ-00000012 · A3 · คิว 12"
+                placeholder={t("admin.receipts.searchPlaceholder")}
                 className="input h-10"
               />
             </label>
 
             <div className="flex gap-2">
               <button type="submit" className="btn btn-primary h-10 text-[14px]">
-                ค้นหา
+                {t("common.search")}
               </button>
               <Link href="/admin/receipts" className="btn btn-secondary h-10 text-[14px]">
-                ล้าง
+                {t("common.clear")}
               </Link>
             </div>
           </form>
@@ -124,8 +124,8 @@ export default async function AdminReceiptsPage({
           <div className="min-h-0 flex-1 overflow-auto p-4 lg:p-6">
             {result.rows.length === 0 ? (
               <div className="flex flex-col items-center gap-2 p-10 text-center">
-                <p className="display text-[22px]">ไม่พบใบเสร็จที่ตรงกับตัวกรอง</p>
-                <p className="kicker">ลองขยายช่วงวัน หรือล้างตัวกรองแล้วค้นใหม่</p>
+                <p className="display text-[22px]">{t("admin.receipts.none")}</p>
+                <p className="kicker">{t("admin.filter.tryWider")}</p>
               </div>
             ) : (
               <section className="panel">
@@ -152,7 +152,9 @@ export default async function AdminReceiptsPage({
                           {/* พิมพ์ไปแล้วกี่ใบคือตัวเลขที่ผู้ตรวจสอบมองหา จึงอยู่บนลิสต์
                               ไม่ใช่ต้องเปิดเข้าไปดูทีละใบ */}
                           {row.printCount > 1 ? (
-                            <span className="tag tag-accent">พิมพ์ {row.printCount} ครั้ง</span>
+                            <span className="tag tag-accent">
+                              {tc("admin.receipts.printed", row.printCount)}
+                            </span>
                           ) : null}
                           <span className="tag tag-neutral">
                             {t(paymentMethodKey(row.method))}
@@ -171,17 +173,17 @@ export default async function AdminReceiptsPage({
             {result.pageCount > 1 ? (
               <nav className="mt-4 flex items-center justify-between gap-3">
                 <PageLink query={query} page={result.page - 1} disabled={result.page <= 1}>
-                  ‹ ก่อนหน้า
+                  {t("common.prev")}
                 </PageLink>
                 <span className="kicker tabular-nums">
-                  หน้า {result.page} / {result.pageCount}
+                  {t("common.page", { page: result.page, total: result.pageCount })}
                 </span>
                 <PageLink
                   query={query}
                   page={result.page + 1}
                   disabled={result.page >= result.pageCount}
                 >
-                  ถัดไป ›
+                  {t("common.next")}
                 </PageLink>
               </nav>
             ) : null}
