@@ -4,7 +4,7 @@ import { redirect } from "next/navigation";
 import { LiveRefresh } from "@/components/live-refresh";
 import type { Currency } from "@/lib/generated/prisma/enums";
 import { formatMoney } from "@/lib/money";
-import { canAccessScreen } from "@/lib/rbac";
+import { canAccessScreen, canManageShift } from "@/lib/rbac";
 import { salePointKey } from "@/lib/sale-point";
 import { getT, type Translator } from "@/lib/server/locale";
 import {
@@ -12,6 +12,7 @@ import {
   getPosTables,
   type PosTableSummary,
 } from "@/lib/server/pos";
+import { getOpenShift } from "@/lib/server/shift";
 import { getCurrentStaff } from "@/lib/server/staff-session";
 
 /**
@@ -37,9 +38,10 @@ export default async function PosTableMapPage() {
   }
 
   const currency = staff.branch.currency;
-  const [tables, takeawayQueue] = await Promise.all([
+  const [tables, takeawayQueue, openShiftRow] = await Promise.all([
     getPosTables(staff.branchId),
     getOpenSalePointSessions(staff.branchId),
+    getOpenShift(staff.branchId),
   ]);
   const takeawayReady = takeawayQueue.filter((entry) => entry.readyItems > 0).length;
   const openTables = tables.filter((table) => table.session !== null);
@@ -77,6 +79,23 @@ export default async function PosTableMapPage() {
           </div>
         </div>
       </div>
+
+      {/*
+        แถบ "ยังไม่ได้เปิดกะ" (บทที่ 15)
+
+        **ห้ามขวางการขาย** — เป็นแถบข้อความที่กดไปหน้าเปิดกะได้ ไม่ใช่ modal
+        และไม่ปิดปุ่มไหนเลย ระบบกะเป็นเครื่องมือนับเงิน ร้านที่ลืมเปิดกะต้องขายต่อได้
+        (เงินที่รับตอนนี้ถูกนับแยกแล้วโชว์ให้เห็นที่หน้าเปิดกะ)
+
+        อยู่ในโซนที่เลื่อนได้ ไม่ใช่หัวจอ — ของที่เพิ่มในโซน `flex-none`
+        จะไปกินพื้นที่ของโซนที่เลื่อนได้เสมอ (บทเรียนจากบั๊ก "รวมทั้งสิ้นหายจากจอ")
+      */}
+      {openShiftRow === null && canManageShift(staff.role) ? (
+        <Link href="/pos/shift" className="alert flex items-baseline justify-between gap-4">
+          <span>{t("pos.shift.bannerNoShift")}</span>
+          <span className="kicker whitespace-nowrap">{t("pos.shift.bannerAction")} ›</span>
+        </Link>
+      ) : null}
 
       {/*
         แถบซื้อกลับ — ทางเข้าเดียวของบิลที่ไม่ได้อยู่บนโต๊ะ

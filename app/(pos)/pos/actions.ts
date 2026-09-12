@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 
 import { formError, type FormState } from "@/lib/form-state";
 import { canAccessScreen } from "@/lib/rbac";
+import { parseMoneyInput } from "@/lib/money";
 import { salePointBasePath, showsInTableMap } from "@/lib/sale-point";
 import type { SalePointKind } from "@/lib/generated/prisma/enums";
 import { addToCart, placeOrder, setCartLineQuantity } from "@/lib/server/cart";
@@ -20,6 +21,7 @@ import {
   setSessionCustomerName,
 } from "@/lib/server/pos";
 import { recordReceiptPrint } from "@/lib/server/receipt";
+import { closeShift, openShift } from "@/lib/server/shift";
 import { clearStaffMeal, setStaffMeal } from "@/lib/server/staff-meal";
 import { mergeTableSessions, moveTableSession } from "@/lib/server/table-move";
 import { getCurrentStaff, loginStaff, logoutStaff } from "@/lib/server/staff-session";
@@ -611,4 +613,73 @@ export async function clearStaffMealAction(
   refresh();
 
   return { status: "success", messageKey: "msg.staff_meal_cleared" };
+}
+
+/**
+ * เปิดกะ (บทที่ 15)
+ *
+ * เงินทอนตั้งต้นมาจากช่องกรอกจึงเป็นสตริง — แปลงด้วย `parseMoneyInput()` ตัวเดียว
+ * กับที่หน้ารับเงินใช้ **ห้ามคูณ 100 เอง** (`19.99 * 100 === 1998.9999999999998`)
+ */
+export async function openShiftAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requirePosStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const openingFloat = parseMoneyInput(
+    String(formData.get("openingFloat") ?? ""),
+    staff.branch.currency,
+  );
+
+  if (openingFloat === null) {
+    return { status: "error", messageKey: "error.opening_float_invalid" };
+  }
+
+  const result = await openShift(staff, { openingFloat });
+
+  if (!result.ok) {
+    return formError(result);
+  }
+
+  refresh();
+
+  return { status: "success", messageKey: "pos.shift.opened" };
+}
+
+/** ปิดกะแล้วพาไปหน้าใบสรุปทันที — ใบสรุปคือสิ่งที่คนปิดกะต้องการต่อจากนั้นเสมอ */
+export async function closeShiftAction(
+  _prevState: FormState,
+  formData: FormData,
+): Promise<FormState> {
+  const staff = await requirePosStaff();
+
+  if (!staff) {
+    return NOT_SIGNED_IN;
+  }
+
+  const countedCash = parseMoneyInput(
+    String(formData.get("countedCash") ?? ""),
+    staff.branch.currency,
+  );
+
+  if (countedCash === null) {
+    return { status: "error", messageKey: "error.counted_cash_invalid" };
+  }
+
+  const result = await closeShift(staff, {
+    shiftId: String(formData.get("shiftId") ?? ""),
+    countedCash,
+    note: formData.get("note") ? String(formData.get("note")) : null,
+  });
+
+  if (!result.ok) {
+    return formError(result);
+  }
+
+  redirect(`/pos/shift/${result.shiftId}`);
 }

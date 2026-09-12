@@ -79,7 +79,13 @@ const MODULES: Module[] = [
     screen: "admin",
   },
   { num: "05", label: "pos.module.inventory", todo: 14 },
-  { num: "06", label: "pos.module.reports", todo: 15 },
+  {
+    num: "06",
+    label: "pos.module.reports",
+    href: "/pos/shift",
+    isCurrent: (pathname) => pathname.startsWith("/pos/shift"),
+    screen: "pos",
+  },
 ];
 
 /**

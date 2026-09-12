@@ -142,9 +142,15 @@ export async function getShiftReport(branchId: string, shiftId: string) {
   return summarizePayments(shift, payments);
 }
 
-/** แกนกลางที่ทั้ง X report และการปิดกะใช้ร่วมกัน — ห้ามคิดยอดซ้ำอีกที่ */
-function summarizePayments(
-  shift: { id: string; openingFloat: number },
+/**
+ * แกนกลางที่ทั้ง X report และการปิดกะใช้ร่วมกัน — ห้ามคิดยอดซ้ำอีกที่
+ *
+ * generic ที่ `shift` ไม่ใช่ของประดับ: ถ้าประกาศเป็น `{ id, openingFloat }` ตรง ๆ
+ * ผลลัพธ์จะพกแค่สองฟิลด์นั้นออกไป แล้วหน้าจอที่ต้องการ `openedAt` จะพัง
+ * — คืนแถวเต็มที่ผู้เรียกส่งเข้ามา ไม่ใช่ร่างที่ถูกตัดทิ้ง
+ */
+function summarizePayments<S extends { id: string; openingFloat: number }>(
+  shift: S,
   payments: {
     method: PaymentMethod;
     grandTotal: number;
