@@ -129,6 +129,8 @@ export const vi = {
   "error.cannot_manage_shift": "Vị trí của bạn không thể mở hoặc đóng ca",
   "error.opening_float_invalid": "Tiền lẻ đầu ca phải là số nguyên không âm",
   "error.shift_already_open": "Đang có một ca mở — hãy đóng ca đó trước",
+  "error.report_range_invalid": "Khoảng ngày không hợp lệ",
+  "error.report_range_too_long": "Khoảng ngày tối đa là {days} ngày",
   "error.shift_not_found": "Không tìm thấy ca này trong chi nhánh của bạn",
   "error.counted_cash_invalid": "Số tiền kiểm đếm phải là số nguyên không âm",
   "error.cash_difference_needs_note": "Tiền mặt không khớp với hệ thống — vui lòng ghi chú ít nhất 3 ký tự",
