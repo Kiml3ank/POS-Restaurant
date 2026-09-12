@@ -369,15 +369,31 @@ async function main() {
 
   console.log("\n── เมนูขายดี ───────────────────────────────────────────────────\n");
 
+  /**
+   * ⚠ วัด **ส่วนต่าง** จาก baseline เสมอ ไม่ใช่ค่าสัมบูรณ์
+   *
+   * ฐาน dev มีบิลของงานอื่นปนอยู่ได้ (เช่นที่ `npm run dev:sell-bill` สร้างไว้
+   * ให้หน้าจอมีของตอนวัดจอ) — เขียนเทียบตรง ๆ แล้วชุดนี้จะเขียวบนเครื่องที่ฐาน
+   * สะอาดและแดงบนเครื่องที่มีข้อมูล ซึ่งเป็นบั๊กของเทสต์ ไม่ใช่ของโค้ด
+   * (เคสเดียวกับยอดเงินนอกกะใน `smoke:shift`)
+   */
+  const baseItems = beforeReport.itemsSold;
+  const baseKrapao =
+    beforeReport.byItem.find((row) => row.menuItemId === KRAPAO)?.quantity ?? 0;
+
   const itemRow = edged.byItem.find((row) => row.menuItemId === KRAPAO);
   check("เมนูที่ขายไปโผล่ในลิสต์", itemRow !== undefined);
   check(
-    "จำนวนชิ้นรวมถูกต้อง (2 + 1 + 3 + 1 = 7 ชิ้นจากบิลที่อยู่ในช่วง)",
-    itemRow?.quantity === 7,
-    `${itemRow?.quantity}`,
+    "จำนวนชิ้นของเมนูเพิ่มขึ้น 7 (2 + 1 + 3 + 1 จากบิลที่อยู่ในช่วง)",
+    (itemRow?.quantity ?? 0) - baseKrapao === 7,
+    `${(itemRow?.quantity ?? 0) - baseKrapao}`,
   );
   check("ใช้ชื่อที่ snapshot ไว้ ไม่ใช่ join เมนูสด", typeof itemRow?.name === "string");
-  check("itemsSold รวมเท่ากับผลรวมของลิสต์", edged.itemsSold === 7, `${edged.itemsSold}`);
+  check(
+    "itemsSold รวมเพิ่มขึ้นเท่ากัน",
+    edged.itemsSold - baseItems === 7,
+    `${edged.itemsSold - baseItems}`,
+  );
 
   // ── บิลที่ยังไม่จ่ายต้องไม่ถูกนับ ──
   const openedForUnpaid = await openTableByStaff(cashier, table.id, 2);
@@ -407,8 +423,8 @@ async function main() {
 
   check(
     "ของในบิลที่ยังไม่จ่ายไม่ถูกนับ (ต่างจากหน้าสรุปวันนี้โดยตั้งใจ)",
-    withUnpaid.itemsSold === 7,
-    `${withUnpaid.itemsSold}`,
+    withUnpaid.itemsSold - baseItems === 7,
+    `${withUnpaid.itemsSold - baseItems}`,
   );
   check("บิลที่ยังไม่จ่ายไม่ทำให้รายได้ขยับ", withUnpaid.revenue === edged.revenue);
 
@@ -426,9 +442,9 @@ async function main() {
   const withCancelled = await getSalesReport(branchId, range, timezone);
 
   check(
-    "รายการที่ถูกยกเลิกหายไปจากจำนวนชิ้น",
-    withCancelled.itemsSold === 5,
-    `${withCancelled.itemsSold}`,
+    "รายการที่ถูกยกเลิกหายไปจากจำนวนชิ้น (7 − 2 ของบิลที่ยกเลิก)",
+    withCancelled.itemsSold - baseItems === 5,
+    `${withCancelled.itemsSold - baseItems}`,
   );
   check(
     "แต่เงินที่รับไปแล้วยังอยู่ในรายได้ (ยกเลิกรายการไม่ใช่การคืนเงิน)",
