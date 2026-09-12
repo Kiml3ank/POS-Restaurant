@@ -373,3 +373,23 @@ export async function closeShift(
 
   return result;
 }
+
+/**
+ * ประวัติกะย้อนหลังของสาขา — ใหม่สุดอยู่บนสุด
+ *
+ * ไม่แบ่งหน้าเหมือน `/admin/receipts` เพราะกะเกิดวันละหนึ่งถึงสามใบ
+ * (60 ใบ ≈ สองเดือน) — ถ้าวันหนึ่งร้านมีหลายสาขาในหน้าเดียวค่อยเพิ่ม
+ */
+export async function listShifts(branchId: string, options: { limit?: number } = {}) {
+  return prisma.shift.findMany({
+    where: { branchId },
+    orderBy: { openedAt: "desc" },
+    take: options.limit ?? 60,
+    include: {
+      openedByStaff: { select: { name: true } },
+      closedByStaff: { select: { name: true } },
+    },
+  });
+}
+
+export type ShiftListRow = Awaited<ReturnType<typeof listShifts>>[number];

@@ -11,6 +11,7 @@ import {
   getOpenShift,
   getShift,
   getShiftReport,
+  listShifts,
   openShift,
 } from "@/lib/server/shift";
 import type { CurrentStaff } from "@/lib/server/staff-session";
@@ -384,6 +385,26 @@ async function main() {
     where: { id: branchId },
     data: { vatRateBp: branchBefore.vatRateBp },
   });
+
+  console.log("\n── ประวัติกะ ───────────────────────────────────────────────────\n");
+
+  const list = await listShifts(branchId);
+  check(
+    "ลิสต์กะย้อนหลังเจอกะที่เพิ่งปิด",
+    list.some((row) => row.id === shiftId),
+  );
+  check("ลิสต์เรียงจากใหม่ไปเก่า", list.length < 2 || list[0].openedAt >= list[1].openedAt);
+  check(
+    "ลิสต์แนบส่วนต่างเงินสดมาด้วย (คอลัมน์ที่ผู้จัดการต้องกวาดตาหา)",
+    list.find((row) => row.id === shiftId)?.cashDifference === -5000,
+  );
+
+  if (otherBranch) {
+    check(
+      "ลิสต์ไม่ข้ามสาขา",
+      (await listShifts(otherBranch.id)).every((row) => row.id !== shiftId),
+    );
+  }
 
   console.log("\n── ล้างข้อมูลที่สร้างระหว่างทดสอบ ───────────────────────────────\n");
 
