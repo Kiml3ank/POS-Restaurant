@@ -5,7 +5,7 @@ import { addToCart, placeOrder } from "@/lib/server/cart";
 import { prisma } from "@/lib/server/db";
 import { takePayment } from "@/lib/server/payment";
 import { openTableByStaff } from "@/lib/server/pos";
-import { getOpenShift, openShift } from "@/lib/server/shift";
+import { getCashOutsideShift, getOpenShift, getShiftReport, openShift } from "@/lib/server/shift";
 import type { CurrentStaff } from "@/lib/server/staff-session";
 
 /**
@@ -152,6 +152,15 @@ async function main() {
     },
   });
 
+  /**
+   * เงินสดนอกกะที่ "มีอยู่ก่อนแล้ว" ในฐาน dev — ชุดนี้วัด **ส่วนต่าง** ไม่ใช่ค่าสัมบูรณ์
+   *
+   * `getCashOutsideShift()` นับทุกแถวที่ `shiftId = null` ของสาขา ซึ่งถูกต้องตาม
+   * ที่ spec เขียนไว้ แต่แปลว่าเลขจะเปลี่ยนตามของที่ค้างอยู่ในฐานของแต่ละเครื่อง
+   * ถ้าเขียนเทียบค่าตรง ๆ เทสต์จะเขียวบนเครื่องที่ฐานสะอาดและแดงบนเครื่องที่มีข้อมูล
+   */
+  const outsideBefore = await getCashOutsideShift(branchId);
+
   console.log("── ผูกบิลเข้ากับกะ ─────────────────────────────────────────────\n");
 
   // ยังไม่มีกะเปิด → บิลต้องขายได้ตามปกติ และ shiftId ต้องเป็น null
@@ -224,6 +233,66 @@ async function main() {
   const openMeta = (openLog?.metadata ?? {}) as Record<string, unknown>;
   check("เขียน AuditLog ตอนเปิดกะ", openLog !== null);
   check("AuditLog เก็บเงินทอนตั้งต้น", openMeta.openingFloat === 100000);
+
+  console.log("\n── X report ────────────────────────────────────────────────────\n");
+
+  const shiftId = opened.ok ? opened.shiftId : "";
+
+  const cash1 = await sellOneBill(cashier, table.id, "CASH", 2);
+  const cash2 = await sellOneBill(cashier, table.id, "CASH", 1);
+  const qr1 = await sellOneBill(cashier, table.id, "QR", 3);
+
+  const report = await getShiftReport(branchId, shiftId);
+
+  check("อ่าน X report ได้", report !== null);
+  check(
+    "ยอดขายรวมนับทุกช่องทางการจ่าย",
+    report!.salesTotal === cash1.total + cash2.total + qr1.total,
+    `${report!.salesTotal} vs ${cash1.total + cash2.total + qr1.total}`,
+  );
+  check("จำนวนบิลถูกต้อง", report!.billCount === 3, `${report!.billCount}`);
+  check(
+    "ยอดเงินสดนับเฉพาะบิลเงินสด (QR ไม่เข้าลิ้นชัก)",
+    report!.cashTotal === cash1.total + cash2.total,
+    `${report!.cashTotal} vs ${cash1.total + cash2.total}`,
+  );
+  check(
+    "เงินสดที่ควรมี = เงินทอนตั้งต้น + ยอดขายเงินสด",
+    report!.expectedCash === 100000 + cash1.total + cash2.total,
+    `${report!.expectedCash}`,
+  );
+  check(
+    "ใช้ grandTotal ไม่ใช่ receivedAmount (บิลจ่ายเกินแล้วทอนต้องไม่ทำให้ยอดพอง)",
+    report!.expectedCash < 100000 + cash1.total + cash2.total + 10000,
+  );
+  check(
+    "แยกตามวิธีจ่ายถูกต้อง",
+    report!.byMethod.CASH.count === 2 && report!.byMethod.QR.count === 1,
+    `CASH ${report!.byMethod.CASH.count} · QR ${report!.byMethod.QR.count}`,
+  );
+  check(
+    "แยกตามช่องทางขายถูกต้อง (โต๊ะนั่งสามใบ)",
+    report!.bySalePoint.DINE_IN.count === 3,
+    `${report!.bySalePoint.DINE_IN.count}`,
+  );
+
+  // บิลใบแรกของไฟล์นี้ถูกรับตอนไม่มีกะ — ต้องไม่ถูกนับเข้ากะ แต่ต้องมองเห็นได้
+  check("เงินที่รับนอกกะไม่ถูกนับเข้ากะ", report!.billCount === 3);
+
+  const outsideCash = await getCashOutsideShift(branchId);
+  check(
+    "รายงานเงินสดนอกกะให้เห็นได้",
+    outsideCash.count === outsideBefore.count + 2 &&
+      outsideCash.total === outsideBefore.total + outside.total + afterClose.total,
+    `${outsideCash.count} บิล ${outsideCash.total} (ก่อนหน้า ${outsideBefore.count}/${outsideBefore.total})`,
+  );
+  check("บอกช่วงเวลาของเงินนอกกะได้", outsideCash.firstAt !== null && outsideCash.lastAt !== null);
+
+  check("X report ของกะที่ไม่มีอยู่คืน null", (await getShiftReport(branchId, "ไม่มีจริง")) === null);
+
+  if (otherBranch) {
+    check("X report ข้ามสาขาคืน null", (await getShiftReport(otherBranch.id, shiftId)) === null);
+  }
 
   console.log("\n── ล้างข้อมูลที่สร้างระหว่างทดสอบ ───────────────────────────────\n");
 
