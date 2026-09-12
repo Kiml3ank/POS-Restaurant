@@ -56,7 +56,16 @@ export type RealtimeEventType =
    *
    * `tableId: null` เสมอ เพราะเป็นเรื่องระดับสาขา ไม่ผูกโต๊ะใดโต๊ะหนึ่ง
    */
-  | "menu.changed";
+  | "menu.changed"
+
+  /**
+   * เปิด/ปิดกะ (บทที่ 15) — event ระดับสาขา (`tableId: null`)
+   *
+   * **ห้ามใส่ใน CUSTOMER_BROADCAST_EVENTS** — "ปิดกะแล้ว" บอกลูกค้าได้ว่าร้าน
+   * สรุปยอดไปแล้ว ซึ่งเป็นข้อมูลของร้าน ไม่ใช่ของลูกค้า (คอมเมนต์ที่รายชื่อนั้น
+   * ยกกะเป็นตัวอย่างไว้ตั้งแต่ก่อนบทนี้จะถูกเขียน)
+   */
+  | "shift.changed";
 
 export type RealtimeEvent = {
   v: typeof REALTIME_EVENT_VERSION;

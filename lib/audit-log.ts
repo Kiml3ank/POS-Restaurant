@@ -47,6 +47,8 @@ const AUDIT_ACTION_KEYS: Record<string, MessageKey> = {
   "staff.pin_reset": "audit.action.staff_pin_reset",
   "staff.deactivate": "audit.action.staff_deactivate",
   "staff.activate": "audit.action.staff_activate",
+  "shift.open": "audit.action.shift_open",
+  "shift.close": "audit.action.shift_close",
   "settings.tax_update": "audit.action.settings_tax",
   "settings.business_update": "audit.action.settings_business",
   "settings.station_upsert": "audit.action.settings_station_upsert",

@@ -5,6 +5,7 @@ import { addToCart, placeOrder } from "@/lib/server/cart";
 import { prisma } from "@/lib/server/db";
 import { takePayment } from "@/lib/server/payment";
 import { openTableByStaff } from "@/lib/server/pos";
+import { getOpenShift, openShift } from "@/lib/server/shift";
 import type { CurrentStaff } from "@/lib/server/staff-session";
 
 /**
@@ -186,6 +187,43 @@ async function main() {
     select: { shiftId: true },
   });
   check("บิลที่รับหลังปิดกะไม่ตกไปอยู่ในกะที่ปิดแล้ว", afterRow.shiftId === null);
+
+  console.log("\n── เปิดกะ ──────────────────────────────────────────────────────\n");
+
+  const kitchen = await loadStaff("seed-staff-kitchen");
+  const noRight = await openShift(kitchen, { openingFloat: 100000 });
+  check("ครัวเปิดกะไม่ได้", noRight.ok === false, noRight.ok ? "" : noRight.errorKey);
+
+  const badFloat = await openShift(cashier, { openingFloat: -1 });
+  check("เงินทอนตั้งต้นติดลบ = error", badFloat.ok === false, badFloat.ok ? "" : badFloat.errorKey);
+
+  const opened = await openShift(cashier, { openingFloat: 100000 });
+  check("เปิดกะสำเร็จ", opened.ok === true, opened.ok ? "" : opened.errorKey);
+
+  const current = await getOpenShift(branchId);
+  check("getOpenShift() เจอกะที่เพิ่งเปิด", current?.id === (opened.ok ? opened.shiftId : ""));
+  check("เก็บเงินทอนตั้งต้นไว้ถูก", current?.openingFloat === 100000, `${current?.openingFloat}`);
+  check("บันทึกคนเปิดกะ", current?.openedByStaffId === cashier.id);
+
+  const twice = await openShift(cashier, { openingFloat: 50000 });
+  check("เปิดกะซ้อนขณะมีกะเปิดอยู่ = error", twice.ok === false, twice.ok ? "" : twice.errorKey);
+  check(
+    "เปิดซ้อนไม่สำเร็จแล้วต้องไม่มีกะที่สองค้างในฐาน",
+    (await prisma.shift.count({ where: { branchId, status: "OPEN" } })) === 1,
+  );
+
+  const otherBranch = await prisma.branch.findFirst({ where: { id: { not: branchId } } });
+
+  if (otherBranch) {
+    check("กะของสาขาอื่นไม่โผล่มาที่สาขานี้", (await getOpenShift(otherBranch.id)) === null);
+  }
+
+  const openLog = await prisma.auditLog.findFirst({
+    where: { action: "shift.open", entityId: opened.ok ? opened.shiftId : "" },
+  });
+  const openMeta = (openLog?.metadata ?? {}) as Record<string, unknown>;
+  check("เขียน AuditLog ตอนเปิดกะ", openLog !== null);
+  check("AuditLog เก็บเงินทอนตั้งต้น", openMeta.openingFloat === 100000);
 
   console.log("\n── ล้างข้อมูลที่สร้างระหว่างทดสอบ ───────────────────────────────\n");
 

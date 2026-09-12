@@ -295,3 +295,26 @@ export function canViewDashboard(role: StaffRole): boolean {
 export function canMoveTableSession(role: StaffRole): boolean {
   return canAccessScreen(role, "pos");
 }
+
+/**
+ * เปิด/ปิดกะ และดู X report (บทที่ 15)
+ *
+ * ชุดเดียวกับ canTakePayment() โดยตั้งใจ — **คนถือลิ้นชักคือคนนับเงิน**
+ * ถ้าให้เฉพาะผู้จัดการปิดกะ ร้านที่ผู้จัดการกลับก่อนจะปิดกะไม่ได้เลย
+ * แล้วเงินจะค้างอยู่ในกะที่ไม่มีวันปิด ซึ่งแย่กว่าการให้แคชเชียร์ปิดเอง
+ * (ตัวคุมคือ AuditLog ที่เก็บส่วนต่างทุกครั้ง + หน้าประวัติที่ผู้จัดการอ่านย้อนหลังได้)
+ */
+export function canManageShift(role: StaffRole): boolean {
+  return canTakePayment(role);
+}
+
+/**
+ * เปิดหน้าประวัติกะย้อนหลังทั้งสาขา (บทที่ 15)
+ *
+ * **แคบกว่า canManageShift() ด้วยเหตุผลเดียวกับ canBrowseReceipts():**
+ * ปิดกะของตัวเอง = งานประจำวันของคนถือลิ้นชัก · ลิสต์ทุกกะย้อนหลัง =
+ * เห็นยอดขายทั้งร้านและส่วนต่างเงินสดของเพื่อนร่วมงานทุกคน
+ */
+export function canViewShiftHistory(role: StaffRole): boolean {
+  return role === "OWNER" || role === "MANAGER";
+}
