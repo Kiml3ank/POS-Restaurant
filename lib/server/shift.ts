@@ -227,3 +227,143 @@ export async function getCashOutsideShift(branchId: string) {
     lastAt: rows._max.paidAt,
   };
 }
+
+/** กะใบหนึ่งพร้อม snapshot ที่บันทึกไว้ตอนปิด — ห้ามคิดยอดใหม่จากตรงนี้ */
+export async function getShift(branchId: string, shiftId: string) {
+  return prisma.shift.findFirst({
+    where: { id: shiftId, branchId },
+    include: {
+      openedByStaff: { select: { name: true } },
+      closedByStaff: { select: { name: true } },
+      branch: { select: { name: true, currency: true, timezone: true } },
+    },
+  });
+}
+
+export async function closeShift(
+  staff: CurrentStaff,
+  input: { shiftId: string; countedCash: number; note?: string | null },
+): Promise<{ ok: true; shiftId: string; alreadyClosed: boolean } | ShiftFailure> {
+  if (!canManageShift(staff.role)) {
+    return { ok: false, errorKey: "error.cannot_manage_shift" };
+  }
+
+  if (!Number.isInteger(input.countedCash) || input.countedCash < 0) {
+    return { ok: false, errorKey: "error.counted_cash_invalid" };
+  }
+
+  const note = input.note?.trim() ?? "";
+
+  const result = await prisma.$transaction(
+    async (tx): Promise<{ ok: true; shiftId: string; alreadyClosed: boolean } | ShiftFailure> => {
+      /**
+       * อ่านและตรวจก่อน แต่ยังไม่เขียน — ต้องรู้ยอดก่อนถึงจะตัดสินได้ว่า
+       * "ส่วนต่างไม่เป็นศูนย์แล้วไม่มีหมายเหตุ" ซึ่งเป็นเหตุผลที่ปฏิเสธได้
+       */
+      const shift = await tx.shift.findFirst({
+        where: { id: input.shiftId, branchId: staff.branchId },
+      });
+
+      if (!shift) {
+        return { ok: false, errorKey: "error.shift_not_found" };
+      }
+
+      if (shift.status === "CLOSED") {
+        // กดซ้ำ = คืนใบเดิม ไม่ใช่ error (ท่าเดียวกับกันจ่ายซ้ำของบทที่ 11)
+        return { ok: true, shiftId: shift.id, alreadyClosed: true };
+      }
+
+      const payments = await tx.payment.findMany({
+        where: { shiftId: shift.id, branchId: staff.branchId },
+        select: {
+          method: true,
+          grandTotal: true,
+          discountAmount: true,
+          staffCustomerId: true,
+          tableSession: { select: { table: { select: { kind: true } } } },
+        },
+      });
+
+      const summary = summarizePayments(shift, payments);
+      const difference = input.countedCash - summary.expectedCash;
+
+      /**
+       * ส่วนต่างที่ไม่มีคำอธิบายคือสิ่งที่ตรวจสอบย้อนหลังไม่ได้เลย
+       *
+       * บังคับกรอกตรงนี้ ไม่ใช่แค่ที่หน้าจอ เพราะ action ถูกยิงตรงด้วย POST ได้
+       */
+      if (difference !== 0 && note.length < 3) {
+        return { ok: false, errorKey: "error.cash_difference_needs_note" };
+      }
+
+      /**
+       * ปิดแบบมีเงื่อนไข = คำสั่งที่ทั้งตรวจและเขียนในครั้งเดียว
+       *
+       * สองเครื่องที่กดปิดพร้อมกัน เครื่องที่สองรอ row lock แล้วอ่าน WHERE ใหม่
+       * (Postgres READ COMMITTED) ได้ count = 0 → คืนใบเดิม ไม่ใช่เขียนทับตัวเลข
+       * ของเครื่องแรกด้วยยอดที่นับคนละครั้ง
+       *
+       * การรวมยอดอยู่ในทรานแซกชันเดียวกับการปิด — ถ้าแยกออกไป บิลที่จ่าย
+       * ระหว่างนั้นจะหายจากทั้งสองกะ (ไม่อยู่ในใบที่ปิด เพราะรวมยอดไปก่อนแล้ว ·
+       * ไม่อยู่ในกะถัดไป เพราะ shiftId ชี้กะที่ปิดไปแล้ว)
+       */
+      const claimed = await tx.shift.updateMany({
+        where: { id: shift.id, branchId: staff.branchId, status: "OPEN" },
+        data: {
+          status: "CLOSED",
+          closedAt: new Date(),
+          closedByStaffId: staff.id,
+          countedCash: input.countedCash,
+          expectedCash: summary.expectedCash,
+          cashDifference: difference,
+          salesTotal: summary.salesTotal,
+          billCount: summary.billCount,
+          breakdown: {
+            byMethod: summary.byMethod,
+            bySalePoint: summary.bySalePoint,
+            discountTotal: summary.discountTotal,
+            staffMealCount: summary.staffMealCount,
+          },
+          note: note.length > 0 ? note : null,
+        },
+      });
+
+      if (claimed.count === 0) {
+        return { ok: true, shiftId: shift.id, alreadyClosed: true };
+      }
+
+      await tx.auditLog.create({
+        data: {
+          branchId: staff.branchId,
+          staffId: staff.id,
+          action: "shift.close",
+          entityType: "shift",
+          entityId: shift.id,
+          metadata: {
+            expectedCash: summary.expectedCash,
+            countedCash: input.countedCash,
+            cashDifference: difference,
+            salesTotal: summary.salesTotal,
+            billCount: summary.billCount,
+            note: note.length > 0 ? note : null,
+          },
+        },
+      });
+
+      return { ok: true, shiftId: shift.id, alreadyClosed: false };
+    },
+  );
+
+  // ยิงหลัง commit เสมอ — ห้าม publish ข้างใน $transaction (กฎ CLAUDE.md บทที่ 8)
+  if (result.ok && !result.alreadyClosed) {
+    await publishRealtimeEvent({
+      v: REALTIME_EVENT_VERSION,
+      type: "shift.changed",
+      branchId: staff.branchId,
+      tableId: null,
+      at: Date.now(),
+    });
+  }
+
+  return result;
+}

@@ -5,7 +5,14 @@ import { addToCart, placeOrder } from "@/lib/server/cart";
 import { prisma } from "@/lib/server/db";
 import { takePayment } from "@/lib/server/payment";
 import { openTableByStaff } from "@/lib/server/pos";
-import { getCashOutsideShift, getOpenShift, getShiftReport, openShift } from "@/lib/server/shift";
+import {
+  closeShift,
+  getCashOutsideShift,
+  getOpenShift,
+  getShift,
+  getShiftReport,
+  openShift,
+} from "@/lib/server/shift";
 import type { CurrentStaff } from "@/lib/server/staff-session";
 
 /**
@@ -293,6 +300,90 @@ async function main() {
   if (otherBranch) {
     check("X report ข้ามสาขาคืน null", (await getShiftReport(otherBranch.id, shiftId)) === null);
   }
+
+  console.log("\n── ปิดกะ ───────────────────────────────────────────────────────\n");
+
+  const expectedBefore = report!.expectedCash;
+
+  const noRightClose = await closeShift(kitchen, { shiftId, countedCash: expectedBefore });
+  check("ครัวปิดกะไม่ได้", noRightClose.ok === false, noRightClose.ok ? "" : noRightClose.errorKey);
+
+  // ส่วนต่างไม่เป็นศูนย์แต่ไม่กรอกเหตุผล = ไม่ยอมปิด
+  const noNote = await closeShift(cashier, { shiftId, countedCash: expectedBefore - 5000 });
+  check(
+    "ส่วนต่างไม่เป็นศูนย์แล้วไม่กรอกหมายเหตุ = error",
+    noNote.ok === false,
+    noNote.ok ? "" : noNote.errorKey,
+  );
+  check(
+    "ปฏิเสธแล้วกะต้องยังเปิดอยู่",
+    (await prisma.shift.findUniqueOrThrow({ where: { id: shiftId } })).status === "OPEN",
+  );
+
+  const closed = await closeShift(cashier, {
+    shiftId,
+    countedCash: expectedBefore - 5000,
+    note: "ทอนผิดตอนบ่าย",
+  });
+  check("ปิดกะสำเร็จ", closed.ok === true, closed.ok ? "" : closed.errorKey);
+
+  const snapshot = await prisma.shift.findUniqueOrThrow({ where: { id: shiftId } });
+  check("สถานะเป็น CLOSED", snapshot.status === "CLOSED", snapshot.status);
+  check("บันทึกเวลาและคนปิด", snapshot.closedAt !== null && snapshot.closedByStaffId === cashier.id);
+  check("snapshot เงินที่ควรมี", snapshot.expectedCash === expectedBefore, `${snapshot.expectedCash}`);
+  check("snapshot เงินที่นับได้", snapshot.countedCash === expectedBefore - 5000);
+  check("ส่วนต่างเป็นลบเมื่อเงินขาด", snapshot.cashDifference === -5000, `${snapshot.cashDifference}`);
+  check(
+    "snapshot ยอดขายและจำนวนบิล",
+    snapshot.salesTotal === report!.salesTotal && snapshot.billCount === 3,
+  );
+  check("เก็บหมายเหตุไว้", snapshot.note === "ทอนผิดตอนบ่าย");
+
+  const breakdown = (snapshot.breakdown ?? {}) as {
+    byMethod?: Record<string, { count: number; total: number }>;
+  };
+  check(
+    "breakdown เก็บยอดแยกวิธีจ่าย",
+    breakdown.byMethod?.CASH?.count === 2 && breakdown.byMethod?.QR?.count === 1,
+  );
+
+  const again = await closeShift(cashier, { shiftId, countedCash: 1, note: "กดซ้ำ" });
+  check("ปิดกะที่ปิดไปแล้ว = คืนใบเดิม ไม่ใช่ error", again.ok === true && again.alreadyClosed);
+  check(
+    "กดซ้ำแล้วตัวเลขเดิมต้องไม่ถูกเขียนทับ",
+    (await prisma.shift.findUniqueOrThrow({ where: { id: shiftId } })).countedCash ===
+      expectedBefore - 5000,
+  );
+
+  const closeLog = await prisma.auditLog.findFirst({
+    where: { action: "shift.close", entityId: shiftId },
+  });
+  const closeMeta = (closeLog?.metadata ?? {}) as Record<string, unknown>;
+  check("เขียน AuditLog ตอนปิดกะ", closeLog !== null);
+  check(
+    "AuditLog เก็บส่วนต่างเงินสด (ตัวเลขที่ต้องสืบย้อนได้)",
+    closeMeta.expectedCash === expectedBefore &&
+      closeMeta.countedCash === expectedBefore - 5000 &&
+      closeMeta.cashDifference === -5000,
+  );
+
+  check("getShift() อ่านกะที่ปิดแล้วได้", (await getShift(branchId, shiftId))?.id === shiftId);
+  check(
+    "X report ไม่รับกะที่ปิดแล้ว (มีทางอ่านทางเดียว)",
+    (await getShiftReport(branchId, shiftId)) === null,
+  );
+
+  // ── ตัวเลขที่ปิดไปแล้วต้องไม่ขยับ แม้แก้อัตราภาษีทีหลัง ──
+  const branchBefore = await prisma.branch.findUniqueOrThrow({ where: { id: branchId } });
+  await prisma.branch.update({ where: { id: branchId }, data: { vatRateBp: 1400 } });
+  check(
+    "แก้ VAT แล้วยอดในใบสรุปกะที่ปิดแล้วไม่ขยับ",
+    (await getShift(branchId, shiftId))?.salesTotal === report!.salesTotal,
+  );
+  await prisma.branch.update({
+    where: { id: branchId },
+    data: { vatRateBp: branchBefore.vatRateBp },
+  });
 
   console.log("\n── ล้างข้อมูลที่สร้างระหว่างทดสอบ ───────────────────────────────\n");
 
