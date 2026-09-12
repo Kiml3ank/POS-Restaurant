@@ -35,6 +35,7 @@
     "smoke:settings": "tsx --conditions=react-server scripts/smoke-settings.ts",
     "smoke:dashboard": "tsx --conditions=react-server scripts/smoke-dashboard.ts",
     "smoke:table-move": "tsx --conditions=react-server scripts/smoke-table-move.ts",
+    "smoke:shift": "tsx --conditions=react-server scripts/smoke-shift.ts",
     "smoke:tables": "tsx --conditions=react-server scripts/smoke-tables.ts",
     "smoke:i18n": "tsx --conditions=react-server scripts/smoke-i18n.ts"
   },

@@ -9,6 +9,7 @@ import { BILLABLE_ORDER_STATUSES } from "@/lib/server/billing";
 import { prisma } from "@/lib/server/db";
 import { publishRealtimeEvent } from "@/lib/server/realtime";
 import { issueReceipt } from "@/lib/server/receipt-issue";
+import { resolveOpenShiftId } from "@/lib/server/shift-current";
 import { staffMealDiscountAmount } from "@/lib/server/staff-meal";
 import type { CurrentStaff } from "@/lib/server/staff-session";
 import type { MessageParams } from "@/lib/i18n/translate";
@@ -292,6 +293,14 @@ export async function takePayment(
     // เงินทอนเป็นการลบจำนวนเต็มล้วน ไม่มีการหาร/ปัดเศษที่ไหนเลย
     const change = received === null ? null : received - bill.grandTotal;
 
+    /**
+     * กะที่เงินก้อนนี้ตกอยู่ (บทที่ 15) — อ่านในทรานแซกชันเสมอ ห้ามอ่านไว้ก่อน
+     *
+     * null ได้ตามปกติ: ร้านที่ยังไม่เปิดกะก็ต้องขายได้ ระบบกะเป็นเครื่องมือนับเงิน
+     * ไม่ใช่ด่านที่ขวางการรับเงิน (เงินพวกนี้ถูกนับแยกและแสดงบนหน้าเปิดกะ)
+     */
+    const shiftId = await resolveOpenShiftId(tx, staff.branchId);
+
     const payment = await tx.payment.create({
       data: {
         branchId: staff.branchId,
@@ -315,6 +324,7 @@ export async function takePayment(
         discountBp,
         staffCustomerId: flagged?.staffCustomerId ?? null,
         paidByStaffId: staff.id,
+        shiftId,
         paidAt,
       },
       select: { id: true },
