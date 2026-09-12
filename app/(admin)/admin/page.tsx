@@ -209,6 +209,11 @@ export default async function AdminHomePage() {
             {t("admin.shifts.link")} ›
           </Link>
 
+          {/* ทางเข้าเดียวของรายงานย้อนหลัง — เหตุผลเดียวกับประวัติกะ ไม่เพิ่มโมดูลที่เจ็ด */}
+          <Link href="/admin/reports" className="kicker">
+            {t("admin.reports.link")} ›
+          </Link>
+
           {/*
             บอกตรง ๆ ว่าอะไรยังไม่มีและเพราะอะไร ดีกว่าปล่อยช่องว่างหรือใส่ตัวเลขปลอม
             — ช่องที่ขึ้น "—" ตลอดกาลทำให้คนเลิกดูทั้งหน้า

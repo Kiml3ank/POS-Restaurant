@@ -318,3 +318,13 @@ export function canManageShift(role: StaffRole): boolean {
 export function canViewShiftHistory(role: StaffRole): boolean {
   return role === "OWNER" || role === "MANAGER";
 }
+
+/**
+ * เปิดหน้ารายงานยอดขายย้อนหลัง (spec §18)
+ *
+ * ชุดเดียวกับ `canBrowseReceipts` / `canViewShiftHistory` — รายงานเปิดยอดขาย
+ * ทั้งสาขาและยอดต่อพนักงานรายคน ซึ่งเป็นข้อมูลของเจ้าของร้าน ไม่ใช่ของคนขาย
+ */
+export function canViewReports(role: StaffRole): boolean {
+  return role === "OWNER" || role === "MANAGER";
+}

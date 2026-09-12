@@ -18,6 +18,7 @@
     "dev:staff-cookie": "tsx --conditions=react-server scripts/dev-staff-cookie.ts",
     "dev:reset-table": "tsx --conditions=react-server scripts/dev-reset-table.ts",
     "dev:emit": "tsx --conditions=react-server scripts/dev-emit-event.ts",
+    "dev:sell-bill": "tsx --conditions=react-server scripts/dev-sell-bill.ts",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:reset": "docker compose down -v && docker compose up -d",
